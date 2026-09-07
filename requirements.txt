@@ -1,0 +1,11 @@
+# AI-Task — "ask my documents" RAG app (Weeks 3-6)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+pydantic-settings>=2.2
+python-dotenv>=1.0
+openai>=1.30
+chromadb>=0.5
+langchain-text-splitters>=0.2
+pypdf>=4.2
+# Optional (local embeddings alternative): sentence-transformers, torch
