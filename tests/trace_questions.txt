@@ -1,0 +1,74 @@
+# Week 5 — the question bank used to build a population of real traces.
+# One question per line. Lines starting with # and blank lines are ignored.
+#
+# Run it with:  python scripts/ask_batch.py
+# Every question goes through the normal answer path, so each one is logged as a
+# trace. Week 5 then draws a random sample from those traces.
+#
+# Why more questions than the 20 you need: sampling 20 out of 20 is not sampling.
+# A larger population is what makes the random draw meaningful, which is exactly
+# what the mentor checks first ("did they read a fair sample?").
+#
+# The mix is deliberate — clear questions, questions whose answer is in two
+# documents, questions that are not in the corpus at all, and vague questions a
+# real user would actually type. The vague ones are where the interesting
+# failures live.
+
+# --- leave ---
+How many annual leave days do full-time employees get?
+How many unused leave days can I carry over to next year?
+What happens to unused leave days on 31 December?
+How far in advance do I have to request leave?
+Who approves my leave request?
+Can I take leave during the December code-freeze?
+
+# --- remote work ---
+How many days a week can I work remotely?
+How many days must I be in the office?
+Which day is the company-wide collaboration day?
+What do I need for a fully remote arrangement?
+How often is a fully remote arrangement reviewed?
+
+# --- benefits ---
+What is the pension match?
+When does the pension match start?
+What is the annual learning budget?
+Is health insurance covered for my dependents?
+When do my benefits begin?
+
+# --- expenses ---
+What is the daily meal limit while travelling?
+How much can I claim for home-office equipment?
+What is the limit for client entertainment?
+When does an expense need pre-approval?
+How long do I have to submit an expense?
+When are reimbursements paid?
+
+# --- security ---
+How long must my password be?
+How often must passwords be rotated?
+Is MFA mandatory?
+Who do I report a security incident to?
+How quickly must I report a security incident?
+Can I copy customer data to my personal cloud storage?
+
+# --- product support ---
+What does error ERR-4032 mean?
+How long is a password reset link valid?
+What is the data refresh interval on the Pro plan?
+How long is analytics data retained on the Standard plan?
+What should I check in Settings > Connections?
+
+# --- not in the corpus: the app should refuse these ---
+What is the company's parental leave policy?
+How many sick days do employees get?
+What is the notice period for resignation?
+Is there an annual bonus scheme?
+What is the dress code?
+
+# --- vague, the way real users ask ---
+What are my spending limits?
+What are the rules about time off?
+Tell me about security.
+What is the policy?
+How much can I claim?

@@ -23,6 +23,7 @@ AI-Task/
 │   ├── config.py            all settings (models, chunk size, top-K, mode, paths)
 │   ├── models.py            the shapes of a request and a response
 │   ├── tracing.py           writes + reads a full record of every request
+│   ├── worksheet.py         (wk5) parses the hand-filled error-analysis notes
 │   ├── main.py              the FastAPI web server (endpoints, incl. /inspect)
 │   └── rag/                 the pipeline — ONE FILE PER STAGE:
 │       ├── loader.py          1. read files          → text
@@ -42,7 +43,11 @@ AI-Task/
 │   ├── compare_chunks.py    compare two chunk sizes (check #4, automated)
 │   ├── inspect_traces.py    (wk4) question / fetched / answer, side by side
 │   ├── diagnose_failures.py (wk4) label every case with evidence
-│   └── eval_retrieval.py    (wk4) hit-rate@3 before vs after, and what stayed broken
+│   ├── eval_retrieval.py    (wk4) hit-rate@3 before vs after, and what stayed broken
+│   ├── ask_batch.py         (wk5) run a question bank so traces accumulate
+│   ├── sample_traces.py     (wk5) seeded fair sample → the reading worksheet
+│   ├── code_notes.py        (wk5) notes → named groups (refuses if notes are unfinished)
+│   └── rank_problems.py     (wk5) rank groups by frequency x severity
 │
 ├── data/                  ← not code — the app's data
 │   ├── corpus/              YOUR DOCUMENTS GO HERE (PDF / txt / md)
@@ -51,7 +56,8 @@ AI-Task/
 │
 └── tests/
     ├── questions.md         your ~10 test questions (week 3)
-    └── eval_set.py          (wk4) the same idea, labelled so a script can score it
+    ├── eval_set.py          (wk4) the same idea, labelled so a script can score it
+    └── trace_questions.txt  (wk5) ~40 questions, to build a population of real traces
 ```
 
 Rule of thumb: **`app/rag/` is the brain, one stage per file. `data/` is what it reads and
@@ -99,6 +105,19 @@ scripts/inspect_traces.py   OR   GET /inspect
    └─▶ tracing.read_traces()   parse data/traces/traces.jsonl, skipping bad lines
          └─ print question / fetched chunks (with which search found each) / answer
 ```
+
+### Flow 4 — ANALYSE (Week 5, reads the trace log, changes nothing)
+
+```
+scripts/ask_batch.py         run ~40 questions through Flow 2, so traces accumulate
+   └─▶ scripts/sample_traces.py   seeded random sample → docs/week5/worksheet.md
+         └─▶ YOU read all 20 and write verdict / note / severity by hand
+               └─▶ scripts/code_notes.py    validates, then → coded-notes.md (+ your codes)
+                     └─▶ scripts/rank_problems.py   frequency x severity → ranked-problems.md
+```
+
+Each arrow is a gate: the next script refuses to run until the previous step is genuinely
+finished. `app/worksheet.py` is the shared parser for the two hand-filled files.
 
 ## Where each mentor check is enforced (so you can point to it)
 

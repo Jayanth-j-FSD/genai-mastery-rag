@@ -66,8 +66,25 @@ Status legend:  `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] Fill in `docs/week4/findings.md` sections 2 to 6
 - [ ] (optional) `uvicorn app.main:app --reload` then open `/inspect` in the browser
 
+## Phase 6 — Week 5, error analysis tooling (code written + reviewed; NOT yet run)
+- [x] `tests/trace_questions.txt` — ~40 question bank, so a 20-trace sample is a real sample
+- [x] `scripts/ask_batch.py` — run the bank through the traced answer path
+- [x] `scripts/sample_traces.py` — seeded fair sample, records seed + reproduction command
+- [x] `app/worksheet.py` — one parser for the hand-filled note format
+- [x] `scripts/code_notes.py` — refuses to group until every note is written (check #2)
+- [x] `scripts/rank_problems.py` — frequency x severity ranking, singleton + name-split warnings
+- [x] `docs/week5/` — README (the four steps) · CHANGES · taxonomy (the deliverable template)
+
+## Phase 7 — Week 5 run & the analysis itself (you — the part that cannot be automated)
+- [ ] `python scripts/ask_batch.py` — build a population of real traces
+- [ ] `python scripts/sample_traces.py --n 20` — draw the fair sample (check #1)
+- [ ] **Read all 20 traces.** Fill verdict / note / severity by hand in `worksheet.md` (check #2)
+- [ ] `python scripts/code_notes.py` — passes only when the reading is genuinely done
+- [ ] Add one group name per failure in `coded-notes.md` (check #3)
+- [ ] `python scripts/rank_problems.py --save` — the ranking (check #4)
+- [ ] Write `docs/week5/taxonomy.md`: groups, ranking, chosen target, and the prediction first
+
 ## Later weeks (not started)
-- [ ] Week 5 — read ~20 traces, open-code, ranked taxonomy
 - [ ] Week 6 — one-command eval set, validated LLM judge, RAGAS, before/after deltas
 
 ## Open / waiting on

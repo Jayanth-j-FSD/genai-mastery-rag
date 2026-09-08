@@ -85,12 +85,22 @@ improvement, and prove it with a before-and-after number.
 |-------|------|--------|
 | A labelled question set, including questions built to fail | `tests/eval_set.py` | 1, 3 |
 | Failure classifier: retrieval failure vs generation failure, with the evidence attached | `app/rag/diagnose.py` | 1 |
-| Inspection view — question / what was fetched / final answer, side by side | `scripts/inspect.py`, `/inspect` endpoint | 1 |
+| Inspection view — question / what was fetched / final answer, side by side | `scripts/inspect_traces.py`, `/inspect` endpoint | 1 |
 | Keyword search (BM25), so exact terms like `ERR-4032` stop being missed | `app/rag/keyword.py` | 2 |
 | Rank fusion (RRF) joining keyword + meaning results | `app/rag/fusion.py` | 2 |
 | The switch: `dense` reproduces Week 3 exactly, `hybrid` is the change | `app/config.py`, `app/rag/retriever.py` | 2, 3 |
-| Metrics: hit-rate@3, recall@k, MRR, run over both modes with the delta | `scripts/eval_retrieval.py` | 3, 4 |
+| Metrics: hit-rate@3, MRR, run over both modes with the delta | `scripts/eval_retrieval.py` | 3, 4 |
 | The report: labels with evidence, the number, and what stayed broken | `docs/week4/findings.md` | 1, 3, 4 |
+
+**Where this diverged from the plan, and why** (recorded rather than quietly edited away):
+
+- The inspection script was planned as `scripts/inspect.py` and shipped as
+  `scripts/inspect_traces.py`. Python puts a script's own directory first on `sys.path`,
+  so `inspect.py` would have shadowed the standard-library `inspect` module that chromadb
+  and pydantic both import.
+- `recall@k` was planned as a reported metric and is not reported. With one relevant
+  document per question it is the same number as hit-rate@k, so printing both would have
+  implied two independent measurements. The script says so in its output.
 
 **The one change is hybrid retrieval** (BM25 keyword search fused with the existing dense
 search via RRF). Chosen because the failure it targets is the *retrieval* kind, which is the
@@ -117,15 +127,34 @@ they hurt, and pick the one to attack next, writing your prediction down first.
 
 | Piece | File | Serves |
 |-------|------|--------|
+| A question bank big enough that 20 is a sample, not a census | `tests/trace_questions.txt` | 1 |
+| Batch runner on the traced answer path, to build a population of real traces | `scripts/ask_batch.py` | 1 |
 | Seeded random sample of N traces (fair, reproducible, not cherry-picked) | `scripts/sample_traces.py` | 1 |
-| A worksheet with one row per sampled trace and an empty note field, deliberately offering **no** categories | `docs/week5/worksheet.md` | 2 |
-| Your notes, then your codes, kept in one file | `docs/week5/coded-notes.md` | 2, 3 |
+| A worksheet with one block per sampled trace and an empty note field, deliberately offering **no** categories | `docs/week5/worksheet.md` | 2 |
+| The gate: validates the notes are finished, then carries the failures forward for naming | `scripts/code_notes.py` | 2, 3 |
+| Your notes plus your group names | `docs/week5/coded-notes.md` | 2, 3 |
+| One parser for the hand-filled files, shared by both scripts that read them | `app/worksheet.py` | 2, 3 |
 | Ranker: counts each named group, multiplies frequency by severity, orders them | `scripts/rank_problems.py` | 3, 4 |
 | The ranked taxonomy, the chosen target, and the prediction written before the fix | `docs/week5/taxonomy.md` | 3, 4 |
 
 Week 5 adds almost no application code, by design. It reads what the app already logs.
 The sampling is seeded so the mentor can re-draw the identical sample and confirm it was
 not curated.
+
+**Where this diverged from the plan, and why:**
+
+- `scripts/ask_batch.py` and `tests/trace_questions.txt` were **not in the plan** and turned
+  out to be prerequisites. Week 4's `diagnose.classify()` calls the retriever and generator
+  directly, not through `pipeline.answer()`, so it writes no traces — meaning a full Week 4
+  evaluation could leave the trace log almost empty, with nothing to sample. Making the
+  diagnosis tool log traces was rejected: it would mix synthetic evaluation runs into the log
+  that is meant to represent real usage.
+- The plan said "your notes, then your codes, kept in one file". They are in **two** files,
+  because one file lets you start naming groups before you have finished reading. The split
+  plus `code_notes.py` refusing to run makes the notes-before-grouping rule enforceable rather
+  than merely advised, which is what mentor check #2 asks about.
+- `app/worksheet.py` was not in the plan; it exists so the two scripts that read hand-filled
+  notes do not each carry their own parser.
 
 ---
 
@@ -139,9 +168,15 @@ docs/
 ├── TODO.md            ← the live checklist
 ├── week3/             ← frozen: the build week
 ├── week4/             ← README (task) · CHANGES (what changed vs week 3) · findings (the numbers)
-├── week5/             ← README · CHANGES · worksheet · coded-notes · taxonomy
+├── week5/             ← README · CHANGES · worksheet · coded-notes · ranked-problems · taxonomy
 └── week6/             ← not started
 ```
+
+Three kinds of file live in those folders, and it matters which is which: written by hand
+(`README`, `CHANGES`, `findings`, `taxonomy`), generated once and then filled in by hand
+(`worksheet`, `coded-notes` — the generators refuse to overwrite these without `--force`,
+because they end up holding handwriting no script can reproduce), and purely generated
+(`eval-results`, `failure-labels-*`, `ranked-problems` — regenerate these freely).
 
 Each `weekN/CHANGES.md` is the file to open when someone asks "what did you actually do that
 week?". It lists the changed files and maps every mentor check to the code that satisfies it.

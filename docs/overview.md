@@ -23,10 +23,10 @@ This same app is carried across four course weeks. Each week hardens it:
 | **5** | Error analysis | Read ~20 real answers, name the recurring problems, rank them. |
 | **6** | Evals | Build an automatic test so every future change gets a score, not a guess. |
 
-We're on **Week 4**. The app was designed from day one to make weeks 4-6 easy — most importantly,
+We're on **Week 5**. The app was designed from day one to make weeks 4-6 easy — most importantly,
 it **logs a complete trace of every request** (question + what it fetched + what it answered),
-which is exactly what weeks 4 and 5 need to read. Week 4 spent nothing on plumbing as a result:
-the inspection view just reads that file.
+which is exactly what weeks 4 and 5 need to read. Both weeks spent nothing on plumbing as a
+result: Week 4's inspection view and Week 5's sampling both just read that file.
 
 Each week is frozen as a git tag, so any week can be shown on its own:
 `git checkout week-3` for the app as the Week 3 mentor saw it, then `git checkout main` to
@@ -85,3 +85,12 @@ and `project-info.md` for how the code is laid out.
 4. Say which failures the change **did not** fix.
 
 Full detail in `week4/README.md`; the deliverable itself is `week4/findings.md`.
+
+## Definition of done — Week 5
+1. Read a **fair sample** of about 20 real traces, not the good examples.
+2. One **honest note per failure**, written *before* deciding on any categories.
+3. Problem groups with **clear names a stranger would understand**.
+4. The problems **ranked**, with a chosen target and a prediction written first.
+
+Full detail in `week5/README.md`; the deliverable itself is `week5/taxonomy.md`. This is the
+one week whose deliverable cannot be generated — the reading is the work.
