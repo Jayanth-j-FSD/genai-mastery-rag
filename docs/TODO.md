@@ -45,11 +45,31 @@ Status legend:  `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] #4 change CHUNK_SIZE in .env (800→400), re-ingest, re-ask, record the difference
 - [ ] (optional) `uvicorn app.main:app --reload` and try /ask at /docs
 
+## Phase 4 — Week 4, debugging retrieval (code written + reviewed; NOT yet run)
+- [x] `tests/eval_set.py` — 18 labelled questions (14 in-corpus, 4 deliberately absent)
+- [x] `app/rag/keyword.py` — BM25 keyword search, written longhand, no new dependency
+- [x] `app/rag/fusion.py` — Reciprocal Rank Fusion over the two ranked lists
+- [x] `app/rag/retriever.py` — `retrieve_hybrid()` + `retrieve_for_mode()`; `retrieve()` unchanged
+- [x] `app/rag/diagnose.py` — classify a failure as RETRIEVAL vs GENERATION, with evidence
+- [x] `scripts/inspect_traces.py` + `GET /inspect` — the side-by-side inspection view
+- [x] `scripts/diagnose_failures.py` — label every case, print the evidence (check #1)
+- [x] `scripts/eval_retrieval.py` — hit-rate@1/@3/@5 + MRR, both modes, and the deltas (checks #3, #4)
+- [x] `docs/week4/` — README (task) · CHANGES (what changed) · findings (the deliverable)
+- [x] Prediction written down BEFORE measuring (`docs/week4/findings.md` section 1)
+
+## Phase 5 — Week 4 run & verify (you — needs Python + API key)
+- [ ] `python scripts/ingest.py` — rebuild the index
+- [ ] #1 `python scripts/diagnose_failures.py --mode dense --save` → every case labelled with evidence
+- [ ] #3 `python scripts/eval_retrieval.py --save` → hit-rate@3 before vs after
+- [ ] #4 read the "NOT fixed by the change" list and record it in `findings.md`
+- [ ] #2 nothing to run — the single change is the diff itself (`git diff week-3..week-4 --stat`)
+- [ ] Fill in `docs/week4/findings.md` sections 2 to 6
+- [ ] (optional) `uvicorn app.main:app --reload` then open `/inspect` in the browser
+
 ## Later weeks (not started)
-- [ ] Week 4 — inspection view over traces; hybrid + reranker; before/after hit-rate@3
 - [ ] Week 5 — read ~20 traces, open-code, ranked taxonomy
 - [ ] Week 6 — one-command eval set, validated LLM judge, RAGAS, before/after deltas
 
 ## Open / waiting on
 - [ ] Real track (A-F) document pack — using sample docs (Northwind Labs) until it arrives
-- [x] AI-Task location — kept inside AI_GenAI_Mastery_Files
+- [x] Project location — settled; this folder is the git repo root

@@ -15,27 +15,34 @@ AI-Task/
 ├── docs/                  ← YOU ARE HERE — all project documentation
 │   ├── overview.md          what & why & the 4-week arc
 │   ├── project-info.md      this file: structure + how it works
+│   ├── build-loop.md        the nine-step process each week follows
 │   ├── TODO.md              the live checklist
 │   ├── week3/  week4/  week5/  week6/   per-week notes
 │
 ├── app/                   ← the application
-│   ├── config.py            all settings (models, chunk size, top-K, paths)
+│   ├── config.py            all settings (models, chunk size, top-K, mode, paths)
 │   ├── models.py            the shapes of a request and a response
-│   ├── tracing.py           writes a full record of every request (for weeks 4-5)
-│   ├── main.py              the FastAPI web server (endpoints)
+│   ├── tracing.py           writes + reads a full record of every request
+│   ├── main.py              the FastAPI web server (endpoints, incl. /inspect)
 │   └── rag/                 the pipeline — ONE FILE PER STAGE:
 │       ├── loader.py          1. read files          → text
 │       ├── chunker.py         2. split into pieces   → chunks
 │       ├── embedder.py        3. text → vectors      → embeddings
 │       ├── store.py           4. save/search vectors → Chroma
-│       ├── retriever.py       5. question → top matches
+│       ├── retriever.py       5. question → top matches (dense or hybrid)
 │       ├── generator.py       6. matches → grounded, cited answer
+│       ├── keyword.py         (wk4) BM25 keyword search over the same chunks
+│       ├── fusion.py          (wk4) merge two ranked lists by position (RRF)
+│       ├── diagnose.py        (wk4) label a failure: RETRIEVAL vs GENERATION
 │       └── pipeline.py        wires 1-4 (ingest) and 5-6 (ask) together
 │
 ├── scripts/               ← run from the terminal
 │   ├── ingest.py            build the index from data/corpus/
 │   ├── ask.py               ask one question
-│   └── compare_chunks.py    compare two chunk sizes (check #4, automated)
+│   ├── compare_chunks.py    compare two chunk sizes (check #4, automated)
+│   ├── inspect_traces.py    (wk4) question / fetched / answer, side by side
+│   ├── diagnose_failures.py (wk4) label every case with evidence
+│   └── eval_retrieval.py    (wk4) hit-rate@3 before vs after, and what stayed broken
 │
 ├── data/                  ← not code — the app's data
 │   ├── corpus/              YOUR DOCUMENTS GO HERE (PDF / txt / md)
@@ -43,7 +50,8 @@ AI-Task/
 │   └── traces/              a log line per request (auto-generated)
 │
 └── tests/
-    └── questions.md         your ~10 test questions
+    ├── questions.md         your ~10 test questions (week 3)
+    └── eval_set.py          (wk4) the same idea, labelled so a script can score it
 ```
 
 Rule of thumb: **`app/rag/` is the brain, one stage per file. `data/` is what it reads and
@@ -73,16 +81,28 @@ After this, your documents are searchable. You only re-run it when the documents
 ```
 scripts/ask.py "question"   OR   POST /ask {question}
    └─▶ pipeline.answer(question)
-         ├─ retriever.retrieve()      embed the question, pull the top-K nearest chunks
+         ├─ retriever.retrieve_for_mode()   pick the search strategy, then:
+         │    ├─ dense  → retrieve()        embed the question, take the nearest chunks
+         │    └─ hybrid → retrieve_hybrid() dense + keyword.search(), merged by fusion.fuse()
          ├─ generator.generate_answer()
          │      build a prompt with ONLY those chunks + rules:
          │        "answer only from this, cite the source, else say I don't know"
          │      → (answer, sources, grounded)
          └─ tracing.log_trace()       append the whole request to data/traces/traces.jsonl
-   ◀─ returns {answer, sources, grounded}
+   ◀─ returns {answer, sources, grounded, retrieval_mode}
+```
+
+### Flow 3 — INSPECT (Week 4, reads the trace log, changes nothing)
+
+```
+scripts/inspect_traces.py   OR   GET /inspect
+   └─▶ tracing.read_traces()   parse data/traces/traces.jsonl, skipping bad lines
+         └─ print question / fetched chunks (with which search found each) / answer
 ```
 
 ## Where each mentor check is enforced (so you can point to it)
+
+Week 3:
 
 | Check                       | Lives in                                                                           |
 | --------------------------- | ---------------------------------------------------------------------------------- |
@@ -91,20 +111,36 @@ scripts/ask.py "question"   OR   POST /ask {question}
 | #3 says "I don't know"      | `generator.py` — the grounding prompt permits + requires refusal; `grounded=False` |
 | #4 chunk-size experiment    | `config.py` — change `chunk_size`, re-run ingest, compare                          |
 
+Week 4:
+
+| Check                        | Lives in                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| #1 which kind of failure     | `rag/diagnose.py` → `classify()`; run it with `scripts/diagnose_failures.py`   |
+| #2 one change, not five      | `rag/keyword.py` + `rag/fusion.py` are the whole change; `week4/CHANGES.md` lists what was refused |
+| #3 before-and-after number   | `scripts/eval_retrieval.py` → hit-rate@k and MRR across both modes            |
+| #4 what stayed broken        | the same script's `STILL BROKEN` / `REGRESSED` lists                          |
+
 ## The knobs you'll actually turn (all in `app/config.py` or `.env`)
 
-- `chunk_size` / `chunk_overlap` — how big the pieces are. **The graded experiment.**
+- `chunk_size` / `chunk_overlap` — how big the pieces are. **Week 3's graded experiment.**
 - `top_k` — how many chunks to retrieve per question (start 4).
 - `min_relevance` — optional floor; if the best chunk is weaker than this, answer
   "I don't know" without asking the model. `0.0` = off (tune after seeing real scores).
 - `llm_model` / `embed_model` — which OpenAI models to use.
+- `retrieval_mode` — `dense` (Week 3) or `hybrid` (Week 4). **Week 4's graded experiment.**
+- `hybrid_candidates` / `rrf_k` — how many candidates each search contributes, and how
+  sharply the merge favours top positions. Turn `hybrid_candidates` down if keyword noise
+  starts outranking good semantic hits.
+- `bm25_k1` / `bm25_b` — BM25's term-saturation and length-penalty knobs.
+- `eval_k` — the `k` in hit-rate@k that the eval script highlights (3, per the brief).
 
 ## How it grows in later weeks
 
-- **Week 4** adds an _inspection view_ over `data/traces/` and extra retrieval stages
-  (hybrid search, a reranker) — new files under `app/rag/`, same pipeline shape.
-- **Week 5** _reads_ `data/traces/` to rank problems — no new app code, just analysis.
+- **Week 4** (done) added an _inspection view_ over `data/traces/` and a second retrieval
+  strategy — new files under `app/rag/`, same pipeline shape, nothing rewritten.
+- **Week 5** _reads_ `data/traces/` to rank problems — no new app code, just analysis tools.
 - **Week 6** adds an `evals/` folder that scores the app automatically.
 
 Because every stage is isolated and every request is traced, those additions slot in without
-rewrites. That's why the structure looks the way it does.
+rewrites. That's why the structure looks the way it does. Week 4 proved it: the inspection
+view needed no change to any existing stage, only a reader for the log that was already there.

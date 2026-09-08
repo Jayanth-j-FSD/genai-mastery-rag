@@ -6,6 +6,7 @@ Any value can be overridden in a `.env` file without editing code.
 """
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The AI-Task project root = the folder ABOVE this app/ folder.
@@ -32,11 +33,66 @@ class Settings(BaseSettings):
                                 # answer "I don't know" instead of guessing.
                                 # 0.0 = off; enable (e.g. 0.2) after seeing real scores.
 
+    # --- Week 4: which retrieval strategy to use (this week's ONE change) ---
+    # "dense"  = meaning-only search. Reproduces Week 3 behaviour exactly.
+    # "hybrid" = meaning search + keyword (BM25) search, fused with RRF.
+    # Keeping both switchable is what makes the before/after measurement possible.
+    retrieval_mode: str = "hybrid"
+
+    # --- Week 4: hybrid search knobs ---
+    hybrid_candidates: int = 10   # candidates EACH retriever contributes before fusion
+    rrf_k: int = 60               # RRF damping constant (60 is the value from the RRF paper)
+    bm25_k1: float = 1.5          # BM25: how fast repeated words stop adding score
+    bm25_b: float = 0.75          # BM25: how much to penalise long chunks
+    eval_k: int = 3               # the k in "hit-rate@k" — the mentor asks for @3
+
     # --- folders (absolute, so the current directory never matters) ---
     corpus_dir: str = str(BASE_DIR / "data" / "corpus")                 # your documents
     chroma_dir: str = str(BASE_DIR / "data" / "chroma")                 # the saved index
     collection: str = "ask_my_docs"                                     # index "table" name
     traces_path: str = str(BASE_DIR / "data" / "traces" / "traces.jsonl")  # request log
+
+    @field_validator("retrieval_mode")
+    @classmethod
+    def _check_retrieval_mode(cls, value: str) -> str:
+        """Reject a typo in .env loudly at startup instead of silently searching wrongly."""
+        allowed = {"dense", "hybrid"}
+        cleaned = (value or "").strip().lower()
+        if cleaned not in allowed:
+            raise ValueError(f"retrieval_mode must be one of {sorted(allowed)}, got {value!r}")
+        return cleaned
+
+    @field_validator("bm25_b")
+    @classmethod
+    def _check_bm25_b(cls, value: float) -> float:
+        """BM25's b is a proportion. Outside 0..1 the score formula can divide by zero."""
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(f"bm25_b must be between 0.0 and 1.0, got {value}")
+        return value
+
+    @field_validator("bm25_k1")
+    @classmethod
+    def _check_bm25_k1(cls, value: float) -> float:
+        """A negative k1 would invert the meaning of a repeated word."""
+        if value < 0.0:
+            raise ValueError(f"bm25_k1 must be 0.0 or greater, got {value}")
+        return value
+
+    @field_validator("top_k", "hybrid_candidates", "eval_k")
+    @classmethod
+    def _check_positive(cls, value: int) -> int:
+        """These are counts. Zero or less would silently retrieve nothing to measure."""
+        if value < 1:
+            raise ValueError(f"must be 1 or greater, got {value}")
+        return value
+
+    @field_validator("rrf_k")
+    @classmethod
+    def _check_rrf_k(cls, value: int) -> int:
+        """RRF's k damps the rank curve; negative values would divide by zero at rank 1."""
+        if value < 0:
+            raise ValueError(f"rrf_k must be 0 or greater, got {value}")
+        return value
 
 
 settings = Settings()   # one shared settings object the whole app imports

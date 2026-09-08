@@ -29,3 +29,14 @@ Difference noticed:
 
 Tip: `python scripts/compare_chunks.py` runs both configs over these questions and
 prints, per question, whether the expected source was retrieved (and at what rank).
+
+## Week 4 note
+
+This file stays as it is — it is the Week 3 hand-run checklist and `compare_chunks.py`
+still uses exactly these questions and the Week 3 dense search, so that experiment stays
+reproducible.
+
+Week 4 needed the same idea in a form a script can score, including questions built to
+fail. That set lives in `eval_set.py` beside this file, with an expected document and an
+accepted answer phrase per question. Use `eval_set.py` for measurements and this file for
+reading by hand.
