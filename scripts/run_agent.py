@@ -36,11 +36,15 @@ def main(argv=None):
     parser.add_argument("--model", default=None, help="chat model for this run (default LLM_MODEL)")
     args = parser.parse_args(argv)
     make_output_safe()
+    for flag, value in (("--max-steps", args.max_steps), ("--max-tokens", args.max_tokens), ("--timeout", args.timeout)):
+        if value is not None and value <= 0:             # 0 would silently fall back to the default
+            print(f"Error: {flag} must be greater than 0, got {value}.")
+            return 1
     question = " ".join(args.question)
 
     try:
         pipeline.require_index()
-        print(f"Question: {question}\n")
+        print(f"Question: {question}\nModel: {args.model or settings.llm_model}\n")
         if args.workflow:
             run = workflow.run_workflow(question, model=args.model, on_step=display.show_step)
         else:
