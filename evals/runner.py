@@ -96,6 +96,8 @@ def index_key(docs):
     shaping = {"embed_provider": settings.embed_provider, "embed_model": settings.embed_model,
                "chunk_size": settings.chunk_size, "chunk_overlap": settings.chunk_overlap,
                "dedupe_chunks": getattr(settings, "dedupe_chunks", False)}
+    if getattr(settings, "boilerplate_min_repeats", 0):      # only when on, so every earlier index keeps its name
+        shaping["boilerplate_min_repeats"] = settings.boilerplate_min_repeats
     return hashlib.sha256(json.dumps([shaping, _fingerprint(docs)], sort_keys=True).encode()).hexdigest()
 
 
@@ -260,7 +262,8 @@ def run_cases(cases, label="latest", with_judge=True, use_cache=True, overrides=
                      "top_k": settings.top_k, "chunk_size": settings.chunk_size,
                      "chunk_overlap": settings.chunk_overlap, "embed_provider": settings.embed_provider,
                      "min_relevance": settings.min_relevance,
-                     "dedupe_chunks": getattr(settings, "dedupe_chunks", False)},
+                     "dedupe_chunks": getattr(settings, "dedupe_chunks", False),
+                     "boilerplate_min_repeats": getattr(settings, "boilerplate_min_repeats", 0)},
         "overrides": overrides or {},
         "cache_hits": {"answers": answers.hits, "judge": verdicts.hits},
         "usage": llm.usage_since(usage_start),

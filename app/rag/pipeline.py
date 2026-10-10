@@ -4,6 +4,8 @@ In short:
   ingest()          run ONCE to read + index your documents
   answer(question)  run for EVERY question the user asks
 """
+from collections import Counter
+
 from app import llm
 from app.config import settings
 from app.rag import loader, chunker, embedder, keyword, store, retriever, generator
@@ -21,13 +23,33 @@ def require_index():
         raise RuntimeError("No documents are indexed yet. Run `python scripts/ingest.py` first.")
 
 
+def strip_repeated_lines(text, min_repeats):
+    """Remove every non-heading line that occurs at least `min_repeats` times in this text.
+
+    Lines are compared with whitespace ignored. Headings (lines starting with #) always stay, so the
+    structure survives and a section still says what it is about. Returns the text with those lines gone.
+    """
+    lines = text.splitlines()
+    normalised = [" ".join(line.split()) for line in lines]
+    counts = Counter(line for line in normalised if line)
+    repeated = {line for line, count in counts.items() if count >= min_repeats and not line.startswith("#")}
+    return "\n".join(line for line, norm in zip(lines, normalised) if norm not in repeated)
+
+
 def build_chunks(docs):
-    """Cut the documents into chunks, then (if DEDUPE_CHUNKS is on) drop exact duplicates within a document.
+    """Cut the documents into chunks, optionally cleaning boilerplate first and dropping exact duplicates after.
+
+    BOILERPLATE_MIN_REPEATS (if above 0) removes lines repeated that many times inside one document before
+    it is chunked. DEDUPE_CHUNKS (if on) then drops chunks that are exact copies of an earlier chunk of
+    the same document. Both are off by default.
 
     Two chunks are duplicates when they come from the same document and have the same words, ignoring
     whitespace. The FIRST copy is kept, so its id and position are unchanged. A copy in a different
     document is kept: that document is a different source and may legitimately be the one to cite.
     """
+    if settings.boilerplate_min_repeats:
+        docs = [dict(doc, text=strip_repeated_lines(doc["text"], settings.boilerplate_min_repeats)) for doc in docs]
+        docs = [doc for doc in docs if doc["text"].strip()]
     chunks = chunker.chunk_documents(docs, settings.chunk_size, settings.chunk_overlap)
     if not settings.dedupe_chunks:
         return chunks
@@ -65,8 +87,9 @@ def ingest():
     per_source: dict[str, int] = {}
     for c in chunks:
         per_source[c["source"]] = per_source.get(c["source"], 0) + 1
-    dropped = len(chunker.chunk_documents(docs, settings.chunk_size, settings.chunk_overlap)) - len(chunks)
-    return {"documents": len(docs), "chunks": len(chunks), "per_source": per_source, "duplicates_dropped": dropped}
+    plain = len(chunker.chunk_documents(docs, settings.chunk_size, settings.chunk_overlap))
+    return {"documents": len(docs), "chunks": len(chunks), "per_source": per_source,
+            "chunks_removed_by_cleaning": plain - len(chunks)}
 
 
 def answer(question: str, mode: str = None):

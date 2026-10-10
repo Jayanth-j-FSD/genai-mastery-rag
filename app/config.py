@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     # pushing out the one chunk that answers the question. Off by default: it changes what ingest
     # stores, so a run opts in (DEDUPE_CHUNKS=true) and the eval measures the difference.
     dedupe_chunks: bool = False
+    # Remove every non-heading line that appears at least this many times in ONE document, before it is
+    # cut into chunks (0 = off). It targets boilerplate: the handbook repeats seven lines 108 to 136 times
+    # under every subsection, so the chunks differ only by their heading and tie in every search,
+    # crowding out the document that answers. Exact-duplicate removal (above) cannot touch those chunks
+    # because each starts with its own heading. Off by default for the same reason as above.
+    boilerplate_min_repeats: int = 0
 
     # --- pipeline knobs (the graded chunk-size experiment lives here) ---
     chunk_size: int = 800       # characters per chunk
@@ -137,6 +143,14 @@ class Settings(BaseSettings):
         """A negative limit, retry count or overlap has no meaning."""
         if value < 0:
             raise ValueError(f"must be 0 or greater, got {value}")
+        return value
+
+    @field_validator("boilerplate_min_repeats")
+    @classmethod
+    def _check_boilerplate_repeats(cls, value: int) -> int:
+        """0 turns it off; 1 would delete every line, so anything below 2 (but 0) is a mistake."""
+        if value != 0 and value < 2:
+            raise ValueError(f"boilerplate_min_repeats must be 0 (off) or at least 2, got {value}")
         return value
 
     @field_validator("llm_timeout_seconds")

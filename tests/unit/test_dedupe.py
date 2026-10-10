@@ -71,10 +71,10 @@ class IngestTests(unittest.TestCase):
     def test_the_result_reports_how_many_copies_were_dropped_and_the_index_matches(self):
         with mock.patch.object(settings, "dedupe_chunks", False):
             plain = pipeline.ingest()
-        self.assertEqual((plain["chunks"], plain["duplicates_dropped"], store.count_chunks()), (10, 0, 10))
+        self.assertEqual((plain["chunks"], plain["chunks_removed_by_cleaning"], store.count_chunks()), (10, 0, 10))
         with mock.patch.object(settings, "dedupe_chunks", True):
             deduped = pipeline.ingest()
-        self.assertEqual((deduped["chunks"], deduped["duplicates_dropped"], store.count_chunks()), (3, 7, 3))
+        self.assertEqual((deduped["chunks"], deduped["chunks_removed_by_cleaning"], store.count_chunks()), (3, 7, 3))
         self.assertEqual(deduped["per_source"], {"handbook.md": 2, "other.md": 1})
 
     def test_copies_no_longer_fill_every_slot_so_the_chunk_that_answers_is_found(self):
