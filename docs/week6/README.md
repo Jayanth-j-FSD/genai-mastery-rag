@@ -33,7 +33,9 @@ group by group.
 | Last week's failures turned into permanent tests, problem type = your own group name | `scripts/make_regressions.py` | 2 |
 | A blind grading sheet for you, then judge-vs-you agreement and Cohen's kappa | `scripts/make_judge_sheet.py`, `scripts/validate_judge.py`, `evals/validation.py`, `evals/agreement.py` | 3 |
 | Before-and-after, per problem type, naming the cases fixed and broken | `scripts/compare_evals.py`, `evals/report.py` | 4 |
-| The improvement experiments, each logged with its prediction: drop exact-duplicate chunks (`DEDUPE_CHUNKS`, no effect), then strip lines repeated many times inside a document (`BOILERPLATE_MIN_REPEATS`) | `app/rag/pipeline.py` (`build_chunks`, `strip_repeated_lines`) | 4 |
+| A free retrieval-only screen: does a chunk that holds the answer reach the model? (no model calls) | `scripts/screen_retrieval.py`, `evals/screen.py` | 4 |
+| Every saved run as one table | `scripts/list_runs.py` | 4 |
+| The improvement experiments, each logged with its prediction: exact-duplicate removal (`DEDUPE_CHUNKS`, no effect), boilerplate stripping (`BOILERPLATE_MIN_REPEATS`, worse), then hybrid search with 6 chunks (the existing `RETRIEVAL_MODE` and `TOP_K` settings, +1 case) | `app/rag/pipeline.py` (`build_chunks`, `strip_repeated_lines`), `docs/week6/CHANGES.md` | 4 |
 
 ## Run it
 
@@ -41,6 +43,8 @@ group by group.
 .\.venv\Scripts\python.exe scripts\run_evals.py --label baseline
 .\.venv\Scripts\python.exe scripts\run_evals.py --label wide --set retrieval_mode=hybrid --set top_k=6
 .\.venv\Scripts\python.exe scripts\compare_evals.py baseline wide --save
+.\.venv\Scripts\python.exe scripts\list_runs.py             # every saved run as one table
+.\.venv\Scripts\python.exe scripts\screen_retrieval.py     # free: does the answer chunk reach the model?
 ```
 
 `--set NAME=VALUE` changes one setting for one run, so "after" differs from "before" by exactly that
@@ -83,7 +87,9 @@ the run, and what happened. In short:
    38 to 37 of 41 cases, and stripping did not recover the two retrieval failures.
 3. **Retrieve with fusion and fetch a little wider** (`RETRIEVAL_MODE=hybrid`, `TOP_K=6`), chosen after a
    free retrieval-only screen (`python scripts/screen_retrieval.py`, no model calls) and again with its
-   prediction committed before the run. The result is in `CHANGES.md` and `before-after.md`.
+   prediction committed before the run. It is the only experiment that raised the score: 38 to 39 of 41
+   cases (93% to 95%), with two cases fixed and one broken, and the prediction was partly wrong. The full
+   result is in `CHANGES.md` and the per-problem-type table in `before-after.md`.
 
 Other levers exist and are not the improvement: Week 4's hybrid search (`--set retrieval_mode=hybrid`)
 and a larger `TOP_K`. `findings.md` reports them for context only.

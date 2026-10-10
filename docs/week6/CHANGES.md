@@ -115,7 +115,28 @@ Written down **before** the run, and committed before the run.
 - **What would prove me wrong**: a rule score of 38 of 41 or lower, or two or more baseline passes failing,
   or any of the three target cases still failing.
 
-(Results are added below once the run has happened.)
+- **Result** (`evals/results/wide.json`): 39 of 41 cases pass the rule checks (95%), **up** from 38 of 41
+  (93%), and the strict score (rules and judge together) also goes from 38 to 39 of 41. Two cases were fixed
+  and one broke, so the net gain is one case. Against the five-point prediction:
+  1. `exact-security-email` and `nexora-inactive-accounts` pass; `paraphrase-retirement` still fails. Half right.
+  2. `nexora-prod-approvals` still fails. Right.
+  3. `ambiguous-notice-period` passes again. Right (this was a guess).
+  4. One baseline pass flipped, `paraphrase-retirement`, within the allowance of one. Right.
+  5. 39 of 41, not the predicted 40. Wrong by one.
+  By the test I wrote down ("any of the three target cases still failing") the hypothesis is **partly
+  refuted**, even though the score went up.
+- **By problem type** (`before-after.md`): exact-string 83% to 100%, single-fact 90% to 100%, paraphrase
+  100% to 75%, every other type unchanged.
+- **Why `paraphrase-retirement` still fails**: the screen said a useful chunk would be in the top 6, and it
+  is: `benefits.md` is the sixth and last chunk the model sees, behind five chunks that do not answer the
+  question (the first is the handbook's retirement-benefits boilerplate). The model still answered "I don't
+  know". That is a generation miss on a longer, noisier context, which a retrieval screen cannot see; the
+  screen was labelled necessary, not sufficient. At baseline the same chunk was 3rd of 4 and the model used it.
+- **Verdict**: the best of the three experiments and the only one that raised the score, so it is the
+  improvement this week reports. It is small and mixed: two fixed, one broken, 41 cases, chosen with the
+  failures in view (see the caveat above). Whether to adopt it (`RETRIEVAL_MODE=hybrid` and `TOP_K=6` in
+  `.env`) is your decision; the app's defaults are unchanged, and Week 3 is still graded with
+  dense search.
 
 ## Considered and deferred
 
@@ -124,5 +145,5 @@ Written down **before** the run, and committed before the run.
 | RAGAS metrics (faithfulness, answer relevancy, context precision and recall) | They are the same idea as the judge plus the rule checks, implemented with several model calls per metric per case. On a free tier that is hundreds of calls for no new information, and it adds a dependency. The judge's rubric covers faithfulness and relevance, and the rule checks cover context precision indirectly (right document cited). |
 | A 1 to 10 judge score | A pass/fail verdict is easy for a person to agree with, which is what validating a judge needs. A 1 to 10 score drifts and cannot be validated without a rubric for every number. |
 | Pairwise (A versus B) judging | Useful for comparing two systems, but this week's question is whether one system passes, and pairwise judging doubles the calls. |
-| Hybrid search or a larger `TOP_K` as the improvement | Hybrid is Week 4's change; reusing it would not be new work. Both are measured for context in `findings.md`, not chosen. |
+| Each half of experiment 3 alone | Hybrid at 4 chunks was run live (`hybrid.json`): 39 of 41 on the rules but 38 of 41 with the judge, because it also lost `ambiguous-notice-period` to the judge. Widening dense search to 6 chunks was not run live: the screen says it recovers nothing (35 of 37). The hybrid code is Week 4's; this week's contribution is the measurement and the pairing with `TOP_K`. |
 | MMR (diversity re-ranking) | A real candidate for the same failure, deferred so that this week stays one change. It was also deferred in Week 4, for a reason that turned out to be wrong for this corpus. |

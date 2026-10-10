@@ -1,0 +1,270 @@
+{
+ "seed": 42,
+ "n": 24,
+ "items": {
+  "j01": {
+   "run": "baseline",
+   "case_id": "absent-azure-admin-limit",
+   "problem_type": "absent-topic",
+   "judge_verdict": "pass",
+   "judge_reason": "The provided documents do not contain information regarding a maximum number of Azure administrators, and the answer correctly states this.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "What is the maximum number of Azure administrators allowed at Nexora Tech?",
+   "answer": "I don't know based on the provided documents."
+  },
+  "j02": {
+   "run": "degraded",
+   "case_id": "acronym-mfa",
+   "problem_type": "exact-string",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer is faithful to the provided context and directly addresses the question.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "Is MFA mandatory?",
+   "answer": "Yes, multi-factor authentication (MFA) is required for all company accounts [source: security-policy.md]."
+  },
+  "j03": {
+   "run": "hybrid",
+   "case_id": "nexora-storage-container",
+   "problem_type": "careful-reading",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer correctly identifies that the developer should not receive subscription-wide access based on the least-privilege policy provided in the context.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "A developer only needs to read files from one Azure Storage container. Should the developer receive access to the entire Azure subscription?",
+   "answer": "No. According to the policy, access should be assigned at the lowest practical scope, and users should not receive broad permissions when access to a specific container is sufficient [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]. Specifically, a developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account, and every user must receive only the permissions required for their responsibilities [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]. \n\n[source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]"
+  },
+  "j04": {
+   "run": "degraded",
+   "case_id": "paraphrase-receipt-window",
+   "problem_type": "paraphrase",
+   "judge_verdict": "pass",
+   "judge_reason": "The provided context discusses exit formalities, not expense reimbursement timelines, so the system correctly identified that the information is missing.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": false,
+   "question": "How long do I have to hand in a receipt after buying something?",
+   "answer": "I don't know based on the provided documents."
+  },
+  "j05": {
+   "run": "baseline",
+   "case_id": "track-nexora-key-vault",
+   "problem_type": "single-fact",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer accurately reflects the policy requirements found in the provided context.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "Where should Azure access keys and database passwords be stored?",
+   "answer": "Azure access keys, database passwords, and other secrets must be stored using an approved secrets-management solution such as **Azure Key Vault**, and they must never be stored directly in source code [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]."
+  },
+  "j06": {
+   "run": "strip",
+   "case_id": "paraphrase-receipt-window",
+   "problem_type": "paraphrase",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer correctly identifies the 30-day submission requirement while noting the specific exception for home-office internet expenses found in the context.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "How long do I have to hand in a receipt after buying something?",
+   "answer": "Based on the provided documents, you must submit expenses within **30 days** of the expense date or purchase [source: Synthetic_HR_Policy_RAG_Test_Dataset.md, expenses.md]."
+  },
+  "j07": {
+   "run": "degraded",
+   "case_id": "paraphrase-hacked",
+   "problem_type": "paraphrase",
+   "judge_verdict": "fail",
+   "judge_reason": "The answer fails to provide the specific reporting timeline mentioned in the context and does not address the general question of who to tell for a hack, only personal-data incidents.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "Who do I tell if I think we have been hacked?",
+   "answer": "You must report suspected personal-data incidents to the Security team [source: Synthetic_HR_Policy_RAG_Test_Dataset.md]."
+  },
+  "j08": {
+   "run": "baseline",
+   "case_id": "nexora-environments",
+   "problem_type": "list-answer",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer correctly identifies the three environments listed in the provided policy document.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "What are the three Azure environments?",
+   "answer": "The three primary Azure environments maintained by Nexora Tech are:\n\n- Development\n- Testing\n- Production\n\n[source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]"
+  },
+  "j09": {
+   "run": "baseline",
+   "case_id": "detail-parental-leave",
+   "problem_type": "single-fact",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer correctly identifies the number of weeks and cites the appropriate source document.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "How many weeks of paid parental leave are available?",
+   "answer": "Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md]."
+  },
+  "j10": {
+   "run": "degraded",
+   "case_id": "ambiguous-home-office",
+   "problem_type": "single-fact",
+   "judge_verdict": "pass",
+   "judge_reason": "The provided context only mentions internet service reimbursement and does not contain information regarding home-office equipment.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": false,
+   "question": "How much can I claim for home-office equipment?",
+   "answer": "I don't know based on the provided documents."
+  },
+  "j11": {
+   "run": "hybrid",
+   "case_id": "ambiguous-notice-period",
+   "problem_type": "conflicting-documents",
+   "judge_verdict": "fail",
+   "judge_reason": "The answer fails to address the conflict between the provided documents, as it only cites one source while ignoring the contradictory information in the other.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "How many days of notice must a confirmed or permanent employee give before resigning?",
+   "answer": "Based on the provided documents, a permanent employee must provide 30 calendar days of written notice before resigning [source: Acme-Employment-Terms-2026.md]."
+  },
+  "j12": {
+   "run": "degraded",
+   "case_id": "paraphrase-retirement",
+   "problem_type": "paraphrase",
+   "judge_verdict": "pass",
+   "judge_reason": "The provided context does not contain information regarding retirement contributions, so the system correctly stated it does not know.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": false,
+   "question": "How long until my retirement contributions start?",
+   "answer": "I don't know based on the provided documents."
+  },
+  "j13": {
+   "run": "baseline",
+   "case_id": "exact-security-email",
+   "problem_type": "exact-string",
+   "judge_verdict": "pass",
+   "judge_reason": "The provided context does not contain any information regarding the purpose of the email address security@northwind.example.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": false,
+   "question": "What is security@northwind.example used for?",
+   "answer": "I don't know based on the provided documents."
+  },
+  "j14": {
+   "run": "baseline",
+   "case_id": "detail-carryover-expiry",
+   "problem_type": "single-fact",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer is faithful, responsive, and correctly cites the source document.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "When do unused leave days above the carry-forward limit expire?",
+   "answer": "Unused annual-leave days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations [source: Acme-Leave-Policy-2026.md]."
+  },
+  "j15": {
+   "run": "hybrid",
+   "case_id": "paraphrase-receipt-window",
+   "problem_type": "paraphrase",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer correctly identifies the 30-day submission deadline and cites the correct source document.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "How long do I have to hand in a receipt after buying something?",
+   "answer": "You must submit expenses within 30 days of purchase.\n\n[source: expenses.md]"
+  },
+  "j16": {
+   "run": "strip",
+   "case_id": "detail-sick-days",
+   "problem_type": "single-fact",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer correctly identifies the information from both sources and notes the slight difference in terminology.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "How many sick leave days do employees get per year?",
+   "answer": "Employees receive 12 days of sick leave per calendar year [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] / 12 paid sick-leave days per calendar year [source: Acme-Leave-Policy-2026.md]."
+  },
+  "j17": {
+   "run": "wide",
+   "case_id": "code-err4032",
+   "problem_type": "exact-string",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer accurately reflects the context and provides the correct troubleshooting steps.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "ERR-4032",
+   "answer": "Error ERR-4032 means that the data source connection timed out. You should retry after 60 seconds, and if the error persists, check the source credentials in Settings > Connections [source: support-faq.md]."
+  },
+  "j18": {
+   "run": "baseline",
+   "case_id": "nexora-inactive-accounts",
+   "problem_type": "single-fact",
+   "judge_verdict": "pass",
+   "judge_reason": "The provided context does not contain information regarding inactive accounts.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": false,
+   "question": "What should happen to inactive accounts?",
+   "answer": "I don't know based on the provided documents."
+  },
+  "j19": {
+   "run": "strip",
+   "case_id": "paraphrase-hacked",
+   "problem_type": "paraphrase",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer correctly identifies the reporting contact and timeframe specified in the provided security policy.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "Who do I tell if I think we have been hacked?",
+   "answer": "If you suspect a security incident, you should report it to security@northwind.example within 1 hour [source: security-policy.md]."
+  },
+  "j20": {
+   "run": "baseline",
+   "case_id": "handbook-pip",
+   "problem_type": "crowded-handbook",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer is accurate, faithful to the context, and directly addresses the question.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "How long can a standard performance improvement plan run?",
+   "answer": "A standard performance improvement plan may run for **60 days** [source: Synthetic_HR_Policy_RAG_Test_Dataset.md]."
+  },
+  "j21": {
+   "run": "baseline",
+   "case_id": "nexora-prod-approvals",
+   "problem_type": "list-answer",
+   "judge_verdict": "fail",
+   "judge_reason": "The answer is incomplete as it fails to list all the requirements specified in the policy, such as business justification, RBAC permissions, logging, and periodic review.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": false,
+   "question": "What approvals are required before accessing production data?",
+   "answer": "Production database access requires approval from the relevant manager or data owner [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]."
+  },
+  "j22": {
+   "run": "baseline",
+   "case_id": "ambiguous-home-office",
+   "problem_type": "single-fact",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer correctly identifies the limit for home-office equipment and cites the appropriate source document.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "How much can I claim for home-office equipment?",
+   "answer": "You can claim up to $500 per year for home-office equipment [source: expenses.md]."
+  },
+  "j23": {
+   "run": "strip",
+   "case_id": "exact-settings-path",
+   "problem_type": "exact-string",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer accurately identifies the context-specific instruction for checking source credentials in the event of a specific error.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "What should I check in Settings > Connections?",
+   "answer": "You should check the source credentials in Settings > Connections if the error ERR-4032 persists [source: support-faq.md]."
+  },
+  "j24": {
+   "run": "degraded",
+   "case_id": "detail-sick-days",
+   "problem_type": "single-fact",
+   "judge_verdict": "pass",
+   "judge_reason": "The answer is accurate, faithful to the context, and directly addresses the question.",
+   "judge_model": "gemini-3.1-flash-lite",
+   "rules_passed": true,
+   "question": "How many sick leave days do employees get per year?",
+   "answer": "Employees receive 12 days of sick leave per calendar year [source: Synthetic_HR_Policy_RAG_Test_Dataset.md]."
+  }
+ }
+}
