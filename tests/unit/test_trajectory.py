@@ -50,6 +50,17 @@ class DetectModesTests(unittest.TestCase):
         self.assertIn("wrong-tool", modes(TASK, record(extra)))
         self.assertNotIn("wrong-tool", modes(TASK, record(CLEAN + [call("remember", {"fact": "30 days"}, "Saved note 1.")])))
 
+    def test_calls_that_never_ran_do_not_count_toward_over_calling(self):
+        searches = [call("search_policies", {"query": f"q{i}"}, SEARCH_RESULT) for i in range(3)]
+        blocked = [call("search_policies", {"query": f"b{i}"}, "BUDGET: spent", ok=False, blocked=True) for i in range(3)]
+        self.assertNotIn("over-calling", modes(TASK, record(searches + blocked + CLEAN[1:])))
+        repeat = call("search_policies", {"query": "q0"}, "You already called search_policies with exactly these arguments", ok=False)
+        self.assertNotIn("over-calling", modes(TASK, record(searches[:1] + [repeat] * 3 + CLEAN[1:])))
+
+    def test_a_blocked_call_does_not_count_as_using_the_tool(self):
+        refused = [CLEAN[0], call("add_days", {"date": "2099-01-01", "days": 7}, "BLOCKED: no", ok=False, blocked=True)]
+        self.assertIn("skipped-tool", modes(TASK, record(refused)))
+
     def test_an_allowed_extra_tool_is_not_a_wrong_tool_and_counts_as_a_good_choice(self):
         extra = CLEAN + [call("calculate", {"expression": "3 + 30"}, "33")]
         allowing = dict(TASK, allowed_tools=["calculate"])

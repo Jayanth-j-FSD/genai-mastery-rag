@@ -27,6 +27,7 @@ Everything interesting is in the edges, so each one is explicit and logged:
 import inspect
 import json
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 
 from app import llm
@@ -156,8 +157,12 @@ def _call_tool(by_name, name, raw_arguments, defense, step_number):
 
 def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_seconds=None,
               use_memory=True, model=None, rpm=None, on_step=None, system_prompt=SYSTEM_PROMPT, clock=time.monotonic,
-              defense=None):
+              defense=None, max_calls_per_tool=None):
     """Run the loop and return an AgentRun. `on_step(step_dict)` is called as each step finishes.
+
+    `max_calls_per_tool` (default: the AGENT_MAX_CALLS_PER_TOOL setting, 0 = off) caps how often one tool may
+    run in this run. A call over the cap is not executed and comes back as a BUDGET observation, so a model that
+    keeps re-asking is told to answer from what it has.
 
     `defense` (an app.agent.defense.Defense, off by default) screens what tools return, checks the arguments
     of every call, and validates the final answer. See that module for what each layer does and does not stop.
@@ -178,6 +183,8 @@ def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_se
         defense.begin(question, system_prompt)
     started, usage_before = clock(), llm.usage_snapshot()
     seen_calls, repeats = {}, 0
+    call_cap = settings.agent_max_calls_per_tool if max_calls_per_tool is None else max_calls_per_tool
+    executed = Counter()                     # how many times each tool has really run
 
     def finish(reason, answer=None):
         run.stop_reason, run.answer = reason, answer
@@ -258,7 +265,14 @@ def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_se
                 if repeats >= 2:
                     stop_after = "repeated_call"
             else:
-                observation, ok, blocked = _call_tool(by_name, name, raw, defense, number)
+                if call_cap and name != "remember" and executed[name] >= call_cap:
+                    observation = (f"BUDGET: {name} has already run {executed[name]} times for this question. Use what you "
+                                   f"found. If it is not enough, reply exactly: {IDK}")
+                    ok, blocked = False, True
+                else:
+                    observation, ok, blocked = _call_tool(by_name, name, raw, defense, number)
+                    if not blocked:
+                        executed[name] += 1
                 seen_calls[signature] = observation
                 repeats = 0
             step["tool_calls"].append({"name": name, "arguments": raw, "observation": observation, "ok": ok,

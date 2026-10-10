@@ -114,7 +114,8 @@ def order_ok(task, record):
 def detect_modes(task, record):
     """The failure modes this run shows, as [{"mode": ..., "detail": ...}]. Empty means a clean path."""
     calls = calls_in(record)
-    names = [call["name"] for call in calls]
+    nudged = [call for call in calls if str(call.get("observation", "")).startswith("You already called")]
+    names = [call["name"] for call in calls if not call.get("blocked") and call not in nudged]      # calls that really ran
     used = set(names)
     expected = _distinct(task.get("expected_tools") or [])
     answerable = not task.get("should_refuse")
@@ -123,7 +124,6 @@ def detect_modes(task, record):
     def add(mode, detail):
         found.append({"mode": mode, "detail": detail})
 
-    nudged = [call for call in calls if str(call.get("observation", "")).startswith("You already called")]
     most_used = max(Counter(names).values(), default=0)
     if nudged or record.get("stop_reason") in ("max_steps", "repeated_call"):
         add("loop", f"{len(nudged)} repeated call(s), stop reason {record.get('stop_reason')!r}")
