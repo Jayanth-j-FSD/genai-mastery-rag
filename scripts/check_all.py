@@ -39,11 +39,16 @@ root = sys.argv[1]
 sys.path.insert(0, root)
 failed, modules, scripts = [], 0, 0
 import app
-for info in pkgutil.walk_packages(app.__path__, "app."):
-    try:
-        importlib.import_module(info.name); modules += 1
-    except Exception as exc:
-        failed.append(f"{info.name}: {type(exc).__name__}: {exc}")
+packages = [("app", app)]
+if os.path.isdir(os.path.join(root, "evals")):
+    import evals
+    packages.append(("evals", evals))
+for prefix, package in packages:
+    for info in pkgutil.walk_packages(package.__path__, prefix + "."):
+        try:
+            importlib.import_module(info.name); modules += 1
+        except Exception as exc:
+            failed.append(f"{info.name}: {type(exc).__name__}: {exc}")
 folder = os.path.join(root, "scripts")
 for name in sorted(os.listdir(folder)):
     if not name.endswith(".py"):
@@ -85,7 +90,7 @@ def check_imports():
     failures = [line[5:] for line in lines if line.startswith("FAIL ")]
     counts = (lines[0].split() if lines and not lines[0].startswith("FAIL") else ["?", "?"])
     detail = "\n".join(failures) or result.stderr.strip()
-    return result.returncode == 0 and not failures, f"{counts[0]} app modules, {counts[1]} scripts", detail
+    return result.returncode == 0 and not failures, f"{counts[0]} modules, {counts[1]} scripts", detail
 
 
 def check_help():

@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     # request would stall a whole run, and an agent could never "stop safely".
     llm_timeout_seconds: float = 60.0
 
+    # --- Week 6: the AI judge that grades answers (evals/judge.py) ---
+    # A DIFFERENT model from llm_model grades more fairly: a model tends to like its own family's output.
+    # Blank = use llm_model (works, but then the model grades itself). Quotas are per model, so a judge on
+    # another model also gets its own per-minute allowance (judge_rpm; 0 = use llm_rpm).
+    judge_model: str = ""
+    judge_rpm: int = 0
+
     # --- pipeline knobs (the graded chunk-size experiment lives here) ---
     chunk_size: int = 800       # characters per chunk
     chunk_overlap: int = 120    # characters shared between neighbouring chunks
@@ -116,7 +123,7 @@ class Settings(BaseSettings):
             raise ValueError(f"dense_search must be one of {sorted(allowed)}, got {value!r}")
         return cleaned
 
-    @field_validator("llm_rpm", "llm_max_retries", "chunk_overlap")
+    @field_validator("llm_rpm", "llm_max_retries", "chunk_overlap", "judge_rpm")
     @classmethod
     def _check_not_negative(cls, value: int) -> int:
         """A negative limit, retry count or overlap has no meaning."""
