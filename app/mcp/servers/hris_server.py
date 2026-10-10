@@ -21,8 +21,10 @@ import os
 import re
 from datetime import date
 
-from fastmcp import FastMCP
-from fastmcp.exceptions import ToolError
+os.environ.setdefault("FASTMCP_CHECK_FOR_UPDATES", "off")    # no update check: it would write a cache file outside this project
+
+from fastmcp import FastMCP                                   # noqa: E402
+from fastmcp.exceptions import ToolError                      # noqa: E402
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "hris_employees.json")
 _ID_RE = re.compile(r"^E\d{4}$")

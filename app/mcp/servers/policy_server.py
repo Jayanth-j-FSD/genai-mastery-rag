@@ -8,19 +8,30 @@ here the list of documents) and a PROMPT (a ready-made prompt template).
 It needs the index, so run `python scripts/ingest.py` first. Run by hand (it waits silently for a client):
     python -m app.mcp.servers.policy_server
 """
-from fastmcp import FastMCP
-from fastmcp.exceptions import ToolError as MCPToolError
+import os
 
-from app.agent import tools
-from app.config import settings
-from app.rag import loader
+os.environ.setdefault("FASTMCP_CHECK_FOR_UPDATES", "off")    # no update check: it would write a cache file outside this project
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")       # chroma's usage statistics stay off
+
+from typing import Annotated                                  # noqa: E402
+
+from fastmcp import FastMCP                                   # noqa: E402
+from fastmcp.exceptions import ToolError as MCPToolError      # noqa: E402
+from pydantic import Field                                    # noqa: E402
+
+from app.agent import tools                                   # noqa: E402
+from app.config import settings                               # noqa: E402
+from app.rag import loader, store                             # noqa: E402
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False}
 mcp = FastMCP("hr-policy", instructions="Search the company HR policy documents. Read-only.")
 
 
 @mcp.tool(name="search_policies", description=tools.SEARCH_DESCRIPTION, annotations=READ_ONLY)
-def search_policies(query: str, top_k: int = 3) -> str:
+def search_policies(query: Annotated[str, Field(description="what to look up, in a few specific words")],
+                    top_k: Annotated[int, Field(description="how many passages to return, 1 to 6 (default 3)")] = 3) -> str:
+    if store.count_chunks() == 0:                            # a missing index must not look like "no passages matched"
+        raise MCPToolError("the policy index is empty or missing. Run `python scripts/ingest.py` first, then ask again.")
     try:
         return tools.search_policies(query, top_k)
     except tools.ToolError as exc:

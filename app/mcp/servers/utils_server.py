@@ -7,17 +7,24 @@ published through MCP instead, so an agent can DISCOVER them like any other tool
 Run by hand (it waits silently for a client):
     python -m app.mcp.servers.utils_server
 """
-from fastmcp import FastMCP
-from fastmcp.exceptions import ToolError as MCPToolError
+import os
 
-from app.agent import toolkit
+os.environ.setdefault("FASTMCP_CHECK_FOR_UPDATES", "off")    # no update check: it would write a cache file outside this project
+
+from typing import Annotated                                  # noqa: E402
+
+from fastmcp import FastMCP                                   # noqa: E402
+from fastmcp.exceptions import ToolError as MCPToolError      # noqa: E402
+from pydantic import Field                                    # noqa: E402
+
+from app.agent import toolkit                                 # noqa: E402
 
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False}
 mcp = FastMCP("utils", instructions="Exact arithmetic and calendar-date tools. Read-only.")
 
 
 @mcp.tool(name="calculate", description=toolkit.CALCULATE_DESCRIPTION, annotations=READ_ONLY)
-def calculate(expression: str) -> str:
+def calculate(expression: Annotated[str, Field(description="for example '14 - 10' or '18 * 3 / 12'")]) -> str:
     try:
         return toolkit.calculate(expression)
     except toolkit.ToolError as exc:
@@ -25,7 +32,8 @@ def calculate(expression: str) -> str:
 
 
 @mcp.tool(name="add_days", description=toolkit.ADD_DAYS_DESCRIPTION, annotations=READ_ONLY)
-def add_days(date: str, days: int) -> str:
+def add_days(date: Annotated[str, Field(description="start date as YYYY-MM-DD")],
+             days: Annotated[int, Field(description="calendar days to add")]) -> str:
     try:
         return toolkit.add_days(date, days)
     except toolkit.ToolError as exc:
