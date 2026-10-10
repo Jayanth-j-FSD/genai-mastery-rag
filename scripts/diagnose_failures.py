@@ -82,6 +82,9 @@ def main():
         lines.append(text)
 
     emit(f"=== Failure diagnosis — mode={args.mode}, k={settings.top_k} ===")
+    # The model that wrote the answers is part of the evidence: another model can fail differently.
+    emit(f"answer model: {settings.llm_model} · embeddings: {settings.embed_provider} · "
+         f"dense search: {settings.dense_search} · {len(CASES)} cases")
     emit("'*' marks a chunk from a document that legitimately answers the question.")
     if args.no_model:
         emit("(--no-model: the answer model was NOT called, so refusal cases are ungraded)")
