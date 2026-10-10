@@ -3,11 +3,16 @@
 The one-page answer to "what did you actually do this week?". Nothing from Weeks 3 to 5 was
 rewritten: everything here is a new file or an additive, default-off change.
 
+**Left for you.** The interpretation, the judge grading and the ship decision are blank in `findings.md`.
+
 ## The experiment log
 
 Week 6 asks for one improvement and a before-and-after score. The honest way to get there is the Week 5
 method: diagnose, hypothesise, change one thing, measure, and write down what happened, including when the
-hypothesis was wrong. Every experiment is logged here in the order it was run.
+hypothesis was wrong. The three improvement experiments are logged in the order they were run. Two context
+runs, `degraded` (4 chunks to 1) and `hybrid` (hybrid search at 4 chunks), were run before experiment 2 was
+built, so their results were known when experiments 2 and 3 were designed. Experiment 1 has a hypothesis
+recorded with its result; experiments 2 and 3 have predictions that were committed before their runs.
 
 **The baseline** (`evals/results/baseline.json`, 41 cases, answer model `gemini-3.5-flash-lite`, judge
 `gemini-3.1-flash-lite`): 38 of 41 cases pass the rule checks (93%); the judge passes 40 of 41 (98%).
@@ -40,7 +45,7 @@ false of this one.
 
 Written down **before** the run, and committed before the run, so the history shows the order.
 
-- **Hypothesis**: the seven boilerplate lines (repeated 108 to 136 times under every handbook
+- **Hypothesis**: the seven boilerplate lines (each repeated 136 times, under every handbook
   subsection) are noise that makes every handbook chunk look alike to the embedding model. Removing lines
   that repeat at least 10 times inside one document, keeping headings, should leave each subsection as its
   heading plus its real fact, and let the documents that answer outrank the noise.
@@ -52,7 +57,7 @@ Written down **before** the run, and committed before the run, so the history sh
   3. No case that passes at baseline fails after the change.
   4. The index has about 34 chunks.
   5. Overall rule score moves from 93% (38/41) to 98% (40/41), no better, because only two cases can improve.
-- **What would prove me wrong**: either retrieval case still failing, or any baseline pass failing.
+- **What would prove the hypothesis wrong**: either retrieval case still failing, or any baseline pass failing.
 
 - **Result** (`evals/results/strip.json`): 37 of 41 cases pass the rule checks (90%), **down** from 38 of 41
   (93%). The prediction was right on two of its five points and wrong on three:
@@ -65,11 +70,14 @@ Written down **before** the run, and committed before the run, so the history sh
   - Stripping helped retrieval, but not enough. `python scripts/screen_retrieval.py` (below) shows the
     security policy moved from "not in the top 10" to 5th, one place outside the four chunks that reach the
     model, and the Nexora inactive-accounts chunk from "not in the top 10" to 8th.
-  - The regression is a context effect. In both runs `paraphrase-retirement` has the same three leading
-    chunks and the right one at rank 3; only the 4th chunk differs (a heading-only fragment of the
-    handbook replaces a handbook paragraph). A control run of the baseline with the cache off
-    (`evals/results/noise-check.json`) reproduced the baseline outcome on all 5 cases it re-ran, so the
-    flip is not run-to-run noise. One repeat of 5 cases bounds the noise only weakly.
+  - The regression is tied to the context, not to a one-off bad reply. In both runs `paraphrase-retirement`
+    has the same three leading chunks and the right one at rank 3; only the 4th chunk differs (a
+    mostly-headings fragment of the handbook, with two real bullets, replaces a handbook paragraph). A fresh
+    call with the strip context returned the genuine refusal "I don't know based on the provided documents."
+    (finish reason `stop`, 11 completion tokens, so not an empty reply). A control run of five baseline cases
+    with the cache off (`evals/results/noise-check.json`) reproduced all five pass/fail verdicts, but the
+    answer wording was identical in only two of the five, so temperature 0 is not exactly deterministic on
+    this provider and one repeat bounds the noise only weakly.
   - The two failing questions are hard for dense search by itself, not only crowded out: with the crowding
     gone they still rank 5th and 8th. The boilerplate was hiding that.
 - **Verdict**: kept as a default-off setting, **not** the improvement.
@@ -78,7 +86,7 @@ Written down **before** the run, and committed before the run, so the history sh
 
 Written down **before** the run, and committed before the run.
 
-- **A free screen first.** Instead of guessing a third time, `python scripts/screen_retrieval.py` asks a
+- **A free screen first.** Instead of picking a third change by intuition, `python scripts/screen_retrieval.py` asks a
   cheaper question that needs no model call: under each configuration, does a chunk that holds the answer
   (right document, contains one of the case's fact strings) reach the top k? 37 cases have an answer.
 
@@ -91,13 +99,15 @@ Written down **before** the run, and committed before the run.
 
   The cases outside the top 4 are `exact-security-email` (dense: not in the top 10; strip: 5th; hybrid: 2nd),
   `nexora-inactive-accounts` (dense: not in the top 10; strip: 8th; hybrid: 1st) and
-  `paraphrase-retirement` (dense: 3rd; hybrid: **6th**). The screen matches the three live runs so far:
-  it says the baseline loses the first two, that stripping does not recover them, and that hybrid recovers
-  them but pushes the paraphrase case to 6th, which is exactly what the live runs showed.
+  `paraphrase-retirement` (dense: 3rd; hybrid: **6th**). Read against the three live runs so far, the screen
+  correctly said which cases lose their answer chunk from the context: the baseline loses the first two,
+  stripping does not recover them, and hybrid recovers them but pushes the paraphrase case to 6th. What it
+  cannot say is whether the model uses a chunk that is present: it counted `paraphrase-retirement` as a hit
+  under strip, and the model refused anyway.
 - **Hypothesis**: the failures are dense search ranking problems, not only crowding. Hybrid search
   (meaning plus keywords) recovers the two keyword-like cases, and fetching 6 chunks instead of 4 keeps the
   paraphrase case that hybrid pushes to 6th. Neither half works alone: widening dense search to 6 changes
-  nothing (35 of 37), and hybrid at 4 still loses one case.
+  nothing (35 of 37, from the screen only; it was not run live), and hybrid at 4 still loses one case.
 - **Stated now, so it cannot be hidden later**: the cases that motivated this choice are the cases that
   measure it, and the screen was read before choosing. This is a screened choice, not a blind one, so the
   after-score is optimistic. A held-out set is the right next step and is listed in `findings.md`.
@@ -112,7 +122,7 @@ Written down **before** the run, and committed before the run.
   4. At most one baseline pass flips to a failure (a bigger context can change what the model does).
   5. The rule score goes from 38 of 41 (93%) to 40 of 41 (98%), and the strict score (rules and judge) from
      38 of 41 to 40 of 41.
-- **What would prove me wrong**: a rule score of 38 of 41 or lower, or two or more baseline passes failing,
+- **What would prove the hypothesis wrong**: a rule score of 38 of 41 or lower, or two or more baseline passes failing,
   or any of the three target cases still failing.
 
 - **Result** (`evals/results/wide.json`): 39 of 41 cases pass the rule checks (95%), **up** from 38 of 41
@@ -123,15 +133,18 @@ Written down **before** the run, and committed before the run.
   3. `ambiguous-notice-period` passes again. Right (this was a guess).
   4. One baseline pass flipped, `paraphrase-retirement`, within the allowance of one. Right.
   5. 39 of 41, not the predicted 40. Wrong by one.
-  By the test I wrote down ("any of the three target cases still failing") the hypothesis is **partly
-  refuted**, even though the score went up.
+  By the test written down in advance ("any of the three target cases still failing") the hypothesis is
+  **partly refuted**, even though the score went up.
 - **By problem type** (`before-after.md`): exact-string 83% to 100%, single-fact 90% to 100%, paraphrase
   100% to 75%, every other type unchanged.
 - **Why `paraphrase-retirement` still fails**: the screen said a useful chunk would be in the top 6, and it
   is: `benefits.md` is the sixth and last chunk the model sees, behind five chunks that do not answer the
-  question (the first is the handbook's retirement-benefits boilerplate). The model still answered "I don't
-  know". That is a generation miss on a longer, noisier context, which a retrieval screen cannot see; the
-  screen was labelled necessary, not sufficient. At baseline the same chunk was 3rd of 4 and the model used it.
+  question (the first is the handbook's retirement-benefits boilerplate). The model still refused, and a
+  fresh call with exactly this context returned the genuine refusal again. Across the runs: it passes with
+  the chunk 3rd of 4 (baseline), fails with the chunk 3rd of 4 and a different 4th chunk (strip), and fails
+  with the chunk 6th of 6 (wide). Those three contexts cannot separate where the chunk sits from which other
+  chunks are present, so the honest reading is only that this model's use of a chunk that is present is
+  fragile. A retrieval screen cannot see that; it was labelled necessary, not sufficient.
 - **Verdict**: the best of the three experiments and the only one that raised the score, so it is the
   improvement this week reports. It is small and mixed: two fixed, one broken, 41 cases, chosen with the
   failures in view (see the caveat above). Whether to adopt it (`RETRIEVAL_MODE=hybrid` and `TOP_K=6` in

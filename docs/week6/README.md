@@ -25,7 +25,7 @@ group by group.
 
 | Piece | File | Serves |
 |---|---|---|
-| The eval set: Week 4's 32 cases plus 9 new Nexora cases, each with a problem type and a human-written reference answer | `evals/cases.py` | 1 |
+| The eval set: Week 4's 32 cases plus 9 new Nexora cases, each with a problem type and a reference answer drafted from the documents (to be reviewed by you) | `evals/cases.py` | 1 |
 | Rule checks: cited the right document, refused when it should have (and answered when it should have), contains the facts, no invented numbers | `evals/checks.py` | 1 |
 | The AI judge: binary pass/fail with a rubric, reason before verdict, a different model from the answerer | `evals/judge.py` | 3 |
 | The runner: a private index per configuration, model calls cached by exact input, stop-and-resume on a quota | `evals/runner.py` | 1, 4 |
@@ -35,7 +35,7 @@ group by group.
 | Before-and-after, per problem type, naming the cases fixed and broken | `scripts/compare_evals.py`, `evals/report.py` | 4 |
 | A free retrieval-only screen: does a chunk that holds the answer reach the model? (no model calls) | `scripts/screen_retrieval.py`, `evals/screen.py` | 4 |
 | Every saved run as one table | `scripts/list_runs.py` | 4 |
-| The improvement experiments, each logged with its prediction: exact-duplicate removal (`DEDUPE_CHUNKS`, no effect), boilerplate stripping (`BOILERPLATE_MIN_REPEATS`, worse), then hybrid search with 6 chunks (the existing `RETRIEVAL_MODE` and `TOP_K` settings, +1 case) | `app/rag/pipeline.py` (`build_chunks`, `strip_repeated_lines`), `docs/week6/CHANGES.md` | 4 |
+| The improvement experiments, logged in `CHANGES.md` (experiments 2 and 3 with predictions committed before their runs): exact-duplicate removal (`DEDUPE_CHUNKS`, no effect), boilerplate stripping (`BOILERPLATE_MIN_REPEATS`, worse), then hybrid search with 6 chunks (the existing `RETRIEVAL_MODE` and `TOP_K` settings, +1 case) | `app/rag/pipeline.py` (`build_chunks`, `strip_repeated_lines`), `docs/week6/CHANGES.md` | 4 |
 
 ## Run it
 
@@ -62,10 +62,15 @@ The brief is explicit that these cannot be automated, so they are built as tools
    fixture. After you have named your groups in `docs/week5/coded-notes.md`, run
    `python scripts/make_regressions.py`. Every failure becomes a case whose problem type is the group
    name you chose. You then fill in what a correct answer looks like (instructions inside the file).
-2. **Grading the judge** (check #3). Run `python scripts/make_judge_sheet.py --runs baseline --n 20`,
-   grade the sheet by hand without seeing the judge's verdicts, then `python scripts/validate_judge.py`.
-   Until you have, the judge's scores are not evidence: the run output says so.
-3. **What the numbers mean** (check #4). `docs/week6/findings.md` has the generated numbers; the
+2. **Grading the judge** (check #3). A blank sheet of 24 answers already exists at
+   `evals/judge_validation/sheet.md` (made with `python scripts/make_judge_sheet.py --runs baseline degraded
+   strip hybrid wide --n 24`; do not regenerate it, `--force` deletes your grading). Grade it by hand without
+   opening `items.json`, then run `python scripts/validate_judge.py`. Until you have, the judge's scores are
+   not evidence: the run output says so.
+3. **Reviewing the reference answers.** The 41 references in `evals/cases.py` were drafted from the
+   documents. The judge and the blind sheet both show them, so check them (the 9 Nexora ones first) before
+   trusting any score.
+4. **What the numbers mean** (check #4). `docs/week6/findings.md` has the generated numbers; the
    interpretation, and whether the change helped, are yours to write.
 
 ## One improvement, measured honestly
@@ -91,5 +96,5 @@ the run, and what happened. In short:
    cases (93% to 95%), with two cases fixed and one broken, and the prediction was partly wrong. The full
    result is in `CHANGES.md` and the per-problem-type table in `before-after.md`.
 
-Other levers exist and are not the improvement: Week 4's hybrid search (`--set retrieval_mode=hybrid`)
-and a larger `TOP_K`. `findings.md` reports them for context only.
+Hybrid search is Week 4's code and a larger `TOP_K` is an existing setting. This week's contribution is
+measuring them on the eval set, and choosing between them with predictions written down first.

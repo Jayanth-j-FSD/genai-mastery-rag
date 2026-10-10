@@ -1,4 +1,4 @@
-"""Week 6's one improvement: drop exact-duplicate chunks within a document (DEDUPE_CHUNKS)."""
+"""Week 6, experiment 1: drop exact-duplicate chunks within a document (DEDUPE_CHUNKS). It did not raise the score."""
 import os
 import tempfile
 import unittest

@@ -7,10 +7,12 @@ does a useful passage land in the top k? If it does not, no prompt or model can 
 
 A chunk is "useful" for a case when it comes from one of the case's expected documents AND contains one
 of the case's fact strings, so a chunk from the right document but the wrong section does not count. That
-is stricter than Week 4's document-level hit-rate. It matched the live result of every run recorded in
-docs/week6/CHANGES.md, but it cannot see a generation failure (an incomplete list) or a conflict (a case
-that needs two documents is satisfied by one), so a hit here is necessary for a case to pass live, not
-sufficient.
+is stricter than Week 4's document-level hit-rate. It correctly said which cases lose their answer chunk
+from the context in every run recorded in docs/week6/CHANGES.md. It cannot see whether the model uses a
+chunk that is present (paraphrase-retirement is a hit under the strip run and the model refused anyway), a
+generation failure (an incomplete list), or a conflict (a case that needs two documents is satisfied by
+one). Phrases in a case's `expect_all` count as "any of", not "all of". So a hit here is necessary for a
+case to pass live, not sufficient.
 """
 
 

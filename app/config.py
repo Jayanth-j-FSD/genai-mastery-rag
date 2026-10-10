@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     judge_model: str = ""
     judge_rpm: int = 0
 
-    # --- Week 6: the one improvement the eval set measures ---
+    # --- Week 6: two experiments in cleaning the index (neither raised the score; docs/week6/CHANGES.md) ---
     # Drop a chunk whose text is an exact copy of an earlier chunk in the SAME document (whitespace
     # ignored) when the index is built. The handbook repeats one block of boilerplate 136 times; the
     # copies are identical, so they tie in every search and can fill every slot of the top results,
@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     # stores, so a run opts in (DEDUPE_CHUNKS=true) and the eval measures the difference.
     dedupe_chunks: bool = False
     # Remove every non-heading line that appears at least this many times in ONE document, before it is
-    # cut into chunks (0 = off). It targets boilerplate: the handbook repeats seven lines 108 to 136 times
+    # cut into chunks (0 = off). It targets boilerplate: the handbook repeats seven lines 136 times each
     # under every subsection, so the chunks differ only by their heading and tie in every search,
     # crowding out the document that answers. Exact-duplicate removal (above) cannot touch those chunks
     # because each starts with its own heading. Off by default for the same reason as above.

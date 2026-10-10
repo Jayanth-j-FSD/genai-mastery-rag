@@ -26,7 +26,8 @@ What each row is: `baseline` is the app as it stands (dense search, 4 chunks). `
 are the three improvement experiments in `CHANGES.md`, in the order they were tried. `hybrid` is `wide`
 without the wider fetch. `degraded` (4 to 1 chunk) is a deliberately worse app, run to see whether the
 eval set notices a worse app and to give the judge bad answers to grade. `noise-check` re-ran five
-baseline cases with the cache off to see whether identical input gives identical output (it did, 5 of 5).
+baseline cases with the cache off to see how stable the model is on identical input: all five pass/fail
+verdicts reproduced, but the answer wording was identical in only two of the five.
 
 Model calls and tokens each run used (from the console output of each run; the saved JSON files were
 later regenerated from the cache, which zeroes their usage fields):
@@ -82,9 +83,17 @@ Fixed: `exact-security-email`, `nexora-inactive-accounts`. Broken: `paraphrase-r
   rule checks, which know the expected document, catch what the judge cannot.
 - Every run used one answer model (`gemini-3.5-flash-lite`) and one judge model (`gemini-3.1-flash-lite`).
   Results on other models will differ.
-- `paraphrase-retirement` flipped between `baseline` (pass) and `strip` and `wide` (fail) while its answer
-  chunk was present in all three contexts, at positions 3, 3 and 6. Where in the context a chunk sits
-  changed the outcome for this model.
+- `paraphrase-retirement` passed at `baseline` and failed under `strip` and `wide`, with its answer chunk
+  present each time, at positions 3, 3 and 6. Fresh calls with the strip and wide contexts returned the
+  genuine refusal, so it is not an empty reply. These contexts cannot separate where the chunk sits from
+  which other chunks are present; they show that this model's use of a chunk that is present is fragile.
+- The 41 reference answers were drafted from the documents and are not yet reviewed by you. The judge and
+  the blind grading sheet both show them, so a wrong reference would mislead both. Review them, especially
+  the 9 Nexora ones, before trusting a score.
+- The blind sheet was made with `python scripts/make_judge_sheet.py --runs baseline degraded strip hybrid
+  wide --n 24` (seed 42). Of its 24 answers, 8 were flagged by the rules or the judge, and only 3 of those
+  are judge failures, so a single disagreement moves kappa a lot. More failing answers would make the
+  check sturdier.
 
 ## 5. Yours to write
 

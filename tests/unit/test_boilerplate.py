@@ -105,11 +105,17 @@ class BuildChunksTests(unittest.TestCase):
         self.assertEqual(self.docs, before)
 
     def test_it_composes_with_exact_duplicate_removal(self):
-        with mock.patch.object(settings, "boilerplate_min_repeats", 10), mock.patch.object(settings, "dedupe_chunks", True):
-            both = pipeline.build_chunks(self.docs)
-        with mock.patch.object(settings, "boilerplate_min_repeats", 10), mock.patch.object(settings, "dedupe_chunks", False):
-            one = pipeline.build_chunks(self.docs)
-        self.assertLessEqual(len(both), len(one))
+        # A paragraph that appears only twice is below the stripping threshold, so only the exact-duplicate
+        # step can remove its second copy.
+        twice = "A paragraph that appears exactly two times in this document, written out once more further below."
+        docs = [{"source": "d.md", "text": "\n\n".join([twice, "Some other paragraph here.", twice])}]
+        with mock.patch.object(settings, "chunk_size", 100), mock.patch.object(settings, "chunk_overlap", 0), \
+                mock.patch.object(settings, "boilerplate_min_repeats", 10):
+            with mock.patch.object(settings, "dedupe_chunks", False):
+                one = pipeline.build_chunks(docs)
+            with mock.patch.object(settings, "dedupe_chunks", True):
+                both = pipeline.build_chunks(docs)
+        self.assertEqual((len(one), len(both)), (3, 2))
 
 
 class RetrievalTests(unittest.TestCase):
