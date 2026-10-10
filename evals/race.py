@@ -17,8 +17,12 @@ you would ship and why, is yours to write.
 """
 import re
 import time
+import copy
 from collections import Counter
 from datetime import datetime
+from types import SimpleNamespace
+
+import openai
 
 from app import llm
 from app.agent import loop, workflow
@@ -116,9 +120,10 @@ def run_race(tasks=None, approaches=APPROACHES, repeats=3, label="race", say=pri
                     say(f"[{flag}] {task['id']:<24} {approach:<9} run {repeat}/{repeats}  "
                         f"{record['llm_calls']} call(s), {record['prompt_tokens'] + record['completion_tokens']} tokens, "
                         f"{record['stop_reason']}")
-    except llm.QuotaExhausted as exc:
-        stopped = str(exc)
-        say(f"\nSTOPPED: {exc}\nSaved what finished.")
+    except (llm.QuotaExhausted, openai.OpenAIError) as exc:
+        # A daily quota, or a provider failure that survived the retries: keep every run that finished.
+        stopped = str(exc) if isinstance(exc, llm.QuotaExhausted) else f"the provider failed ({type(exc).__name__}): {exc}"
+        say(f"\nSTOPPED: {stopped}\nSaved what finished.")
     return {"meta": {"label": label, "started": started, "finished": datetime.now().isoformat(timespec="seconds"),
                      "complete": stopped is None, "stopped_because": stopped, "repeats": repeats,
                      "approaches": list(approaches), "tasks": [t["id"] for t in tasks],
@@ -127,6 +132,32 @@ def run_race(tasks=None, approaches=APPROACHES, repeats=3, label="race", say=pri
                                 "timeout_seconds": settings.agent_timeout_seconds},
                      "retrieval_mode": settings.retrieval_mode, "top_k_workflow": workflow.DEFAULT_TOP_K},
             "runs": records}
+
+
+def rescore(results, tasks=None):
+    """The same runs scored against the CURRENT task definitions, from their stored answers and steps. No model calls.
+
+    A race is scored with the rule checks as they stood when it ran. When a check or a task is tightened later,
+    this recomputes success for every stored run so the comparison can be re-read under the stricter rules. The
+    original is never modified: a copy comes back, marked, and each changed run is listed in meta.
+    """
+    by_id = {task["id"]: task for task in (tasks if tasks is not None else get_tasks())}
+    scored = copy.deepcopy(results)
+    changed = []
+    for record in scored["runs"]:
+        task = by_id.get(record["task_id"])
+        if task is None:
+            continue
+        result = to_result(SimpleNamespace(steps=record["steps"], answer=record["answer"]))
+        rule_checks, passed, warnings = checks.check_case(task, result)
+        success = bool(record["finished"] and passed)
+        if success != record["success"]:
+            changed.append({"task_id": record["task_id"], "approach": record["approach"], "repeat": record["repeat"],
+                            "was": record["success"], "now": success})
+        record.update(rules_passed=passed, success=success, warnings=warnings,
+                      failed_checks=[c["detail"] for c in rule_checks if not c["passed"]])
+    scored["meta"] = dict(scored["meta"], rescored=True, rescored_changes=changed)
+    return scored
 
 
 def summarize(results):

@@ -11,9 +11,12 @@ Run:
     python scripts/race_agent.py --only t7-notice-end-date t7-unanswerable
     python scripts/race_agent.py --save               # also write docs/week7/race-results.md
 
-It makes about 5 model calls per agent run and 1 per workflow run, so a full race is roughly 150
-calls. It throttles to LLM_RPM and stops with a clear message if a daily quota runs out, keeping what
-finished.
+In the committed race an agent run took 3.5 model calls on average and a workflow run exactly 1, so the
+default race (9 tasks x 3 repeats x 2 approaches) is about 120 calls. It throttles to LLM_RPM and stops with
+a clear message if a daily quota runs out, keeping what finished.
+
+A new race is saved under its own --label. Racing again without a label would overwrite the committed
+`race` results, so use a new one (for example --label rerun) when you repeat it.
 """
 import argparse
 import os
@@ -49,6 +52,8 @@ def main(argv=None):
     parser.add_argument("--approaches", nargs="+", choices=race.APPROACHES, default=list(race.APPROACHES))
     parser.add_argument("--save", action="store_true", help="also write docs/week7/race-results.md")
     parser.add_argument("--show", metavar="LABEL", help="print the summary of a saved race (no model calls) instead of racing")
+    parser.add_argument("--rescore", action="store_true",
+                        help="with --show: re-score the saved runs against the current task definitions and list what changed")
     args = parser.parse_args(argv)
     make_output_safe()
 
@@ -59,9 +64,19 @@ def main(argv=None):
             print(f"Error: {exc}")
             return 1
         lines = race.format_summary(saved)
+        command = f"python scripts/race_agent.py --show {args.show}" + (" --rescore" if args.rescore else "") + (" --save" if args.save else "")
+        if args.rescore:
+            rescored = race.rescore(saved)
+            changed = rescored["meta"]["rescored_changes"]
+            lines = ["AS RACED (the checks as they were when the race ran):", ""] + lines
+            lines += ["", "=" * 78, "RE-SCORED with the current checks and tasks (same runs, same answers, no model calls):", ""]
+            lines += race.format_summary(rescored)
+            lines += ["", f"{len(changed)} run(s) changed result:"]
+            lines += [f"  {c['task_id']:<24}{c['approach']:<10}run {c['repeat']}  {'pass' if c['was'] else 'FAIL'} -> {'pass' if c['now'] else 'FAIL'}"
+                      for c in changed]
         print("\n".join(lines))
         if args.save:
-            save_markdown(lines, f"python scripts/race_agent.py --show {args.show} --save")
+            save_markdown(lines, command)
         return 0
 
     if args.repeats < 1:

@@ -3,8 +3,12 @@
 A race is only fair if both runners get the same questions and the same definition of
 "got it right". These tasks use the same fields as the Week 6 eval cases (`expected_sources`,
 `expect_contains`, `expect_all`, `should_refuse`), so the same rule checks (`evals/checks.py`) score them.
-Every expected fact below was read out of the named documents and is verified by
-`tests/unit/test_agent_tasks.py` against the real corpus.
+The facts below were read out of the named documents. `tests/unit/test_agent_tasks.py` checks the
+`source_facts` sentences (and the `absent_terms` of the unanswerable task) against the real corpus; the
+figures worked out from them (15 days over the limit, the end dates) are checked against the calculator and
+date tools in `tests/unit/test_agent_workflow_race.py`. The answer-side phrases in `expect_all` and
+`expect_contains` are what the rule checks look for. Nothing tests them against the documents beyond the figures
+above, so read them as the task author's expectations.
 
 `expected_tools` is what a sensible run would call, in order of need. Week 7 does not grade it; Week 8
 does (trajectory evaluation: did the agent take the right steps, not only reach the right answer?).
@@ -57,13 +61,15 @@ TASKS = [
     {"id": "t7-two-documents",
      "source_facts": ["7 calendar days of written notice", "12 paid sick-leave days"],
      "question": "Under the Acme terms, how many days of written notice must an employee on probation give, and under the Acme leave policy how many paid sick leave days are there per year?",
-     "expected_sources": [ACME_TERMS, ACME_LEAVE], "expect_contains": [], "expect_all": ["7", "12"], "should_refuse": False,
+     "expected_sources": [ACME_TERMS, ACME_LEAVE], "expect_contains": [], "expect_all": ["7 calendar days", "12 paid"],
+     "require_all_sources": True, "should_refuse": False,
      "expected_tools": ["search_policies", "search_policies"],
      "why": "Two facts in two different documents: a single retrieval may fetch only one of them."},
     {"id": "t7-conflict",
      "source_facts": ["employees receive 18 days of annual leave", "24 days of annual leave per calendar year"],
      "question": "How many days of annual leave does an employee get each year?",
-     "expected_sources": [ACME_LEAVE, HANDBOOK], "expect_contains": [], "expect_all": ["18", "24"], "should_refuse": False,
+     "expected_sources": [ACME_LEAVE, HANDBOOK], "expect_contains": [], "expect_all": ["18", "24"],
+     "require_all_sources": True, "should_refuse": False,
      "expected_tools": ["search_policies"],
      "why": "The documents disagree (18 in the Acme policy, 24 in the handbook). A good answer reports both."},
     {"id": "t7-cloud-two-sections",
@@ -79,10 +85,6 @@ TASKS = [
      "expected_tools": ["search_policies"],
      "why": "Not in any document. The agent must search, find nothing, and stop with 'I don't know' instead of looping."},
 ]
-
-# The question whose answer is the same in every document, for a quick smoke run of the agent.
-SMOKE_QUESTION = TASKS[0]["question"]
-
 
 def get_tasks(only=None):
     """All tasks, or just the ids given. Unknown ids are an error."""

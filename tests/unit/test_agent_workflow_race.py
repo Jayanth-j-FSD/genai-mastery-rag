@@ -235,6 +235,42 @@ class RunRaceTests(unittest.TestCase):
         for needle in ("approach", "agent", "workflow", "t7-single-lookup", "model s avg", "yours: write it", "agent ok", "workflow ok"):
             self.assertIn(needle, text)
 
+    def test_rescoring_applies_stricter_checks_to_stored_answers_and_lists_what_changed(self):
+        task = dict(get_tasks(["t7-conflict"])[0])
+        passing = {"task_id": "t7-conflict", "approach": "agent", "repeat": 1, "success": True, "finished": True,
+                   "rules_passed": True, "failed_checks": [], "warnings": [], "stop_reason": "final",
+                   "answer": "18 days [source: Acme-Leave-Policy-2026.md]. 24 days [source: Synthetic_HR_Policy_RAG_Test_Dataset.md]",
+                   "steps": [{"tool_calls": [{"name": "search_policies", "ok": True, "observation":
+                              "[1] [source: Acme-Leave-Policy-2026.md] 18 days\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 24 days"}]}]}
+        one_source = dict(passing, repeat=2, answer="18 and 24 days [source: Acme-Leave-Policy-2026.md]")
+        results = {"meta": {"label": "t", "approaches": ["agent"]}, "runs": [passing, one_source]}
+        rescored = race.rescore(results, [task])
+        self.assertEqual([r["success"] for r in rescored["runs"]], [True, False])
+        self.assertEqual(rescored["meta"]["rescored_changes"], [{"task_id": "t7-conflict", "approach": "agent", "repeat": 2, "was": True, "now": False}])
+        self.assertTrue(rescored["meta"]["rescored"])
+        self.assertEqual([r["success"] for r in results["runs"]], [True, True])                   # the original is untouched
+        self.assertIn("did not cite", rescored["runs"][1]["failed_checks"][0])
+
+    def test_an_unfinished_run_stays_a_failure_when_rescored(self):
+        task = get_tasks(["t7-single-lookup"])[0]
+        record = {"task_id": task["id"], "approach": "agent", "repeat": 1, "success": False, "finished": False, "rules_passed": False,
+                  "failed_checks": [], "warnings": [], "stop_reason": "max_steps", "answer": "16 weeks [source: Acme-Leave-Policy-2026.md]",
+                  "steps": [{"tool_calls": [{"name": "search_policies", "ok": True, "observation": "[1] [source: Acme-Leave-Policy-2026.md] 16 weeks"}]}]}
+        rescored = race.rescore({"meta": {"label": "t", "approaches": ["agent"]}, "runs": [record]}, [task])
+        self.assertFalse(rescored["runs"][0]["success"])
+        self.assertEqual(rescored["meta"]["rescored_changes"], [])
+
+    def test_a_provider_failure_stops_the_race_and_keeps_what_finished(self):
+        import httpx
+        import openai
+        first = self.fake_runs(get_tasks(["t7-single-lookup"])[0], "agent", 1, [])
+        boom = openai.APIConnectionError(request=httpx.Request("POST", "http://provider.invalid"))
+        with mock.patch.object(race, "run_one", side_effect=[first, boom]):
+            results = race.run_race(get_tasks(["t7-single-lookup"]), repeats=2, say=lambda *_: None, tools=[])
+        self.assertFalse(results["meta"]["complete"])
+        self.assertIn("the provider failed (APIConnectionError)", results["meta"]["stopped_because"])
+        self.assertEqual(len(results["runs"]), 1)
+
     def test_a_used_up_quota_saves_what_finished_and_says_so(self):
         outcomes = [self.fake_runs(get_tasks(["t7-single-lookup"])[0], "agent", 1, []), llm.QuotaExhausted("daily quota used up")]
         said = []
@@ -294,7 +330,10 @@ class TaskSetTests(unittest.TestCase):
         self.assertTrue("2026-12-03" in accepted and "2026-12-02" in accepted)
         self.assertTrue(add_days("2027-01-04", 9).startswith("2027-01-13"))               # t7-leave-end-date: 10 days, 4th is day 1
         self.assertIn("2027-01-13", by_id["t7-leave-end-date"]["expect_contains"])
-        self.assertLess(45, 60)                                                          # t7-remote-eligibility: not eligible yet
+        remote = by_id["t7-remote-eligibility"]                                          # joined 45 days ago, needs 60
+        self.assertEqual(calculate("60 - 45"), "15")
+        self.assertIn("45 days ago", remote["question"])
+        self.assertIn("60", remote["expect_all"])
 
     def test_the_rule_checks_accept_a_correct_answer_and_reject_a_plain_wrong_one_for_every_task(self):
         # A task nobody can pass, or everybody passes, would make the race meaningless.
@@ -308,17 +347,33 @@ class TaskSetTests(unittest.TestCase):
             "t7-conflict": "The Acme policy says 18 days and the handbook says 24 days.",
             "t7-cloud-two-sections": "No, least privilege applies; keep access keys in Azure Key Vault.",
         }
+        wrong_answers = {                                      # plausible, cites the right documents, states the wrong figures
+            "t7-single-lookup": "12 weeks of paid parental leave.",
+            "t7-carry-forward-sum": "You can carry forward 10 days; 5 are above the limit.",
+            "t7-notice-end-date": "The notice period ends on 3 January 2027.",
+            "t7-leave-end-date": "Your last day of leave is 14 January 2027.",
+            "t7-remote-eligibility": "Yes, they can already request remote work, up to five days a week.",
+            "t7-two-documents": "7 calendar days of notice on probation, and 10 paid sick days.",
+            "t7-conflict": "The policy says 20 days of annual leave.",
+            "t7-cloud-two-sections": "Yes, give them the whole subscription and keep the keys in a spreadsheet.",
+        }
         for task in TASKS:
             with self.subTest(task=task["id"]):
+                case = dict(task, needs_expected=False)
                 if task["should_refuse"]:
                     good = {"answer": "I don't know based on the provided documents.", "grounded": False, "sources": [], "retrieved": []}
-                    bad = {"answer": "It is 20 percent.", "grounded": True, "sources": [], "retrieved": []}
+                    failures = [{"answer": "It is 20 percent.", "grounded": True, "sources": [], "retrieved": []}]
                 else:
                     sources = list(task["expected_sources"])
                     good = {"answer": sample_answers[task["id"]], "grounded": True, "sources": sources, "retrieved": []}
-                    bad = {"answer": "I am not sure about that at all.", "grounded": True, "sources": sources, "retrieved": []}
-                self.assertTrue(checks.check_case(dict(task, needs_expected=False), good)[1])
-                self.assertFalse(checks.check_case(dict(task, needs_expected=False), bad)[1])
+                    failures = [dict(good, answer="I am not sure about that at all."),      # says nothing
+                                dict(good, answer=wrong_answers[task["id"]]),               # says the wrong thing
+                                dict(good, sources=[])]                                     # the right facts, no source
+                    if task.get("require_all_sources"):
+                        failures.append(dict(good, sources=sources[:1]))                    # only one of the two documents
+                self.assertTrue(checks.check_case(case, good)[1])
+                for failure in failures:
+                    self.assertFalse(checks.check_case(case, failure)[1], failure["answer"])
 
 
 if __name__ == "__main__":

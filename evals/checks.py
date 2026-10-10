@@ -41,7 +41,16 @@ def refusal_check(case, result):
 
 
 def source_check(case, result):
-    """Does the answer cite at least one document that legitimately answers the question?"""
+    """Does the answer cite at least one document that legitimately answers the question?
+
+    A case that needs several documents (two facts in two documents, or a conflict between them) sets
+    `require_all_sources`: then every expected document must be cited, not just one of them.
+    """
+    if case.get("require_all_sources"):
+        missing = [name for name in case["expected_sources"] if name not in result["sources"]]
+        return _check("cites_expected_source", not missing,
+                      "cited every expected document" if not missing
+                      else f"did not cite {missing}; cited {result['sources'] or 'nothing'}")
     cited = [name for name in result["sources"] if name in case["expected_sources"]]
     return _check("cites_expected_source", bool(cited),
                   f"cited {cited[0]}" if cited else f"cited {result['sources'] or 'nothing'}, "

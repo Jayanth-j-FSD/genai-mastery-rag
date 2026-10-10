@@ -117,6 +117,16 @@ def result(answer="Eligible employees may take 16 weeks. [source: Acme-Leave-Pol
 
 
 class CheckTests(unittest.TestCase):
+    def test_a_case_that_needs_several_documents_must_cite_all_of_them(self):
+        needs_both = case(expected_sources=["a.md", "b.md"], require_all_sources=True, expect_contains=[])
+        one = checks.source_check(needs_both, result(sources=("a.md",)))
+        both = checks.source_check(needs_both, result(sources=("b.md", "a.md")))
+        self.assertFalse(one["passed"])
+        self.assertIn("did not cite ['b.md']", one["detail"])
+        self.assertTrue(both["passed"])
+        any_one = case(expected_sources=["a.md", "b.md"], expect_contains=[])
+        self.assertTrue(checks.source_check(any_one, result(sources=("a.md",)))["passed"])              # the default is unchanged
+
     def test_a_correct_cited_answer_passes_every_rule(self):
         found, passed, warnings = checks.check_case(case(), result())
         self.assertTrue(passed)
