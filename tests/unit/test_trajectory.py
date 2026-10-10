@@ -180,6 +180,52 @@ class MetricsTests(unittest.TestCase):
         self.assertEqual(trajectory.cost_summary([])["tokens"]["max"], 0.0)
 
 
+class PairedComparisonTests(unittest.TestCase):
+    def test_only_the_pairs_both_runs_completed_are_kept_in_the_same_order_on_both_sides(self):
+        def run(task, repeat):
+            return {"task_id": task, "repeat": repeat}
+        before = [run("a", 1), run("b", 1), run("a", 2), run("c", 1)]
+        after = [run("b", 1), run("a", 1), run("z", 1)]
+        left, right = trajectory.pair_records(before, after)
+        self.assertEqual([(r["task_id"], r["repeat"]) for r in left], [("a", 1), ("b", 1)])
+        self.assertEqual([(r["task_id"], r["repeat"]) for r in right], [("a", 1), ("b", 1)])
+        self.assertEqual(trajectory.pair_records([], after), ([], []))
+        self.assertEqual(trajectory.pair_records(before, [run("q", 9)]), ([], []))
+
+    def call_compare(self, before_repeats, after_repeats):
+        import contextlib
+        import io
+        import os
+        import sys
+        import tempfile
+        from unittest import mock
+        from evals import runner
+        sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))
+        import compare_trajectories
+
+        def saved(label, repeats):
+            runs = [dict(record(CLEAN), task_id="t7-notice-end-date", repeat=n) for n in repeats]
+            return {"meta": {"label": label, "complete": True, "overrides": {}, "defense": False}, "runs": runs}
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, mock.patch.object(runner, "RESULTS_DIR", tmp):
+            runner.save_results(saved("a", before_repeats), runner.results_path("trajectories-a"))
+            runner.save_results(saved("b", after_repeats), runner.results_path("trajectories-b"))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = compare_trajectories.main(["a", "b"])
+        return code, out.getvalue()
+
+    def test_the_compare_script_reads_only_the_pairs_both_runs_completed(self):
+        code, out = self.call_compare([1, 2, 3], [2, 3, 4])
+        self.assertEqual(code, 0)
+        self.assertIn("Compared on the 2 (task, repeat) pairs both runs completed ('a' has 3 run(s), 'b' has 3)", out)
+        self.assertIn("With 2 pairs", out)
+
+    def test_two_runs_with_nothing_in_common_are_an_error_not_an_empty_table(self):
+        code, out = self.call_compare([1], [2])
+        self.assertEqual(code, 1)
+        self.assertIn("nothing to compare", out)
+
+
 class GradeAndReportTests(unittest.TestCase):
     def test_grade_combines_outcome_and_path(self):
         graded = trajectory.grade(TASK, record(CLEAN[:1]))

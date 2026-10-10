@@ -229,6 +229,19 @@ def cost_summary(records):
             "api_seconds": _stats([r["api_seconds"] for r in records])}
 
 
+def pair_records(before_records, after_records):
+    """The runs of each side that have a partner on the other: the same (task, repeat) completed in both.
+
+    A run cut short by a daily quota has fewer runs than the other. Comparing totals would then compare different
+    questions, so a before-and-after is read on the pairs both sides finished, in the same order on both sides.
+    """
+    def key(record):
+        return (record["task_id"], record["repeat"])
+    common = {key(r) for r in before_records} & {key(r) for r in after_records}
+    keep = lambda records: sorted((r for r in records if key(r) in common), key=key)
+    return keep(before_records), keep(after_records)
+
+
 def tokens_past_call_limit(records, limit=3):
     """Tokens in the steps that made a call beyond `limit` to one tool, and all tokens: a CEILING on what a cap saves.
 

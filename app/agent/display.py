@@ -33,7 +33,7 @@ def show_step(step):
             arguments = call["arguments"]
         mark = "" if call["ok"] else "  <-- the tool refused"
         if call.get("blocked"):
-            mark = "  <-- BLOCKED by the argument guard, the tool never ran"
+            mark = "  <-- refused before it ran (the result says by what)"
         print(f"[step {step['n']}] CALL   {call['name']}({_flat(arguments, 110)}){mark}")
         print(f"          RESULT {_flat(call['observation'], 220)}")
     print(f"          ({cost})")

@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.config import BASE_DIR                              # noqa: E402
 from app.console import display_path, make_output_safe       # noqa: E402
 from evals import runner, trajectory                         # noqa: E402
+from evals.agent_tasks import get_tasks                      # noqa: E402
 
 
 def main(argv=None):
@@ -36,16 +37,27 @@ def main(argv=None):
         print(f"Error: {exc}")
         print("Make a run first:  python scripts/run_trajectories.py --label before")
         return 1
-    lines = trajectory.format_compare(before["summary"], after["summary"], args.before, args.after)
-    spent, total = trajectory.tokens_past_call_limit(before["runs"])
+    tasks = get_tasks(None, include_probes=True)
+    known = {task["id"] for task in tasks}
+    before_runs, after_runs = trajectory.pair_records([r for r in before["runs"] if r["task_id"] in known],
+                                                      [r for r in after["runs"] if r["task_id"] in known])
+    if not before_runs:
+        print("Error: the two runs have no (task, repeat) in common, so there is nothing to compare.")
+        return 1
+    before_summary = trajectory.summarize(trajectory.grade_all(before_runs, tasks), before_runs)
+    after_summary = trajectory.summarize(trajectory.grade_all(after_runs, tasks), after_runs)
+    lines = [f"Compared on the {len(before_runs)} (task, repeat) pairs both runs completed "
+             f"('{args.before}' has {len(before['runs'])} run(s), '{args.after}' has {len(after['runs'])}).", ""]
+    lines += trajectory.format_compare(before_summary, after_summary, args.before, args.after)
+    spent, total = trajectory.tokens_past_call_limit(before_runs)
     lines.append("")
     lines.append(f"Ceiling on what a cap of 3 calls per tool could save, from the '{args.before}' runs: {spent} of {total} tokens "
                  f"({spent / total:.1%}) were spent in steps that made a 4th or later call to one tool." if total else
                  "No tokens recorded in the before run.")
     lines.append(f"overrides: before {before['meta'].get('overrides') or 'none'}, after {after['meta'].get('overrides') or 'none'}; "
                  f"defences: before {'on' if before['meta'].get('defense') else 'off'}, after {'on' if after['meta'].get('defense') else 'off'}")
-    lines.append(f"With {before['summary']['runs']} and {after['summary']['runs']} runs, a difference of one or two runs is within what "
-                 "a second identical run could change. Read the modes, not only the totals.")
+    lines.append(f"With {len(before_runs)} pairs, a difference of one or two runs is within what a second identical run could "
+                 "change. Read the modes, not only the totals.")
     print("\n".join(lines))
     if args.save:
         path = os.path.join(BASE_DIR, "docs", "week8", "before-after.md")
