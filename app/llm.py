@@ -69,6 +69,27 @@ def reset_usage() -> None:
         _usage[key] = 0.0 if isinstance(_usage[key], float) else 0
 
 
+def reset_last_model() -> None:
+    """Forget the last model name, so a caller can tell whether THIS piece of work made a model call."""
+    _last_model["name"] = None
+
+
+def message_of(response):
+    """The first message of a chat response, or None when the provider returned no choices.
+
+    A provider can answer with an empty list (a blocked reply, for example). Indexing choices[0]
+    would turn that into a crash, so every reader goes through here.
+    """
+    choices = getattr(response, "choices", None) or []
+    return choices[0].message if choices else None
+
+
+def text_of(response) -> str:
+    """The reply text, stripped; an empty string when there is no message or no content."""
+    message = message_of(response)
+    return ((getattr(message, "content", None) if message is not None else None) or "").strip()
+
+
 def last_model():
     """The model name the provider reported on the latest successful call, or None.
 

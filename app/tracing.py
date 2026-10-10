@@ -13,11 +13,10 @@ import json
 import uuid
 from datetime import datetime
 
-from app import llm
 from app.config import settings
 
 
-def log_trace(question, retrieved, answer, grounded, retrieval_mode=None):
+def log_trace(question, retrieved, answer, grounded, retrieval_mode=None, model_served=None):
     """Append one request as a JSON line. Never raises — logging is optional."""
     try:
         os.makedirs(os.path.dirname(settings.traces_path), exist_ok=True)
@@ -53,7 +52,7 @@ def log_trace(question, retrieved, answer, grounded, retrieval_mode=None):
                 # And a name like "gemini-flash-latest" is an alias that moves over time.
                 "embed_provider": settings.embed_provider,
                 "dense_search": settings.dense_search,
-                "llm_model_served": llm.last_model(),
+                "llm_model_served": model_served,       # None when no model call was needed (a refusal)
             },
         }
         with open(settings.traces_path, "a", encoding="utf-8") as f:

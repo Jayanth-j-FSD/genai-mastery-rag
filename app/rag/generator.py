@@ -103,7 +103,7 @@ def generate_answer(question: str, chunks):
         ],
         temperature=0,                      # 0 = most consistent, least random
     )
-    answer = (resp.choices[0].message.content or "").strip()
+    answer = llm.text_of(resp)
     if not answer:                          # empty reply -> treat as "don't know"
         return IDK, [], False
 
