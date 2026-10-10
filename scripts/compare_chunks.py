@@ -63,7 +63,7 @@ def main():
     try:
         for cs, co in CONFIGS:
             runs.append((cs, co, *_run_config(cs, co)))
-    except RuntimeError as exc:
+    except BaseException as exc:                # also Ctrl+C: the index must be put back in EVERY case
         failure = exc
 
     # Always put the index back to the .env configuration so the store isn't left changed,
@@ -76,13 +76,15 @@ def main():
     except Exception as exc:                    # noqa: BLE001 - report whatever went wrong
         restore_error = exc
 
-    if failure:
-        print(f"Error: {failure}")
     if restore_error:
         print(f"\nWARNING: the index could NOT be restored to chunk_size={original[0]}, "
               f"overlap={original[1]} ({type(restore_error).__name__}: {restore_error}).")
         print("It may still hold the last experiment's chunks. Run `python scripts/ingest.py` now.")
-    if failure or restore_error:
+    if failure is not None:
+        if not isinstance(failure, RuntimeError):
+            raise failure                       # an interrupt or an unexpected error: surface it, after restoring
+        print(f"Error: {failure}")
+    if failure is not None or restore_error:
         return 1
 
     lines = []
