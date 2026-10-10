@@ -25,6 +25,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import settings, BASE_DIR                      # noqa: E402
+from app.console import display_path               # noqa: E402
 from app.rag.diagnose import classify, NON_FAILURE_KINDS       # noqa: E402
 from tests.eval_set import CASES                                # noqa: E402
 
@@ -119,7 +120,7 @@ def main():
             f.write(f"Generated {datetime.now().isoformat(timespec='seconds')} by "
                     f"`python scripts/diagnose_failures.py --mode {args.mode} --save`.\n\n")
             f.write("```\n" + "\n".join(lines) + "\n```\n")
-        print(f"\nSaved: {os.path.relpath(out_path, BASE_DIR)}")
+        print(f"\nSaved: {display_path(out_path, BASE_DIR)}")
     return 0
 
 

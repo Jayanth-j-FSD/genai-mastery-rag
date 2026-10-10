@@ -19,6 +19,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import BASE_DIR                              # noqa: E402
+from app.console import display_path               # noqa: E402
 from app.worksheet import parse, validate_notes, failures     # noqa: E402
 
 DEFAULT_IN = os.path.join(BASE_DIR, "docs", "week5", "worksheet.md")
@@ -130,7 +131,7 @@ def main():
     problems = validate_notes(blocks)
     if problems:
         print(f"The notes pass is not finished — {len(problems)} thing(s) to fix in "
-              f"{os.path.relpath(args.source, BASE_DIR)}:\n")
+              f"{display_path(args.source, BASE_DIR)}:\n")
         for problem in problems:
             print(f"  - {problem}")
         print("\nThis is deliberate. Grouping before every failure has an honest note is "
@@ -151,7 +152,7 @@ def main():
         return 1
 
     if os.path.exists(args.out) and not args.force:
-        print(f"\nError: {os.path.relpath(args.out, BASE_DIR)} already exists and may "
+        print(f"\nError: {display_path(args.out, BASE_DIR)} already exists and may "
               f"contain codes you wrote. Pass --force to overwrite it.")
         return 1
 
@@ -164,7 +165,7 @@ def main():
         print(f"  severity spread: "
               f"{severities.count(3)} at 3, {severities.count(2)} at 2, "
               f"{severities.count(1)} at 1")
-    print(f"\nWrote {os.path.relpath(args.out, BASE_DIR)}")
+    print(f"\nWrote {display_path(args.out, BASE_DIR)}")
     print("Next: add one `code:` per failure, then  python scripts/rank_problems.py")
     return 0
 

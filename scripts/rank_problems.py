@@ -22,6 +22,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import BASE_DIR                                        # noqa: E402
+from app.console import display_path               # noqa: E402
 from app.worksheet import parse, normalize_code, normalize_severity    # noqa: E402
 from app.worksheet import normalize_verdict                            # noqa: E402
 
@@ -117,7 +118,7 @@ def main():
     problems = _validate(blocks)
     if problems:
         print(f"Not ready to rank — {len(problems)} thing(s) to fix in "
-              f"{os.path.relpath(args.source, BASE_DIR)}:\n")
+              f"{display_path(args.source, BASE_DIR)}:\n")
         for problem in problems:
             print(f"  - {problem}")
         return 1
@@ -194,7 +195,7 @@ def main():
                     "`python scripts/rank_problems.py --save`. "
                     "Do not hand-edit; edit `coded-notes.md` and re-run.\n\n")
             f.write("```\n" + "\n".join(lines) + "\n```\n")
-        print(f"\nSaved: {os.path.relpath(DEFAULT_OUT, BASE_DIR)}")
+        print(f"\nSaved: {display_path(DEFAULT_OUT, BASE_DIR)}")
     return 0
 
 
