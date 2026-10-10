@@ -10,24 +10,43 @@
 # what the mentor checks first ("did they read a fair sample?").
 #
 # The mix is deliberate — clear questions, questions whose answer is in two
-# documents, questions that are not in the corpus at all, and vague questions a
-# real user would actually type. The vague ones are where the interesting
-# failures live.
+# documents, questions that are not in the corpus at all, questions where the
+# documents disagree, and vague questions a real user would actually type. The
+# vague and conflicting ones are where the interesting failures live.
+#
+# Kept in step with the documents in data/corpus/ (rewritten 2026-10-11 after the
+# corpus changed): nothing here refers to a file that is no longer there.
 
 # --- leave ---
 How many annual leave days do full-time employees get?
 How many unused leave days can I carry over to next year?
-What happens to unused leave days on 31 December?
+What happens to unused leave days above the carry-forward limit?
+When does the annual leave allowance start for a new joiner?
+How many sick leave days do employees get per year?
+When do I need a medical certificate for sick leave?
+How many weeks of paid parental leave are available?
 How far in advance do I have to request leave?
 Who approves my leave request?
-Can I take leave during the December code-freeze?
+How many days of casual leave do employees get per year?
+How many designated company holidays are there each year?
+
+# --- resigning and notice ---
+How many days of notice must a permanent employee give before resigning?
+How much notice does an employee on probation have to give?
+When does the notice period start?
+What notice does the company give when it ends employment without cause?
+What is the standard probation period?
+What do I have to do during my notice period?
 
 # --- remote work ---
 How many days a week can I work remotely?
+After how many days of service can I request remote work?
+What equipment does the company provide for remote work?
+What are the core hours for remote workers?
+How much can I claim each month for internet?
+By when do I have to submit an internet claim?
+How often are remote-work approvals reviewed?
 How many days must I be in the office?
-Which day is the company-wide collaboration day?
-What do I need for a fully remote arrangement?
-How often is a fully remote arrangement reviewed?
 
 # --- benefits ---
 What is the pension match?
@@ -44,13 +63,26 @@ When does an expense need pre-approval?
 How long do I have to submit an expense?
 When are reimbursements paid?
 
-# --- security ---
+# --- security (company policy) ---
 How long must my password be?
 How often must passwords be rotated?
 Is MFA mandatory?
 Who do I report a security incident to?
 How quickly must I report a security incident?
 Can I copy customer data to my personal cloud storage?
+Within how many hours must a personal-data incident be reported?
+
+# --- cloud and data access (the Nexora policy) ---
+What are the four data classification levels?
+What are the three Azure environments?
+Which role reviews security configurations and access assignments?
+Can a developer directly access Restricted production data?
+Where should Azure access keys and database passwords be stored?
+What can a Data Analyst do?
+What should happen to inactive accounts?
+Can production data be copied into a development environment?
+What approvals are needed before accessing production data?
+What is PIM used for?
 
 # --- product support ---
 What does error ERR-4032 mean?
@@ -60,11 +92,19 @@ How long is analytics data retained on the Standard plan?
 What should I check in Settings > Connections?
 
 # --- not in the corpus: the app should refuse these ---
-What is the company's parental leave policy?
-How many sick days do employees get?
-What is the notice period for resignation?
 Is there an annual bonus scheme?
 What is the dress code?
+What is Nexora Tech's Azure subscription ID?
+What is the maximum number of Azure administrators allowed?
+What is the CTO's phone number?
+What is the company stock option plan?
+Is there a December code freeze on booking leave?
+Which day is the company-wide collaboration day?
+
+# --- the documents disagree (a real user cannot tell which one applies) ---
+How much annual leave do I get in a year?
+What is the notice period for resignation?
+What is the learning and certification budget?
 
 # --- vague, the way real users ask ---
 What are my spending limits?
