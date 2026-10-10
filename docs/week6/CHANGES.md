@@ -5,6 +5,17 @@ rewritten: everything here is a new file or an additive, default-off change.
 
 **Left for you.** The interpretation, the judge grading and the ship decision are blank in `findings.md`.
 
+## Requirement to code
+
+Each of the mentor's four questions, and where in the code it is answered. Line numbers are at the Week 6 tag.
+
+| Mentor question | Where | What proves it |
+|---|---|---|
+| 1. Does the test set run with a single command? | `scripts/run_evals.py:31` (`main`) calls `evals/runner.py:227` (`run_cases`) over `evals/cases.py:145` (`all_cases`, 41 cases) | `python scripts/run_evals.py`; the tests in `tests/unit/test_evals_runner.py` and `test_evals_scripts.py` |
+| 2. Are last week's real failures included as tests? | The 32 Week 4 cases are in `evals/cases.py`. Week 5's own failures come in through `scripts/make_regressions.py:66`, read by `all_cases` | Tested against a fixture. **Gap:** your Week 5 reading has not been done, so `evals/regressions.json` does not exist yet |
+| 3. Did you check the judge agrees with your grading first? | `evals/validation.py:47` (`pick_sample`), `:109` (`write_sheet`), `:117` (`join_labels`), `evals/agreement.py:36` (`agreement_stats`), `:58` (`is_trustworthy`), `scripts/validate_judge.py:33` | **Gap:** the blind sheet exists and is ungraded, so no agreement number exists. Until you grade it, the judge's scores are not evidence |
+| 4. Is there a before-and-after score proving the change helped? | `scripts/compare_evals.py:23`, `evals/report.py:84` (`compare`) and `:112` (`format_compare`); `docs/week6/before-after.md` | 38 to 39 of 41, per problem type, with the fixed and broken cases named; see Experiment 3 for the caveats |
+
 ## The experiment log
 
 Week 6 asks for one improvement and a before-and-after score. The honest way to get there is the Week 5
