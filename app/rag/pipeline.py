@@ -9,6 +9,17 @@ from app.rag import loader, chunker, embedder, keyword, store, retriever, genera
 from app.tracing import log_trace
 
 
+def require_index():
+    """Raise a clear error if nothing is indexed.
+
+    An empty index makes every question end in "I don't know", which is exactly what a correct
+    refusal looks like, and makes every measurement read as a total retrieval failure. Better to
+    stop and say what is wrong. Used by answer() and by the scripts that measure the app.
+    """
+    if store.count_chunks() == 0:
+        raise RuntimeError("No documents are indexed yet. Run `python scripts/ingest.py` first.")
+
+
 def ingest():
     """Read data/corpus/, split + embed everything, and save it to the index.
     Re-runnable: it clears the index first, so changing chunk size = re-ingest."""
@@ -55,10 +66,7 @@ def answer(question: str, mode: str = None):
             "retrieval_mode": used_mode,
         }
 
-    # An empty index would make every question end in "I don't know", which is exactly what a
-    # correct refusal looks like. Say what is wrong instead of passing as a working app.
-    if store.count_chunks() == 0:
-        raise RuntimeError("No documents are indexed yet. Run `python scripts/ingest.py` first.")
+    require_index()                                # an empty index must not pass as a polite refusal
 
     chunks = retriever.retrieve_for_mode(question, settings.top_k, used_mode)
     answer_text, sources, grounded = generator.generate_answer(question, chunks)

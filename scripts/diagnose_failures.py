@@ -25,7 +25,8 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import settings, BASE_DIR                      # noqa: E402
-from app.console import display_path               # noqa: E402
+from app.console import display_path, make_output_safe  # noqa: E402
+from app.rag.pipeline import require_index              # noqa: E402
 from app.rag.diagnose import classify, NON_FAILURE_KINDS       # noqa: E402
 from tests.eval_set import CASES                                # noqa: E402
 
@@ -72,6 +73,7 @@ def main():
     parser.add_argument("--save", action="store_true",
                         help="also write the report to docs/week4/failure-labels-<mode>.md")
     args = parser.parse_args()
+    make_output_safe()                       # an odd character in an answer must not crash the run
 
     lines = []
 
@@ -87,6 +89,7 @@ def main():
 
     counts = {}
     try:
+        require_index()
         for case in CASES:
             result = classify(case, mode=args.mode, call_model=not args.no_model)
             kind = result["kind"] or "NOT GRADED"
