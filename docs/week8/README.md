@@ -28,6 +28,7 @@ over the agent, and builds defences that are measured, not assumed.
 | An injection suite: 13 attacks (10 indirect, planted in poisoned documents in a private throwaway index; 3 direct), each with a canary so success is detected mechanically | `evals/injection.py`, `scripts/run_injection.py` | 2 |
 | Three defence layers, each switchable and measurable alone: sanitize what it reads, guard what it does, validate what it says | `app/agent/defense.py`, wired into `app/agent/loop.py` | 2 |
 | The before-and-after number on the top failure mode | `scripts/compare_trajectories.py`, `docs/week8/CHANGES.md` | 3 |
+| A one-run illustration of the call budget on the unanswerable question: eight searches and no answer, then three searches and a refusal | `docs/week8/example-budget.md` | 3 |
 | What still gets through: written as executable statements in a test, measured, and mapped to the OWASP list in `owasp-map.md` | `tests/unit/test_injection.py` (`WhatEachLayerStopsTests`), `docs/week8/findings.md` | 4 |
 
 ## Run it

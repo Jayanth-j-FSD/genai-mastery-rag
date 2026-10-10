@@ -141,6 +141,43 @@ Replaying the whole defence (all three layers, as `run_agent` applies them) over
 retrieved, and no call uses a date or number the guard rejects. Prediction for the live run: at most 2 of 33
 answers withheld or calls refused, each reported by name.
 
+## What happened after the prediction was committed
+
+- **The free quota ran out.** Each model has a daily limit (500 requests for the lite models, 20 for the flash
+  models) and every lite model was used up on 2026-10-11. The first control run stopped after 7 of its 33 runs
+  (`complete: false`), the benign run with the defences on could not start, and the measured pair
+  (`before-final`, `after-final`) is waiting for the quota to reset, which happens at about 12:30 IST. Nothing
+  below is that measurement.
+- **What the partial control shows.** The cap of 3 on `gemini-3.1-flash-lite-preview`, which never searches more
+  than twice, against the saved `before-p` run, on the 7 (task, repeat) pairs both completed:
+
+```
+Compared on the 7 (task, repeat) pairs both runs completed ('before-p' has 33 run(s), 'control' has 7).
+
+                                          before-p     control
+  runs                                           7           7
+  outcome right                                  7           7
+  trajectory clean                               6           6
+  right answer, wrong path (the gap)             1           1
+  tool-choice accuracy                        100%        100%
+  mode: unverified-citation                      1           1
+  tokens per run, mean                        3213        3213
+  tokens per run, p99                         6320        6320
+
+Ceiling on what a cap of 3 calls per tool could save, from the 'before-p' runs: 0 of 22488 tokens (0.0%) were spent in steps that made a 4th or later call to one tool.
+overrides: before none, after {'agent_max_calls_per_tool': 3}; defences: before off, after off
+With 7 pairs, a difference of one or two runs is within what a second identical run could change. Read the modes, not only the totals.
+```
+
+  It changed nothing, which is what the control predicted for a model that never reaches the cap. The
+  `unverified-citation` run is `t7-carry-forward-sum`, the same one as in `before-p`.
+- **One illustration of the mechanism**, on `gemini-3.7-flash` (the one model with a few requests left): the
+  unanswerable question, once without the cap and once with it, in `example-budget.md`. One run each, so it shows
+  the behaviour and measures nothing.
+- **Two changes made while doing this.** `compare_trajectories.py` now reads only the (task, repeat) pairs both
+  runs completed, because a run cut short by a quota otherwise compares different questions; and the printer no
+  longer says "blocked by the argument guard" for a call the budget refused.
+
 ## Considered and deferred
 
 | Technique | Why not this week |
