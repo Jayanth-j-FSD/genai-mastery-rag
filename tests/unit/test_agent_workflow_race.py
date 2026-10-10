@@ -1,4 +1,5 @@
 """The fixed workflow, the race that compares it with the agent, and the integrity of the task set."""
+import json
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -78,11 +79,23 @@ class WorkflowTests(unittest.TestCase):
             self.run_workflow([fake_response("ok")], top_k=2)
         self.assertEqual([c.args[1] for c in spy.call_args_list], [6, 2])
 
-    def test_an_empty_reply_or_no_choices_counts_as_dont_know(self):
+    def test_an_empty_reply_is_a_failure_not_a_refusal(self):
         run, _ = self.run_workflow([fake_response("")])
-        self.assertEqual(run.answer, loop.IDK)
+        self.assertEqual((run.stop_reason, run.answer, run.finished, run.steps[-1]["kind"]), ("empty_reply", None, False, "error"))
+        self.assertIn("empty reply", run.steps[-1]["content"])
+
+    def test_a_reply_with_no_choices_is_an_error_like_it_is_in_the_agent(self):
         run, _ = self.run_workflow([SimpleNamespace(choices=[], usage=None)])
-        self.assertEqual((run.answer, run.stop_reason), (loop.IDK, "final"))
+        self.assertEqual((run.stop_reason, run.answer, run.steps[-1]["kind"]), ("error", None, "error"))
+        self.assertIn("no reply", run.steps[-1]["content"])
+
+    def test_the_recorded_search_arguments_are_valid_json_even_with_quotes_in_the_question(self):
+        run, _ = self.run_workflow([fake_response("ok")])
+        self.assertEqual(json.loads(run.steps[0]["tool_calls"][0]["arguments"]), {"query": "How many days of annual leave?"})
+        quoted = 'What is the "probation" period?'
+        with mock.patch.object(llm, "_get_client", return_value=FakeClient([fake_response("ok")])):
+            run = workflow.run_workflow(quoted)
+        self.assertEqual(json.loads(run.steps[0]["tool_calls"][0]["arguments"]), {"query": quoted})
 
     def test_a_provider_failure_is_recorded_not_raised_and_a_quota_is_not_swallowed(self):
         import httpx

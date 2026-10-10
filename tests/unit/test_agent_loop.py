@@ -136,10 +136,6 @@ class HappyPathTests(LoopTestCase):
         self.assertEqual([s["n"] for s in seen], [1, 2])
         self.assertEqual(seen, run.steps)
 
-    def test_an_empty_final_reply_counts_as_dont_know(self):
-        run, _ = self.run_script([says("")], use_memory=False)
-        self.assertEqual((run.stop_reason, run.answer), ("final", loop.IDK))
-
 
 class ToolFailureTests(LoopTestCase):
     def observation(self, script, **kwargs):
@@ -169,6 +165,13 @@ class ToolFailureTests(LoopTestCase):
         first, run, _ = self.observation([asks(call("c", "explode", {})), says("x")])
         self.assertIn("ERROR: explode failed (RuntimeError)", first["observation"])
         self.assertEqual(run.stop_reason, "final")
+
+    def test_a_type_error_inside_a_tool_is_a_tool_bug_not_the_models_fault(self):
+        def buggy(text):
+            return text + 1                                                             # str + int: a bug in the tool
+        bug = Tool("buggy", "has a bug", {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}, buggy)
+        first, _, _ = self.observation([asks(call("c", "buggy", {"text": "a"})), says("x")], tools=[bug])
+        self.assertEqual(first["observation"], "ERROR: buggy failed (TypeError). Try something else.")
 
     def test_a_missing_or_unexpected_argument_name_is_a_recoverable_error(self):
         missing, _, _ = self.observation([asks(call("c", "echo", {})), says("x")])
@@ -205,6 +208,17 @@ class StopConditionTests(LoopTestCase):
                                       use_memory=False, max_total_tokens=1000)
         self.assertEqual((run.stop_reason, run.answer), ("token_budget", None))
         self.assertEqual(len(client.requests), 1)
+        self.assertEqual(run.usage["prompt_tokens"] + run.usage["completion_tokens"], 1100)   # soft: the call that crossed 1000 still counts
+
+    def test_an_empty_reply_is_a_failure_not_a_refusal(self):
+        run, _ = self.run_script([says("")], use_memory=False)
+        self.assertEqual((run.stop_reason, run.answer, run.finished), ("empty_reply", None, False))
+        self.assertEqual(run.steps[-1]["kind"], "error")
+        self.assertIn("empty reply", run.steps[-1]["content"])
+
+    def test_an_empty_reply_after_tool_calls_ends_the_run_the_same_way(self):
+        run, _ = self.run_script([asks(call("c", "echo", {"text": "x"})), says("   ")], use_memory=False)
+        self.assertEqual((run.stop_reason, run.answer, [s["kind"] for s in run.steps]), ("empty_reply", None, ["tool", "error"]))
 
     def test_the_wall_clock_timeout_stops_the_run(self):
         times = iter([0.0, 0.0, 0.0, 0.0, 100.0, 100.0, 100.0, 100.0, 100.0])
@@ -213,12 +227,46 @@ class StopConditionTests(LoopTestCase):
         self.assertEqual(run.stop_reason, "timeout")
         self.assertEqual(len(client.requests), 1)
 
-    def test_every_run_records_why_it_stopped(self):
-        reasons = {loop.run_agent.__name__}                                              # sanity: the function exists
-        self.assertTrue(reasons)
-        run, _ = self.run_script([says("ok")], use_memory=False)
-        self.assertEqual(run.stop_reason, "final")
-        self.assertGreaterEqual(run.elapsed_seconds, 0)
+    def test_every_way_a_run_can_end_names_its_reason_and_records_its_usage(self):
+        looping = [asks(call(str(i), "echo", {"text": "same"})) for i in range(3)]
+        endings = [("final", [says("ok")], {}),
+                   ("empty_reply", [says("")], {}),
+                   ("error", [SimpleNamespace(choices=[], usage=None)], {}),
+                   ("max_steps", [asks(call("a", "echo", {"text": "1"})), asks(call("b", "echo", {"text": "2"}))], {"max_steps": 2}),
+                   ("repeated_call", looping, {}),
+                   ("token_budget", [asks(call("c", "echo", {"text": "x"}), prompt=900, completion=200), says("unreachable")],
+                    {"max_total_tokens": 1000})]
+        for expected, script, options in endings:
+            with self.subTest(expected):
+                run, _ = self.run_script(script, use_memory=False, **options)
+                self.assertEqual(run.stop_reason, expected)
+                self.assertEqual(run.finished, expected == "final")
+                self.assertEqual(run.answer is not None, expected == "final")
+                self.assertGreaterEqual(run.elapsed_seconds, 0)
+                self.assertTrue({"calls", "prompt_tokens", "completion_tokens"} <= set(run.usage))
+
+    def test_the_same_arguments_in_a_different_key_order_are_still_the_same_call(self):
+        two = Tool("two", "takes two", {"type": "object", "properties": {}}, lambda a, b: f"{a}{b}")
+        script = [asks(call("1", "two", '{"a": "x", "b": "y"}')), asks(call("2", "two", '{"b":"y","a":"x"}')), says("done")]
+        run, _ = self.run_script(script, [two], use_memory=False)
+        second = run.steps[1]["tool_calls"][0]
+        self.assertFalse(second["ok"])
+        self.assertIn("You already called two", second["observation"])
+
+    def test_arguments_sent_as_an_object_and_as_json_text_are_the_same_call(self):
+        as_object = SimpleNamespace(id="2", type="function", function=SimpleNamespace(name="echo", arguments={"text": "x"}))
+        run, _ = self.run_script([asks(call("1", "echo", {"text": "x"})), asks(as_object), says("done")], use_memory=False)
+        self.assertIn("You already called echo", run.steps[1]["tool_calls"][0]["observation"])
+
+    def test_arguments_that_are_not_json_are_compared_as_the_text_sent(self):
+        run, _ = self.run_script([asks(call("1", "echo", "{not json")), asks(call("2", "echo", "{not json")), says("done")],
+                                 use_memory=False)
+        self.assertIn("You already called echo", run.steps[1]["tool_calls"][0]["observation"])
+
+    def test_different_arguments_are_a_different_call(self):
+        run, _ = self.run_script([asks(call("1", "echo", {"text": "a"})), asks(call("2", "echo", {"text": "b"})), says("done")],
+                                 use_memory=False)
+        self.assertTrue(all(c["ok"] for step in run.steps for c in step["tool_calls"]))
 
     def test_limits_default_to_the_settings(self):
         with mock.patch.object(settings, "agent_max_steps", 2):
@@ -288,14 +336,32 @@ class MemoryTests(LoopTestCase):
         self.assertEqual(len(long_note.notes[0]), 300)
 
     def test_compact_leaves_short_results_and_non_tool_messages_alone(self):
+        asked = {"role": "assistant", "content": ""}
         messages = [{"role": "system", "content": "s"}, {"role": "user", "content": "u"},
-                    {"role": "tool", "content": "short"}, {"role": "tool", "content": "b " * 200},
-                    {"role": "tool", "content": "c " * 200}, {"role": "tool", "content": "d " * 200}]
+                    asked, {"role": "tool", "content": "short"}, asked, {"role": "tool", "content": "b " * 200},
+                    asked, {"role": "tool", "content": "c " * 200}, asked, {"role": "tool", "content": "d " * 200}]
         Memory.compact(messages)
-        self.assertEqual(messages[2]["content"], "short")
-        self.assertTrue(messages[3]["content"].startswith("[shortened]"))
-        self.assertFalse(messages[4]["content"].startswith("[shortened]"))
+        self.assertEqual(messages[3]["content"], "short")
+        self.assertTrue(messages[5]["content"].startswith("[shortened]"))
+        self.assertFalse(messages[7]["content"].startswith("[shortened]"))
         self.assertEqual(messages[0]["content"], "s")
+
+    def test_compact_keeps_every_result_after_the_newest_assistant_turn(self):
+        long_text = "x " * 200
+        messages = ([{"role": "assistant", "content": ""}, {"role": "tool", "content": long_text},
+                     {"role": "assistant", "content": ""}] + [{"role": "tool", "content": long_text} for _ in range(4)])
+        Memory.compact(messages)
+        self.assertTrue(messages[1]["content"].startswith("[shortened]"))                   # an older turn: already read
+        self.assertFalse(any(m["content"].startswith("[shortened]") for m in messages[3:])) # the four the model has not read
+
+    def test_results_of_a_turn_that_made_three_calls_reach_the_model_whole(self):
+        big = Tool("big", "returns a lot", {"type": "object", "properties": {"n": {"type": "string"}}, "required": ["n"]},
+                   lambda n: f"result {n}: " + "word " * 100)
+        script = [asks(call("a", "big", {"n": "1"}), call("b", "big", {"n": "2"}), call("c", "big", {"n": "3"})), says("done")]
+        _run, client = self.run_script(script, [big])
+        contents = [m["content"] for m in client.requests[-1]["messages"] if m["role"] == "tool"]
+        self.assertEqual(len(contents), 3)
+        self.assertFalse(any(c.startswith("[shortened]") for c in contents))
 
 
 if __name__ == "__main__":

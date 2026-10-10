@@ -16,6 +16,7 @@ does sums in the model's head.
 A more elaborate fixed chain (one search per sub-question, then a calculator step) is a fair next
 competitor and is recorded as deferred in docs/week7/CHANGES.md.
 """
+import json
 import time
 
 from app import llm
@@ -45,7 +46,7 @@ def run_workflow(question, top_k=None, model=None, rpm=None, on_step=None, clock
     observation = "\n".join(f"[{n}] [source: {c['source']}] {' '.join(c['text'].split())}" for n, c in enumerate(chunks, 1))
     first = {"n": 1, "kind": "retrieve", "content": "", "seconds": round(clock() - started, 3),
              "tokens": {"prompt": 0, "completion": 0},
-             "tool_calls": [{"name": "search_policies", "arguments": f'{{"query": {question!r}}}',
+             "tool_calls": [{"name": "search_policies", "arguments": json.dumps({"query": question}, ensure_ascii=False),
                              "observation": observation or "No passages found.", "ok": True}]}
     run.steps.append(first)
     if on_step:
@@ -53,6 +54,19 @@ def run_workflow(question, top_k=None, model=None, rpm=None, on_step=None, clock
 
     context = observation or "(no passages were found)"
     step_started, before = clock(), llm.usage_snapshot()
+
+    def end(kind, content, reason, answer=None):
+        """Record the second step and close the run. The workflow has exactly two steps, so this is its only exit."""
+        delta = llm.usage_since(before)
+        last = {"n": 2, "kind": kind, "content": content, "tool_calls": [], "seconds": round(clock() - step_started, 3),
+                "tokens": {"prompt": delta["prompt_tokens"], "completion": delta["completion_tokens"]}}
+        run.steps.append(last)
+        if on_step:
+            on_step(last)
+        run.answer, run.stop_reason = answer, reason
+        run.elapsed_seconds, run.usage = round(clock() - started, 3), llm.usage_since(usage_before)
+        return run
+
     try:
         response = llm.chat([{"role": "system", "content": WORKFLOW_PROMPT},
                              {"role": "user", "content": f"Passages:\n{context}\n\nQuestion: {question}"}],
@@ -60,20 +74,10 @@ def run_workflow(question, top_k=None, model=None, rpm=None, on_step=None, clock
     except llm.QuotaExhausted:
         raise
     except Exception as exc:
-        failed = {"n": 2, "kind": "error", "content": f"{type(exc).__name__}: {exc}", "tool_calls": [],
-                  "seconds": round(clock() - step_started, 3), "tokens": {"prompt": 0, "completion": 0}}
-        run.steps.append(failed)
-        run.stop_reason, run.elapsed_seconds, run.usage = "error", round(clock() - started, 3), llm.usage_since(usage_before)
-        if on_step:
-            on_step(failed)
-        return run
-    delta = llm.usage_since(before)
-    answer = llm.text_of(response) or IDK            # an empty reply (or no choices at all) counts as "I don't know"
-    final = {"n": 2, "kind": "final", "content": answer, "tool_calls": [], "seconds": round(clock() - step_started, 3),
-             "tokens": {"prompt": delta["prompt_tokens"], "completion": delta["completion_tokens"]}}
-    run.steps.append(final)
-    if on_step:
-        on_step(final)
-    run.answer, run.stop_reason = answer, "final"
-    run.elapsed_seconds, run.usage = round(clock() - started, 3), llm.usage_since(usage_before)
-    return run
+        return end("error", f"{type(exc).__name__}: {exc}", "error")
+    if llm.message_of(response) is None:             # the provider answered with no choices at all
+        return end("error", "the provider returned no reply", "error")
+    answer = llm.text_of(response)
+    if not answer:                                   # an empty reply is a failure, never a refusal
+        return end("error", "the model sent an empty reply (no text)", "empty_reply")
+    return end("final", answer, "final", answer)

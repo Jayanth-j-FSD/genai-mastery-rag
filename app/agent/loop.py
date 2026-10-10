@@ -1,6 +1,7 @@
 """The agent loop, built by hand: think, act, look at the result, repeat.
 
-A framework would hide this, and then the loop would be magic. It is about fifty lines.
+A framework would hide this, and then the loop would be magic. Written out it is one function
+of about a hundred lines, most of them the edges listed below.
 
     1. Show the model the question and the list of tools.
     2. The model answers either with a FINAL answer, or with a request: "call tool X with arguments Y".
@@ -13,12 +14,17 @@ Everything interesting is in the edges, so each one is explicit and logged:
   fully visible afterwards and can be graded on its PATH, not only its answer (Week 8).
   It always stops. Four limits, any of which ends the run with a named reason: a step limit, a total-token
   budget, a wall-clock timeout, and a guard against asking for the same thing twice in a row. A run that
-  ends on a limit says so; it never pretends to have finished.
+  ends on a limit says so; it never pretends to have finished. The token budget and the timeout are checked
+  between model calls, so they are soft: the call that crosses one still completes and is counted, and one
+  slow call can run past the timeout.
+  A reply with no text and no tool request is not an answer. It ends the run as `empty_reply`, so it can
+  never pass for a refusal.
   Tool failures are conversation, not crashes. A bad argument, an unknown tool or an exception comes back
   to the model as an "ERROR: ..." observation it can react to.
   Memory is short on purpose. Old tool results are shortened so a long task does not drown the model in
   its own history, and the model can save facts with `remember` that stay in view.
 """
+import inspect
 import json
 import time
 from dataclasses import dataclass, field
@@ -48,7 +54,7 @@ IDK = "I don't know based on the provided documents."
 class AgentRun:
     question: str
     answer: str = None                       # None when the run was stopped before a final answer
-    stop_reason: str = ""                    # final | max_steps | token_budget | timeout | repeated_call | error
+    stop_reason: str = ""                    # final | empty_reply | max_steps | token_budget | timeout | repeated_call | error
     steps: list = field(default_factory=list)
     usage: dict = field(default_factory=dict)
     elapsed_seconds: float = 0.0
@@ -71,6 +77,29 @@ def _parse_arguments(raw):
     if not isinstance(parsed, dict):
         return {}, "the arguments must be a JSON object such as {\"query\": \"...\"}."
     return parsed, None
+
+
+def _call_signature(name, raw):
+    """What makes two tool calls "the same": the tool and its arguments, however the JSON happened to be written.
+
+    Key order and spacing are ignored, so {"a": 1, "b": 2} and {"b":2, "a":1} are one call. Arguments that are
+    not valid JSON are compared as the text the model sent.
+    """
+    parsed, problem = _parse_arguments(raw)
+    if problem:
+        return (name, str(raw).strip())
+    return (name, json.dumps(parsed, sort_keys=True, ensure_ascii=False, default=str))
+
+
+def _bind_problem(function, arguments):
+    """Why these argument NAMES do not fit the tool (advice for the model), or None when they fit."""
+    try:
+        inspect.signature(function).bind(**arguments)
+    except TypeError as exc:
+        return str(exc)
+    except ValueError:                       # a callable with no readable signature: let the call decide
+        return None
+    return None
 
 
 def _echo_call(call):
@@ -96,12 +125,13 @@ def _run_tool(tools_by_name, name, raw_arguments):
     arguments, problem = _parse_arguments(raw_arguments)
     if problem:
         return f"ERROR: {problem}", False
+    wrong = _bind_problem(tool.function, arguments)
+    if wrong:                                # a missing or unexpected argument name
+        return f"ERROR: wrong arguments for {name}: {wrong}", False
     try:
         return str(tool.function(**arguments)), True
     except ToolError as exc:
         return f"ERROR: {exc}", False
-    except TypeError as exc:                 # a missing or unexpected argument name
-        return f"ERROR: wrong arguments for {name}: {exc}", False
     except Exception as exc:                 # a tool bug must not end the run
         return f"ERROR: {name} failed ({type(exc).__name__}). Try something else.", False
 
@@ -166,10 +196,16 @@ def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_se
 
         calls = list(message.tool_calls or [])
         if not calls:                        # no tool requested: this is the final answer
+            if not step["content"]:          # ...unless there is nothing in it: that is a failure, never a refusal
+                step["kind"], step["content"] = "error", "the model sent an empty reply (no text, no tool request)"
+                run.steps.append(step)
+                if on_step:
+                    on_step(step)
+                return finish("empty_reply")
             run.steps.append(step)
             if on_step:
                 on_step(step)
-            return finish("final", step["content"] or IDK)
+            return finish("final", step["content"])
 
         step["kind"] = "tool"
         messages.append({"role": "assistant", "content": message.content or "",
@@ -177,7 +213,7 @@ def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_se
         stop_after = None
         for call in calls:
             name, raw = call.function.name, call.function.arguments
-            signature = (name, raw)
+            signature = _call_signature(name, raw)
             if signature in seen_calls:
                 repeats += 1
                 observation = (f"You already called {name} with exactly these arguments and got: "
