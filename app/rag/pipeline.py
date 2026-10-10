@@ -21,6 +21,25 @@ def require_index():
         raise RuntimeError("No documents are indexed yet. Run `python scripts/ingest.py` first.")
 
 
+def build_chunks(docs):
+    """Cut the documents into chunks, then (if DEDUPE_CHUNKS is on) drop exact duplicates within a document.
+
+    Two chunks are duplicates when they come from the same document and have the same words, ignoring
+    whitespace. The FIRST copy is kept, so its id and position are unchanged. A copy in a different
+    document is kept: that document is a different source and may legitimately be the one to cite.
+    """
+    chunks = chunker.chunk_documents(docs, settings.chunk_size, settings.chunk_overlap)
+    if not settings.dedupe_chunks:
+        return chunks
+    seen, kept = set(), []
+    for chunk in chunks:
+        key = (chunk["source"], " ".join(chunk["text"].split()))
+        if key not in seen:
+            seen.add(key)
+            kept.append(chunk)
+    return kept
+
+
 def ingest():
     """Read data/corpus/, split + embed everything, and save it to the index.
     Re-runnable: it replaces the index (only after the new vectors exist), so changing chunk size = re-ingest."""
@@ -30,7 +49,7 @@ def ingest():
             f"No readable documents in {settings.corpus_dir!r}. "
             "Add .txt/.md/.pdf files there first."
         )
-    chunks = chunker.chunk_documents(docs, settings.chunk_size, settings.chunk_overlap)
+    chunks = build_chunks(docs)
     if not chunks:
         raise RuntimeError("Documents were found but produced no text chunks.")
 
@@ -46,7 +65,8 @@ def ingest():
     per_source: dict[str, int] = {}
     for c in chunks:
         per_source[c["source"]] = per_source.get(c["source"], 0) + 1
-    return {"documents": len(docs), "chunks": len(chunks), "per_source": per_source}
+    dropped = len(chunker.chunk_documents(docs, settings.chunk_size, settings.chunk_overlap)) - len(chunks)
+    return {"documents": len(docs), "chunks": len(chunks), "per_source": per_source, "duplicates_dropped": dropped}
 
 
 def answer(question: str, mode: str = None):

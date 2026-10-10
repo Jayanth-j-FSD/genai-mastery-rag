@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     judge_model: str = ""
     judge_rpm: int = 0
 
+    # --- Week 6: the one improvement the eval set measures ---
+    # Drop a chunk whose text is an exact copy of an earlier chunk in the SAME document (whitespace
+    # ignored) when the index is built. The handbook repeats one block of boilerplate 136 times; the
+    # copies are identical, so they tie in every search and can fill every slot of the top results,
+    # pushing out the one chunk that answers the question. Off by default: it changes what ingest
+    # stores, so a run opts in (DEDUPE_CHUNKS=true) and the eval measures the difference.
+    dedupe_chunks: bool = False
+
     # --- pipeline knobs (the graded chunk-size experiment lives here) ---
     chunk_size: int = 800       # characters per chunk
     chunk_overlap: int = 120    # characters shared between neighbouring chunks
