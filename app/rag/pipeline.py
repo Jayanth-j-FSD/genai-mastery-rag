@@ -22,8 +22,11 @@ def ingest():
     if not chunks:
         raise RuntimeError("Documents were found but produced no text chunks.")
 
-    store.reset_collection()                       # start clean (supports re-ingest)
+    # Embed FIRST and clear the index only once the vectors exist. Embedding is the step that
+    # can fail (rate limit, missing model, Ctrl+C); if it did after the reset, the old index
+    # would be gone and every later question would look like a polite "I don't know".
     embeddings = embedder.embed_texts([c["text"] for c in chunks])
+    store.reset_collection()                       # start clean (supports re-ingest)
     store.add_chunks(chunks, embeddings)
     keyword.invalidate()                           # the keyword index is now stale (Week 4)
 
@@ -51,6 +54,11 @@ def answer(question: str, mode: str = None):
             "grounded": False,
             "retrieval_mode": used_mode,
         }
+
+    # An empty index would make every question end in "I don't know", which is exactly what a
+    # correct refusal looks like. Say what is wrong instead of passing as a working app.
+    if store.count_chunks() == 0:
+        raise RuntimeError("No documents are indexed yet. Run `python scripts/ingest.py` first.")
 
     chunks = retriever.retrieve_for_mode(question, settings.top_k, used_mode)
     answer_text, sources, grounded = generator.generate_answer(question, chunks)

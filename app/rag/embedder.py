@@ -23,7 +23,6 @@ from openai import OpenAI, RateLimitError
 from app.config import settings
 
 _client = None       # OpenAI client, created once then reused
-_local = None        # local embedding function, created once then reused
 
 # Keep API batches small: a very large single call can hang on some compatible
 # endpoints, and small calls give visible progress. Each text is one request.
@@ -44,19 +43,6 @@ def _get_client() -> OpenAI:
         base_url = settings.openai_base_url or os.environ.get("OPENAI_BASE_URL") or None
         _client = OpenAI(api_key=key, base_url=base_url)
     return _client
-
-
-def _get_local():
-    """Load (once) a small embedding model that runs on this machine.
-
-    Uses the ONNX model that ships with chromadb, so there is nothing extra to
-    install. It downloads ~80MB the first time, then runs offline with no quota.
-    """
-    global _local
-    if _local is None:
-        from chromadb.utils import embedding_functions as ef
-        _local = ef.ONNXMiniLM_L6_V2()
-    return _local
 
 
 def _create_with_retry(client, batch, max_retries: int = 5):
@@ -87,13 +73,17 @@ def _embed_api(texts: list[str]) -> list[list[float]]:
     client = _get_client()
     rpm = settings.embed_rpm if settings.embed_rpm and settings.embed_rpm > 0 else 0
 
+    # A batch must never be bigger than the per-minute allowance, or an EMBED_RPM below the
+    # batch size could never be honoured (every batch would overshoot it).
+    batch_size = min(_API_BATCH, rpm) if rpm else _API_BATCH
+
     vectors: list[list[float]] = []
     window_start = time.monotonic()
     sent_this_window = 0
     total = len(texts)
 
-    for start in range(0, total, _API_BATCH):
-        batch = texts[start:start + _API_BATCH]
+    for start in range(0, total, batch_size):
+        batch = texts[start:start + batch_size]
 
         if rpm:
             # If this batch would exceed the minute's budget, wait out the window.
