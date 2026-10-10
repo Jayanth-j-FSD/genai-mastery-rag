@@ -21,9 +21,25 @@ class Settings(BaseSettings):
     # --- your OpenAI key (put the real value in .env, never in code) ---
     openai_api_key: str = ""
 
+    # Optional: point at any OpenAI-COMPATIBLE endpoint instead of OpenAI itself.
+    # Leave blank for real OpenAI. For a free Google Gemini key, set:
+    #   OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+    openai_base_url: str = ""
+
     # --- which OpenAI models to use ---
     llm_model: str = "gpt-4o-mini"                 # writes the final answer
     embed_model: str = "text-embedding-3-small"    # turns text into vectors
+
+    # Where embeddings come from:
+    #   "openai" = the embed_model above, via the API (needs a key + quota)
+    #   "local"  = a small model that runs on THIS machine: free, unlimited, offline
+    embed_provider: str = "openai"
+    # Throttle API embeddings to this many texts per minute (0 = no limit).
+    # Google Gemini's free tier allows 100 embed requests/min, so set 90 to be safe.
+    embed_rpm: int = 0
+    # Folder holding the offline embedding model (onnx/model.onnx + tokenizer.json),
+    # used when embed_provider = "local". Blank = ~/.cache/ai-task-minilm.
+    local_embed_dir: str = ""
 
     # --- pipeline knobs (the graded chunk-size experiment lives here) ---
     chunk_size: int = 800       # characters per chunk
@@ -51,6 +67,16 @@ class Settings(BaseSettings):
     chroma_dir: str = str(BASE_DIR / "data" / "chroma")                 # the saved index
     collection: str = "ask_my_docs"                                     # index "table" name
     traces_path: str = str(BASE_DIR / "data" / "traces" / "traces.jsonl")  # request log
+
+    @field_validator("embed_provider")
+    @classmethod
+    def _check_embed_provider(cls, value: str) -> str:
+        """Only two providers exist; reject a typo instead of failing mid-ingest."""
+        allowed = {"openai", "local"}
+        cleaned = (value or "").strip().lower()
+        if cleaned not in allowed:
+            raise ValueError(f"embed_provider must be one of {sorted(allowed)}, got {value!r}")
+        return cleaned
 
     @field_validator("retrieval_mode")
     @classmethod

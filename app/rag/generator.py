@@ -45,7 +45,10 @@ def _get_client() -> OpenAI:
             raise RuntimeError(
                 "No OpenAI API key found. Copy .env.example to .env and set OPENAI_API_KEY."
             )
-        _client = OpenAI(api_key=key)
+        # base_url lets us use an OpenAI-compatible provider (e.g. Gemini) for
+        # free. Blank = real OpenAI, so default behaviour is unchanged.
+        base_url = settings.openai_base_url or os.environ.get("OPENAI_BASE_URL") or None
+        _client = OpenAI(api_key=key, base_url=base_url)
     return _client
 
 
