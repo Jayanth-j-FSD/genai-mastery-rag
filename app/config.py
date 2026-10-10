@@ -6,7 +6,7 @@ Any value can be overridden in a `.env` file without editing code.
 """
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The AI-Task project root = the folder ABOVE this app/ folder.
@@ -41,6 +41,16 @@ class Settings(BaseSettings):
     # used when embed_provider = "local". Blank = ~/.cache/ai-task-minilm.
     local_embed_dir: str = ""
 
+    # --- chat-call limits (see app/llm.py) ---
+    # Free tiers allow only a few chat requests per minute PER MODEL (Gemini's free tier
+    # measured 5). Set this a little below your limit; 0 = no limit.
+    llm_rpm: int = 0
+    # How many times a failed chat call is retried (rate limit, 5xx, dropped connection).
+    llm_max_retries: int = 4
+    # Give up on a single chat call after this many seconds. Without a limit one hung
+    # request would stall a whole run, and an agent could never "stop safely".
+    llm_timeout_seconds: float = 60.0
+
     # --- pipeline knobs (the graded chunk-size experiment lives here) ---
     chunk_size: int = 800       # characters per chunk
     chunk_overlap: int = 120    # characters shared between neighbouring chunks
@@ -54,6 +64,14 @@ class Settings(BaseSettings):
     # "hybrid" = meaning search + keyword (BM25) search, fused with RRF.
     # Keeping both switchable is what makes the before/after measurement possible.
     retrieval_mode: str = "hybrid"
+
+    # How the dense (meaning) search finds the nearest chunks:
+    #   "exact" = compare the question with EVERY stored vector. Always correct, and for a
+    #             few thousand chunks it takes milliseconds. This is the default.
+    #   "ann"   = Chroma's approximate HNSW index (what Week 3 originally used). It is faster
+    #             on huge collections but can miss the right chunk, and on this corpus (136
+    #             identical chunks) it did, differently on every run. See docs/hardening/.
+    dense_search: str = "exact"
 
     # --- Week 4: hybrid search knobs ---
     hybrid_candidates: int = 10   # candidates EACH retriever contributes before fusion
@@ -87,6 +105,53 @@ class Settings(BaseSettings):
         if cleaned not in allowed:
             raise ValueError(f"retrieval_mode must be one of {sorted(allowed)}, got {value!r}")
         return cleaned
+
+    @field_validator("dense_search")
+    @classmethod
+    def _check_dense_search(cls, value: str) -> str:
+        """Reject a typo at startup instead of silently falling back to a different search."""
+        allowed = {"exact", "ann"}
+        cleaned = (value or "").strip().lower()
+        if cleaned not in allowed:
+            raise ValueError(f"dense_search must be one of {sorted(allowed)}, got {value!r}")
+        return cleaned
+
+    @field_validator("llm_rpm", "llm_max_retries", "chunk_overlap")
+    @classmethod
+    def _check_not_negative(cls, value: int) -> int:
+        """A negative limit, retry count or overlap has no meaning."""
+        if value < 0:
+            raise ValueError(f"must be 0 or greater, got {value}")
+        return value
+
+    @field_validator("llm_timeout_seconds")
+    @classmethod
+    def _check_timeout(cls, value: float) -> float:
+        """A zero or negative timeout would make every call fail instantly."""
+        if value <= 0:
+            raise ValueError(f"llm_timeout_seconds must be greater than 0, got {value}")
+        return value
+
+    @field_validator("chunk_size")
+    @classmethod
+    def _check_chunk_size(cls, value: int) -> int:
+        """A chunk has to hold at least one character."""
+        if value < 1:
+            raise ValueError(f"chunk_size must be 1 or greater, got {value}")
+        return value
+
+    @model_validator(mode="after")
+    def _check_overlap_fits(self):
+        """Overlap must be smaller than the chunk, or the splitter cannot move forward.
+
+        Checked here as well as in the chunker, so a bad .env fails at startup with a clear
+        message instead of crashing in the middle of an ingest.
+        """
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError(
+                f"chunk_overlap ({self.chunk_overlap}) must be smaller than chunk_size ({self.chunk_size})"
+            )
+        return self
 
     @field_validator("bm25_b")
     @classmethod

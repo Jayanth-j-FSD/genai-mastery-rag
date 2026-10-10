@@ -13,6 +13,7 @@ import json
 import uuid
 from datetime import datetime
 
+from app import llm
 from app.config import settings
 
 
@@ -47,6 +48,12 @@ def log_trace(question, retrieved, answer, grounded, retrieval_mode=None):
                 "top_k": settings.top_k,
                 "embed_model": settings.embed_model,
                 "llm_model": settings.llm_model,
+                # What REALLY ran, so a trace can be replayed later. embed_model above is only
+                # a setting: with embed_provider "local" the vectors came from the local model.
+                # And a name like "gemini-flash-latest" is an alias that moves over time.
+                "embed_provider": settings.embed_provider,
+                "dense_search": settings.dense_search,
+                "llm_model_served": llm.last_model(),
             },
         }
         with open(settings.traces_path, "a", encoding="utf-8") as f:
