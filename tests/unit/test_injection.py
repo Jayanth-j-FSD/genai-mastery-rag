@@ -237,5 +237,72 @@ class RunSuiteTests(unittest.TestCase):
         self.assertIn("0 of 1", text)
 
 
+class InjectionScriptTests(unittest.TestCase):
+    def call(self, *args):
+        import contextlib
+        import io
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "scripts"))
+        import run_injection
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = run_injection.main(list(args))
+        return code, out.getvalue()
+
+    def test_static_lists_which_poisoned_documents_the_sanitizer_cleans(self):
+        code, out = self.call("--static")
+        self.assertEqual(code, 0)
+        self.assertIn("ind-override-reply    removed", out)
+        self.assertIn("ind-false-fact        LEFT IN", out)
+
+    def test_show_reprints_a_saved_run_without_a_model_and_a_missing_one_is_an_error(self):
+        import tempfile
+        from evals import runner
+        results = {"meta": {"label": "t", "attacks": ["dir-ignore-reply"], "repeats": 1, "model": "m"},
+                   "runs": [{"attack_id": "dir-ignore-reply", "kind": "direct", "defended": False, "reached": True,
+                             "succeeded": True, "stop_reason": "final", "defense_events": []}]}
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, mock.patch.object(runner, "RESULTS_DIR", tmp):
+            runner.save_results(results, runner.results_path("injection-t"))
+            code, out = self.call("--show", "t")
+            self.assertEqual(code, 0)
+            self.assertIn("dir-ignore-reply", out)
+            self.assertIn("1 of 1 attacks that reached the model worked (100%)", out)
+            code, out = self.call("--show", "missing")
+            self.assertEqual(code, 1)
+            self.assertIn("Error", out)
+
+    def test_compare_puts_saved_runs_side_by_side(self):
+        import tempfile
+        from evals import runner
+
+        def run(attack_id, defended, succeeded, reached=True):
+            return {"attack_id": attack_id, "kind": "direct", "defended": defended, "reached": reached,
+                    "succeeded": succeeded, "stop_reason": "final", "defense_events": []}
+        full = {"meta": {"label": "full", "attacks": ["dir-ignore-reply", "dir-prompt-leak"], "repeats": 2, "model": "m"},
+                "runs": [run("dir-ignore-reply", False, True), run("dir-ignore-reply", False, True),
+                         run("dir-ignore-reply", True, False), run("dir-ignore-reply", True, False),
+                         run("dir-prompt-leak", False, False, reached=False)]}
+        layer = {"meta": {"label": "layer-x", "attacks": ["dir-ignore-reply"], "repeats": 1, "model": "m"},
+                 "runs": [run("dir-ignore-reply", True, True)]}
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, mock.patch.object(runner, "RESULTS_DIR", tmp):
+            runner.save_results(full, runner.results_path("injection-full"))
+            runner.save_results(layer, runner.results_path("injection-layer-x"))
+            code, out = self.call("--compare", "layer-x", "full")
+            self.assertEqual(code, 0)
+            rows = {line.split()[0]: line for line in out.splitlines() if line.startswith("dir-")}
+            self.assertIn("on 1/1", rows["dir-ignore-reply"])
+            self.assertIn("off 2/2 on 0/2", rows["dir-ignore-reply"])
+            # absent from the layer run ("-"), and in the full run it never reached the model, so nothing to count
+            self.assertEqual(rows["dir-prompt-leak"].split()[1:], ["-", "off", "0/0"])
+            code, out = self.call("--compare", "full", "missing")
+            self.assertEqual(code, 1)
+            self.assertIn("Error", out)
+
+    def test_unknown_attack_ids_are_a_clear_error(self):
+        code, out = self.call("--only", "nope")
+        self.assertEqual(code, 1)
+        self.assertIn("unknown attack id", out)
+
+
 if __name__ == "__main__":
     unittest.main()

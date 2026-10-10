@@ -229,6 +229,29 @@ def cost_summary(records):
             "api_seconds": _stats([r["api_seconds"] for r in records])}
 
 
+def tokens_past_call_limit(records, limit=3):
+    """Tokens in the steps that made a call beyond `limit` to one tool, and all tokens: a CEILING on what a cap saves.
+
+    It is not a forecast. With a cap the model still has to write an answer, and that step costs tokens too, so
+    the real saving is smaller. `remember` is exempt from the cap and calls a defence or a budget refused do not
+    count, because neither ran.
+    """
+    past_limit = total = 0
+    for record in records:
+        total += record["prompt_tokens"] + record["completion_tokens"]
+        counts = {}
+        for step in record.get("steps", []):
+            beyond = False
+            for call in step.get("tool_calls", []):
+                if call.get("blocked") or call["name"] == "remember":
+                    continue
+                counts[call["name"]] = counts.get(call["name"], 0) + 1
+                beyond = beyond or counts[call["name"]] > limit
+            if beyond:
+                past_limit += step["tokens"]["prompt"] + step["tokens"]["completion"]
+    return past_limit, total
+
+
 def summarize(graded, records):
     n = len(graded)
     return {"runs": n, "outcome_ok": sum(row["outcome_ok"] for row in graded),

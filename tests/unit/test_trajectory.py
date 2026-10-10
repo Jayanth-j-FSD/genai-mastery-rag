@@ -150,6 +150,18 @@ class MetricsTests(unittest.TestCase):
     def test_a_run_counts_once_per_mode_however_often_it_did_it(self):
         self.assertEqual(trajectory.mode_counts([{"modes": ["loop", "loop"]}]), {"loop": 1})
 
+    def test_the_ceiling_on_what_a_cap_saves_counts_only_steps_that_made_a_call_past_the_limit(self):
+        def step(names, tokens, **flags):
+            return {"tokens": {"prompt": tokens, "completion": 0},
+                    "tool_calls": [dict({"name": name, "arguments": "{}", "observation": "", "ok": True}, **flags) for name in names]}
+        steps = [step(["search_policies"], 100), step(["search_policies"], 100), step(["search_policies"], 100),
+                 step(["search_policies"], 100), step(["remember"], 100), step(["search_policies"], 50, blocked=True)]
+        records = [{"prompt_tokens": 550, "completion_tokens": 0, "steps": steps},
+                   {"prompt_tokens": 200, "completion_tokens": 0, "steps": [step(["search_policies"], 200)]}]
+        self.assertEqual(trajectory.tokens_past_call_limit(records, 3), (100, 750))      # only the 4th search
+        self.assertEqual(trajectory.tokens_past_call_limit(records, 1), (300, 750))      # searches 2 to 4
+        self.assertEqual(trajectory.tokens_past_call_limit([], 3), (0, 0))
+
     def test_cost_is_reported_as_mean_median_p95_p99_and_max(self):
         records = [{"prompt_tokens": n * 100, "completion_tokens": 0, "llm_calls": n, "api_seconds": float(n)} for n in range(1, 11)]
         stats = trajectory.cost_summary(records)["tokens"]

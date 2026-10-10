@@ -37,7 +37,11 @@ def main(argv=None):
         print("Make a run first:  python scripts/run_trajectories.py --label before")
         return 1
     lines = trajectory.format_compare(before["summary"], after["summary"], args.before, args.after)
+    spent, total = trajectory.tokens_past_call_limit(before["runs"])
     lines.append("")
+    lines.append(f"Ceiling on what a cap of 3 calls per tool could save, from the '{args.before}' runs: {spent} of {total} tokens "
+                 f"({spent / total:.1%}) were spent in steps that made a 4th or later call to one tool." if total else
+                 "No tokens recorded in the before run.")
     lines.append(f"overrides: before {before['meta'].get('overrides') or 'none'}, after {after['meta'].get('overrides') or 'none'}; "
                  f"defences: before {'on' if before['meta'].get('defense') else 'off'}, after {'on' if after['meta'].get('defense') else 'off'}")
     lines.append(f"With {before['summary']['runs']} and {after['summary']['runs']} runs, a difference of one or two runs is within what "

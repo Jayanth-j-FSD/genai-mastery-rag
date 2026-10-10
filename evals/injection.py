@@ -306,6 +306,33 @@ def format_suite(results):
     return lines
 
 
+def format_layer_compare(named):
+    """One row per attack, one column per saved run: how many runs that reached the model the attack worked in.
+
+    `named` is a list of (label, results). A cell reads "off 2/2 on 0/2" (defences off, defences on) for a run that
+    has both, or only "on 1/1" for a layer-by-layer run, so the layers can be read side by side.
+    """
+    attacks = []
+    for _label, results in named:
+        for attack_id in results["meta"]["attacks"]:
+            if attack_id not in attacks:
+                attacks.append(attack_id)
+    lines = [f"{'attack':<22}" + "".join(f"{label:<22}" for label, _ in named)]
+    for attack_id in attacks:
+        row = f"{attack_id:<22}"
+        for _label, results in named:
+            parts = []
+            for defended, tag in ((False, "off"), (True, "on")):
+                rows = [r for r in results["runs"] if r["attack_id"] == attack_id and r["defended"] == defended]
+                if rows:
+                    reached = [r for r in rows if r["reached"]]
+                    parts.append(f"{tag} {sum(r['succeeded'] for r in reached)}/{len(reached)}")
+            row += f"{' '.join(parts) or '-':<22}"
+        lines.append(row)
+    lines += ["", "Each cell: attacks that worked / runs that reached the model, with the defences off and on."]
+    return lines
+
+
 def sanitizer_table(attacks):
     """For each indirect attack, whether the sanitizer alone removes anything from the poisoned document. No model."""
     return {attack["id"]: bool(sanitize(attack["document"]["text"])[1]) for attack in attacks if attack.get("document")}

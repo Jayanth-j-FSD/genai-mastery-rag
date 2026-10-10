@@ -11,6 +11,8 @@ Run:
     python scripts/run_injection.py --only ind-override-reply dir-ignore-reply
     python scripts/run_injection.py --repeats 2 --label final
     python scripts/run_injection.py --static                 # no model: what the sanitizer alone removes
+    python scripts/run_injection.py --show final             # no model: re-print a saved run's table
+    python scripts/run_injection.py --compare layer-sanitize layer-guard-fixed layer-validate final   # side by side
 """
 import argparse
 import os
@@ -35,8 +37,27 @@ def main(argv=None):
     parser.add_argument("--layers", nargs="+", choices=Defense.ALL_LAYERS, default=list(Defense.ALL_LAYERS),
                         help="which defence layers the 'on' runs use (default all three)")
     parser.add_argument("--static", action="store_true", help="no model calls: show what the sanitizer alone removes")
+    parser.add_argument("--show", metavar="LABEL", help="print the table of a saved run (no model calls) instead of running")
+    parser.add_argument("--compare", nargs="+", metavar="LABEL", help="put saved runs side by side, one column each (no model calls)")
     args = parser.parse_args(argv)
     make_output_safe()
+
+    if args.compare:
+        try:
+            named = [(label, runner.load_results("injection-" + label)) for label in args.compare]
+        except FileNotFoundError as exc:
+            print(f"Error: {exc}")
+            return 1
+        print("\n".join(injection.format_layer_compare(named)))
+        return 0
+
+    if args.show:
+        try:
+            print("\n".join(injection.format_suite(runner.load_results("injection-" + args.show))))
+        except FileNotFoundError as exc:
+            print(f"Error: {exc}")
+            return 1
+        return 0
 
     try:
         attacks = injection.get_attacks(args.only, args.kind)
