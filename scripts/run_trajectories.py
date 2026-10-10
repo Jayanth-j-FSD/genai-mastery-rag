@@ -9,6 +9,7 @@ Run:
     python scripts/run_trajectories.py --label before                # runs the agent (model calls)
     python scripts/run_trajectories.py --label after --set agent_verify=true
     python scripts/run_trajectories.py --grade race-race             # re-grade a saved Week 7 race: free
+    python scripts/run_trajectories.py --show before                 # print the report of a saved run: free
     python scripts/run_trajectories.py --label guarded --defense     # same tasks with the defences on
 """
 import argparse
@@ -33,6 +34,16 @@ def grade_and_save(tasks, records, meta, label):
     return results, runner.save_results(results, runner.results_path("trajectories-" + label))
 
 
+def print_modes(graded):
+    """The runs that showed a failure mode, with the evidence for each."""
+    shown = [row for row in graded if row["modes"]]
+    if shown:
+        print("\nruns with a failure mode:")
+        for row in shown:
+            print(f"  {row['task_id']:<26} outcome {'right' if row['outcome_ok'] else 'WRONG'}  " +
+                  "; ".join(f"{d['mode']} ({d['detail']})" for d in row["details"]))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Run the agent on the tasks and grade each run's path.")
     parser.add_argument("--label", default="agent", help="name of this run (default: agent)")
@@ -41,8 +52,22 @@ def main(argv=None):
     parser.add_argument("--set", dest="overrides", action="append", metavar="NAME=VALUE", help="change one setting for this run")
     parser.add_argument("--defense", action="store_true", help="run with the three defence layers on")
     parser.add_argument("--grade", metavar="LABEL_OR_PATH", help="re-grade a saved race or trajectory file instead of running")
+    parser.add_argument("--show", metavar="LABEL", help="print the report of a saved trajectory run (no model calls, nothing saved)")
     args = parser.parse_args(argv)
     make_output_safe()
+
+    if args.show:
+        try:
+            saved = runner.load_results("trajectories-" + args.show)
+        except FileNotFoundError as exc:
+            print(f"Error: {exc}")
+            return 1
+        meta = saved["meta"]
+        if not meta.get("complete", True):
+            print(f"(a PARTIAL run: it stopped early, {meta.get('stopped_because') or 'no reason recorded'})\n")
+        print("\n".join(trajectory.format_report(saved["summary"], args.show)))
+        print_modes(saved["graded"])
+        return 0
 
     try:
         overrides = runner.parse_overrides(args.overrides)
@@ -68,12 +93,7 @@ def main(argv=None):
     results, path = grade_and_save(tasks, records, meta, args.label)
     print()
     print("\n".join(trajectory.format_report(results["summary"], args.label)))
-    shown = [row for row in results["graded"] if row["modes"]]
-    if shown:
-        print("\nruns with a failure mode:")
-        for row in shown:
-            print(f"  {row['task_id']:<26} outcome {'right' if row['outcome_ok'] else 'WRONG'}  " +
-                  "; ".join(f"{d['mode']} ({d['detail']})" for d in row["details"]))
+    print_modes(results["graded"])
     print(f"\nsaved: {display_path(path, BASE_DIR)}")
     return 0 if meta.get("complete", True) else 1
 
