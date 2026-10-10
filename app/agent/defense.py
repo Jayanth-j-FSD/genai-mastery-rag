@@ -64,6 +64,7 @@ _MDY_RE = re.compile(r"\b(" + "|".join(_MONTHS) + r")\s+(\d{1,2})(?:st|nd|rd|th)
 
 LEAK_WINDOW = 30               # an answer sharing this many characters in a row with the system prompt is a leak
 REFUSAL_SENTENCE = "I don't know based on the provided documents."
+TRUSTED_TOOLS = ("add_days", "calculate")      # pure functions: their output is derived, not read from a document
 MAX_DAYS = 400                  # no real HR date calculation needs more than a bit over a year
 MAX_NUMBER = 1_000_000
 
@@ -175,8 +176,13 @@ class Defense:
         self.events.append({"layer": layer, "step": self.step, "detail": detail})
 
     # -- layer 1
-    def screen(self, observation):
-        """What the model gets to see for a tool result: sanitized and labelled as data."""
+    def screen(self, observation, tool=""):
+        """What the model gets to see for a tool result: sanitized and labelled as data.
+
+        `tool` is the tool that produced it. Only the pure tools (see TRUSTED_TOOLS) can vouch for a date: the
+        result of a document search is untrusted text, and a poisoned document must not be able to supply the
+        very date it wants the agent to compute with.
+        """
         text = observation
         if self.on("sanitize"):
             text, findings = sanitize(observation)
@@ -184,7 +190,8 @@ class Defense:
                 self._event("sanitize", finding)
             text = wrap_untrusted(text)
         self.sources_seen |= sources_in(text)
-        self.known_dates |= dates_in(text)
+        if tool in TRUSTED_TOOLS:
+            self.known_dates |= dates_in(text)
         self.trusted_text += "\n" + text
         return text
 

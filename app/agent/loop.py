@@ -150,7 +150,7 @@ def _call_tool(by_name, name, raw_arguments, defense, step_number):
             return refusal, False, True
     observation, ok = _run_tool(by_name, name, raw_arguments)
     if defense:                              # whatever a tool returns is data, never instructions
-        observation = defense.screen(observation)
+        observation = defense.screen(observation, name)
     return observation, ok, False
 
 
