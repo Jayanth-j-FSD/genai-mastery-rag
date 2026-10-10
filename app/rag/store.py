@@ -4,6 +4,7 @@ Chroma saves all the chunk vectors on disk and can quickly find
 the ones closest in meaning to a question. "cosine" is how we measure closeness.
 """
 import chromadb
+import numpy as np
 
 from app.config import settings
 
@@ -49,8 +50,61 @@ def add_chunks(chunks, embeddings):
 
 
 def query(embedding, top_k: int):
-    """Return Chroma's raw nearest-neighbour result for one question vector."""
-    return get_collection().query(query_embeddings=[embedding], n_results=top_k)
+    """Return the nearest chunks to one question vector, in Chroma's result shape.
+
+    settings.dense_search picks how they are found:
+      "exact"  compare the question with EVERY stored vector. Always the true nearest chunks,
+               in the same order on every run. For a few thousand chunks that takes milliseconds.
+      "ann"    Chroma's approximate HNSW index. On this corpus it returned the wrong top chunk
+               for many questions (136 identical chunks trap its graph search), and differently
+               on each run. Kept so the problem can be reproduced: scripts/compare_ann_exact.py.
+    """
+    if settings.dense_search == "ann":
+        return get_collection().query(query_embeddings=[embedding], n_results=top_k)
+    return _query_exact(embedding, top_k)
+
+
+def _query_exact(embedding, top_k: int):
+    """Brute-force nearest neighbours: cosine distance to every stored chunk, then sort.
+
+    Costs one pass over all vectors per question, so it suits a corpus of up to a few tens of
+    thousands of chunks. Beyond that, an approximate index is the right tool.
+    """
+    empty = {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
+    if top_k <= 0:
+        return empty
+    stored = get_collection().get(include=["embeddings", "documents", "metadatas"])
+    ids = stored.get("ids") or []
+    vectors = stored.get("embeddings")
+    if not ids or vectors is None or len(vectors) == 0:     # nothing ingested yet
+        return empty
+
+    matrix = np.asarray(vectors, dtype=np.float64)
+    question = np.asarray(embedding, dtype=np.float64)
+    if matrix.shape[1] != question.shape[0]:
+        raise RuntimeError(
+            f"The question vector has {question.shape[0]} numbers but the index stores "
+            f"{matrix.shape[1]}. The index was built with a different embedding model: "
+            "re-ingest it with `python scripts/ingest.py`."
+        )
+
+    # Cosine distance = 1 - cosine similarity. Dividing by both lengths means vectors that are
+    # not exactly unit length still compare by angle only. A zero vector has no direction: distance 1.
+    lengths = np.linalg.norm(matrix, axis=1) * np.linalg.norm(question)
+    similarity = np.divide(matrix @ question, lengths, out=np.zeros(len(ids)), where=lengths > 0)
+    distance = 1.0 - similarity
+
+    # Nearest first. Identical chunks tie on distance, so break ties by id: the same question
+    # then returns the same chunks in the same order on every run (rounding hides float noise).
+    order = np.lexsort((np.asarray(ids), np.round(distance, 6)))[:top_k]
+    documents = stored.get("documents") or []
+    metadatas = stored.get("metadatas") or []
+    return {
+        "ids": [[ids[i] for i in order]],
+        "documents": [[documents[i] for i in order]],
+        "metadatas": [[metadatas[i] for i in order]],
+        "distances": [[float(distance[i]) for i in order]],
+    }
 
 
 # --- Week 4 additions: read the chunks back out, for keyword search and inspection ---
