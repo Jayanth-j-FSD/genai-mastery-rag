@@ -50,9 +50,9 @@ in an answer are the task author's expectations and are not tested against the d
 .\.venv\Scripts\python.exe scripts\race_agent.py --show race --rescore         # re-read the saved race, no model calls
 ```
 
-The race throttles to `LLM_RPM` and stops cleanly, keeping what finished, if a daily quota runs out. The
-committed race is saved as `race`; a new race needs its own `--label` (as above), because the same label would
-overwrite it. In the committed race an agent run took 3.5 model calls on average and a workflow run exactly 1.
+The race throttles to `LLM_RPM` and stops cleanly, keeping what finished, if a daily quota runs out, if the
+provider fails three runs in a row, or if a run crashes. The committed race is saved as `race`; a new race needs
+its own `--label` (as above), because a complete saved race is not replaced unless you pass `--force`. In the committed race an agent run took 3.5 model calls on average and a workflow run exactly 1.
 
 The saved race has two scores. The rule checks were tightened after it ran (the two tasks that need two
 documents now require both to be cited), and `--rescore` recomputes every stored run under the current checks

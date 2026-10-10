@@ -73,15 +73,16 @@ Facts read off those tables and the saved runs:
 
 - **Reliability, as raced.** The agent succeeded on 26 of 27 runs and the fixed workflow on 27 of 27.
 - **Reliability, re-scored.** Under the stricter checks of section 2 the same runs give agent 25 of 27 and
-  workflow 24 of 27. The comparison reverses on the two tasks that need two documents.
+  workflow 24 of 27, so the totals flip by one run. On `t7-two-documents` the re-score favours the agent (3 of 3
+  against 0 of 3), and on `t7-conflict` it moves from a tie to the workflow ahead (3 of 3 against 2 of 3).
 - **The agent's one unfinished run** was the first run of `t7-carry-forward-sum`. It searched eight times with
   different wordings (several naming the handbook or Northstar), never called `calculate`, hit the step limit
   and stopped with no answer. Seven of its eight search results contained the sentence it needed ("Employees
   may carry forward up to 10 unused annual-leave days into the next ..."); it kept searching anyway.
 - **Cost.** The agent made 3.5 model calls per run and used 4,220 tokens; the workflow made 1 call and used
   1,177 tokens. The agent used 3.6 times the tokens (derived: 4,220 / 1,177).
-- **Speed.** Seconds spent inside model calls: 3.0 for the agent and 1.3 for the workflow, 2.3 times as long
-  (derived: 3.0 / 1.3); p95 6.5 and 1.7. Waiting for the free tier's rate limit is excluded from both.
+- **Speed.** Seconds spent inside model calls: 3.0 for the agent and 1.3 for the workflow, 2.4 times as long
+  (derived from the unrounded means, 3.02 / 1.27); p95 6.5 and 1.7. Waiting for the free tier's rate limit is excluded from both.
 - **Where the agent costs most.** `t7-leave-end-date` and `t7-unanswerable` took 6.0 calls on average and
   `t7-carry-forward-sum` 5.3, against 2.0 for the one-lookup and the conflict tasks. On the unanswerable question
   the agent searched 4, 7 and 4 times before saying "I don't know"; the workflow said it after its one search.
@@ -97,7 +98,8 @@ the branch found. `t7-two-documents` asks for a fact from each of two documents,
 that cited either one, and its fact phrases were the bare digits `7` and `12`, which any answer containing those
 digits satisfied. `t7-conflict` asks for both
 sides of a disagreement, but accepted one cited document. The checks now require every expected document to be
-cited (`require_all_sources`) and the phrases `7 calendar days` and `12 paid`.
+cited (`require_all_sources`) and the phrases `7 calendar days` and `12 paid`, matched as whole words
+(`whole_words`, on every Week 7 task), so `17 calendar days` no longer satisfies `7 calendar days`.
 
 Nothing was run again. `race.rescore` recomputes success for every stored run from its stored answer and steps,
 under the current checks, and lists each run whose result changed. Both views are in `race-results.md`.
@@ -145,6 +147,9 @@ The four runs that changed, read from the saved answers:
 - The nine tasks were written for this race. The sentences their answers are built from are checked against the
   documents by a unit test, and the figures worked out from them are checked against the tools. They are not a
   sample of real questions.
+- In the committed race, 24 of the 27 workflow search calls were recorded with their arguments as a Python repr
+  (single quotes), not JSON, because the recording code was fixed afterwards. Code that reads those arguments must
+  not assume they parse as JSON.
 - An empty model reply used to be recorded as "I don't know". It now ends the run as `empty_reply`, so it can no
   longer pass for a refusal. None of the six refusals in this race was an empty reply (section 1).
 

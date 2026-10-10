@@ -10,7 +10,10 @@ OpenAI-compatible chat model (Google Gemini's free tier by default, so nothing h
 - **Week 3**: build the app
 - **Week 4**: debug retrieval, prove one change with a number
 - **Week 5**: read real traces, name and rank the problems
-- **Weeks 6 and later**: evals, agents, MCP. See [docs/GOAL.md](docs/GOAL.md) for the plan and status.
+- **Week 6**: evals you can run with one command
+- **Week 7**: an agent loop built by hand, raced against a fixed workflow
+- **Weeks 8 and later**: agent failure modes and prompt injection, then MCP. See [docs/GOAL.md](docs/GOAL.md)
+  for the plan and status.
 
 ## What you need
 
@@ -69,6 +72,14 @@ non-zero if anything fails, and every week must pass it before it is tagged.
 | 5 | `scripts\sample_traces.py --n 20` | seeded fair sample into a reading worksheet |
 | 5 | *(you read and write the notes)* | `docs\week5\worksheet.md` |
 | 5 | `scripts\code_notes.py`, `scripts\rank_problems.py --save` | notes to named groups to a ranking |
+| 6 | `scripts\run_evals.py` | the whole eval set (41 cases) with one command: rule checks plus an AI judge, saved per run |
+| 6 | `scripts\compare_evals.py baseline after` | before and after, per problem type, naming the cases that changed |
+| 6 | `scripts\screen_retrieval.py` | free screen of retrieval settings (no model calls) |
+| 6 | `scripts\make_judge_sheet.py`, `scripts\validate_judge.py` | a blind sheet you grade by hand, then how far the judge agrees with you |
+| 6 | `scripts\make_regressions.py` | turn your Week 5 failures into permanent test cases |
+| 6 | `scripts\list_runs.py` | every saved eval run in one table |
+| 7 | `scripts\run_agent.py "..."` | the agent loop with every step printed (`--workflow` for the fixed recipe) |
+| 7 | `scripts\race_agent.py` | race the agent against the fixed workflow: reliability, cost, speed |
 | hardening | `scripts\compare_ann_exact.py` | how often Chroma's approximate search disagrees with exact search |
 
 The Week 5 reading is deliberately not automated: it is the part of the course that cannot be.
