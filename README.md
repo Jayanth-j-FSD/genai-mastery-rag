@@ -1,68 +1,116 @@
-# AI-Task — Ask My Documents (RAG)
+# AI-Task: Ask My Documents (RAG)
 
-A Retrieval-Augmented Generation app that answers questions **only** from a set
-of documents, cites its source, and says "I don't know" when the answer isn't
-there. This is the hands-on build for the GenAI course, Modules 2-3 (Weeks 3-6).
+A Retrieval-Augmented Generation app that answers questions **only** from a set of documents,
+cites its source, and says "I don't know" when the answer isn't there. It is the hands-on build for
+a GenAI course: one app that grows week by week, each week on its own branch and tag.
 
-- **Week 3** — build the app
-- **Week 4** — debug retrieval, prove the fix with a number
-- **Week 5** — read traces, rank the real problems (current week)
-- **Week 6** — evals: score every change automatically
+Track C (HR policy). Stack: Python 3.12, FastAPI, Chroma, a local ONNX embedding model, and an
+OpenAI-compatible chat model (Google Gemini's free tier by default, so nothing here needs billing).
 
-Each week is frozen as a git tag, so any week can be shown on its own:
+- **Week 3**: build the app
+- **Week 4**: debug retrieval, prove one change with a number
+- **Week 5**: read real traces, name and rank the problems
+- **Weeks 6 and later**: evals, agents, MCP. See [docs/GOAL.md](docs/GOAL.md) for the plan and status.
 
-```bash
-git checkout week-3      # the app exactly as the Week 3 mentor saw it
-git checkout main        # back to the latest
-```
+## What you need
 
-New here? Read the docs in this order:
-1. `docs/overview.md` — what we're building and why (the whole arc)
-2. `docs/project-info.md` — the folder structure and how a request flows through it
-3. `docs/build-loop.md` — the process each week follows
-4. `docs/week5/README.md` — this week's task and definition of done
-5. `docs/TODO.md` — the live checklist
-
-Stack: Python · FastAPI · OpenAI · Chroma. No extra dependency was added for Week 4.
+- **Python 3.12** (verified on 3.12.10). On Windows, call the venv's Python directly
+  (`.\.venv\Scripts\python.exe`): a bare `python` can hit the Microsoft Store stub.
+- A **free Gemini API key** from <https://aistudio.google.com> (Create API key, no billing),
+  or an OpenAI key. See `.env.example` for both setups.
+- About 100 MB of disk for the offline embedding model, downloaded once.
 
 ## Quick start
-```bash
+
+PowerShell (Git Bash and macOS/Linux: use `.venv/bin/python` or `.venv/Scripts/python.exe` the same way).
+
+```powershell
 python -m venv .venv
-source .venv/Scripts/activate          # Windows Git Bash
-pip install -r requirements.txt
-cp .env.example .env                    # then paste your OPENAI_API_KEY
-# put documents in data/corpus/, then:
-python scripts/ingest.py               # build the index
-python scripts/ask.py "your question"  # ask from the terminal
-uvicorn app.main:app --reload          # or run the API at http://127.0.0.1:8000/docs
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+copy .env.example .env                                  # then paste your key into OPENAI_API_KEY
+.\.venv\Scripts\python.exe scripts\download_model.py    # the offline embedding model, once
+.\.venv\Scripts\python.exe scripts\ingest.py            # build the index from data/corpus/
+.\.venv\Scripts\python.exe scripts\ask.py "How many weeks of paid parental leave are available?"
 ```
 
-## Week 4 commands
-```bash
-python scripts/inspect_traces.py --last 20              # question / fetched / answer
-python scripts/diagnose_failures.py --mode dense --save # label failures with evidence
-python scripts/eval_retrieval.py --save                 # hit-rate@3 before vs after
+Or run the web API and open <http://127.0.0.1:8000/docs>:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-Then open `http://127.0.0.1:8000/inspect` for the same view in the browser, and fill in
-`docs/week4/findings.md`.
+`/ask` answers a question, `/ingest` rebuilds the index, `/inspect` shows every past request next to
+the chunks it fetched.
 
-## Week 5 commands
-```bash
-python scripts/ask_batch.py                 # build a population of real traces
-python scripts/sample_traces.py --n 20      # seeded fair sample -> docs/week5/worksheet.md
-#   then READ all 20 and write verdict / note / severity by hand
-python scripts/code_notes.py                # validates the notes, then -> coded-notes.md
-#   then add one group name per failure
-python scripts/rank_problems.py --save      # frequency x severity ranking
+Documents live in `data/corpus/` (`.md`, `.txt`, `.pdf`). After changing them or `CHUNK_SIZE`,
+run `scripts\ingest.py` again.
+
+## Check that nothing is broken
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_all.py
 ```
 
-Each step refuses to run until the previous one is genuinely finished. The reading itself is
-not automated, and is not meant to be — see `docs/week5/README.md`.
+It compiles every file, imports every module and script, builds every script's argument parser and
+runs the offline unit tests (a fake embedder and a stub model, so no network and no quota). It exits
+non-zero if anything fails, and every week must pass it before it is tagged.
 
-Switch the retrieval strategy in `.env` at any time:
+## Commands by week
 
-```bash
-RETRIEVAL_MODE=dense    # meaning-only search (Week 3)
-RETRIEVAL_MODE=hybrid   # meaning + keyword search, merged with RRF (Week 4)
-```
+| Week | Command | What it does |
+|---|---|---|
+| 3 | `scripts\ingest.py`, `scripts\ask.py "..."` | build the index, ask one question |
+| 3 | `scripts\compare_chunks.py --save` | the two-chunk-size experiment (check #4), numbers only |
+| 4 | `scripts\inspect_traces.py --last 20` | question / fetched chunks / answer, side by side |
+| 4 | `scripts\diagnose_failures.py --mode dense --save` | label each failure RETRIEVAL or GENERATION, with evidence |
+| 4 | `scripts\eval_retrieval.py --save` | hit-rate@k and MRR, dense vs hybrid |
+| 5 | `scripts\ask_batch.py` | run the question bank so real traces accumulate |
+| 5 | `scripts\sample_traces.py --n 20` | seeded fair sample into a reading worksheet |
+| 5 | *(you read and write the notes)* | `docs\week5\worksheet.md` |
+| 5 | `scripts\code_notes.py`, `scripts\rank_problems.py --save` | notes to named groups to a ranking |
+| hardening | `scripts\compare_ann_exact.py` | how often Chroma's approximate search disagrees with exact search |
+
+The Week 5 reading is deliberately not automated: it is the part of the course that cannot be.
+Each Week 5 script refuses to run until the previous step is genuinely finished.
+
+## The settings that matter (`.env`)
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `RETRIEVAL_MODE` | `hybrid` in code, `dense` in `.env.example` | `dense` is Week 3's search, `hybrid` adds Week 4's keyword search |
+| `DENSE_SEARCH` | `exact` | `exact` compares with every vector; `ann` is Chroma's approximate index (see below) |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` | 800 / 120 | how documents are cut up |
+| `TOP_K` | 4 | chunks given to the answer model |
+| `LLM_RPM` | 0 | chat requests per minute allowed (set below your provider's limit; the app waits) |
+| `EMBED_PROVIDER` | `openai` in code, `local` in `.env.example` | where embeddings come from; changing it needs a re-ingest |
+
+All settings, with their meaning, are in `app/config.py`. A bad value fails at startup with a clear message.
+
+## Things worth knowing
+
+- **Why search is exact.** Chroma's approximate index (HNSW) returned the wrong top chunk for a
+  large share of questions on this corpus, and differently on every run: the handbook contains one
+  chunk repeated 136 times, and identical vectors confuse the graph search. Exact search compares the
+  question with all 432 vectors in milliseconds and never varies. `scripts\compare_ann_exact.py`
+  shows the difference on your machine. Details: [docs/hardening/README.md](docs/hardening/README.md).
+- **Free-tier limits.** Gemini's free tier allowed 5 chat requests per minute per model when
+  measured. `app/llm.py` throttles, retries and reports a used-up daily quota clearly.
+- **The old tags.** `week-3`, `week-4` and `week-5` are the code exactly as built. They predate the
+  free-provider support, so running one needs a real OpenAI key and a re-ingest. To see a week's
+  *behaviour* on the current code, set `RETRIEVAL_MODE=dense` (Week 3) or `hybrid` (Week 4).
+- **An empty index** now says "run scripts\ingest.py" instead of answering "I don't know", which
+  would be indistinguishable from a correct refusal.
+
+## Documentation, in reading order
+
+1. [docs/GOAL.md](docs/GOAL.md): the goal, the delivery rules (branches, tags, review) and the status
+2. [docs/overview.md](docs/overview.md): what the app is and the week-by-week arc
+3. [docs/project-info.md](docs/project-info.md): the folder layout and how a request flows
+4. [docs/build-loop.md](docs/build-loop.md): the process every week follows
+5. [docs/hardening/README.md](docs/hardening/README.md): what changed since the three tags, and why
+6. [docs/TODO.md](docs/TODO.md): the live checklist
+
+## Secrets
+
+`.env` is gitignored and must stay that way. Never paste a key into a file that is committed, a log
+or a test.
