@@ -19,28 +19,31 @@ def normalise(text):
     return re.sub(r"\s+", " ", re.sub(r"[*`]", "", text)).strip()
 
 
+ALL = agent_tasks.TASKS + agent_tasks.PATH_PROBES
+
+
 class TaskTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.docs = {doc["source"]: normalise(doc["text"]) for doc in loader.load_documents(settings.corpus_dir)}
 
     def test_ids_are_unique(self):
-        ids = [task["id"] for task in agent_tasks.TASKS]
+        ids = [task["id"] for task in ALL]
         self.assertEqual(len(ids), len(set(ids)))
 
     def test_every_expected_source_exists_in_the_corpus(self):
-        for task in agent_tasks.TASKS:
+        for task in ALL:
             for source in task["expected_sources"]:
                 self.assertIn(source, self.docs, f"{task['id']} names a document that is not in the corpus")
 
     def test_every_source_fact_is_in_one_of_the_expected_documents(self):
-        for task in agent_tasks.TASKS:
+        for task in ALL:
             for fact in task.get("source_facts", []):
                 holders = [source for source in task["expected_sources"] if normalise(fact) in self.docs[source]]
                 self.assertTrue(holders, f"{task['id']}: {fact!r} is not in {task['expected_sources']}")
 
     def test_answerable_tasks_have_facts_to_check_and_a_source(self):
-        for task in agent_tasks.TASKS:
+        for task in ALL:
             if task["should_refuse"]:
                 continue
             self.assertTrue(task["expected_sources"], task["id"])
@@ -58,9 +61,9 @@ class TaskTests(unittest.TestCase):
 
     def test_expected_tools_are_tools_the_agent_has(self):
         available = {tool.name for tool in default_tools()}
-        for task in agent_tasks.TASKS:
+        for task in ALL:
             self.assertTrue(task["expected_tools"], task["id"])
-            self.assertLessEqual(set(task["expected_tools"]), available, task["id"])
+            self.assertLessEqual(set(task["expected_tools"]) | set(task.get("allowed_tools", [])), available, task["id"])
 
     def test_the_mix_covers_one_lookup_arithmetic_dates_two_documents_conflict_and_absence(self):
         tools_wanted = [set(task["expected_tools"]) for task in agent_tasks.TASKS]
@@ -76,6 +79,9 @@ class TaskTests(unittest.TestCase):
         everything[0]["question"] = "changed"
         self.assertNotEqual(agent_tasks.TASKS[0]["question"], "changed")
         self.assertEqual([t["id"] for t in agent_tasks.get_tasks(["t7-unanswerable"])], ["t7-unanswerable"])
+        self.assertEqual(len(agent_tasks.get_tasks()), len(agent_tasks.TASKS))                    # the race is unchanged
+        self.assertEqual(len(agent_tasks.get_tasks(include_probes=True)), len(ALL))
+        self.assertEqual([t["id"] for t in agent_tasks.get_tasks(["t8-probation-notice"])], ["t8-probation-notice"])
         with self.assertRaises(ValueError):
             agent_tasks.get_tasks(["nope"])
 
