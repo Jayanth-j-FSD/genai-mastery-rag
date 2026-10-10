@@ -15,6 +15,7 @@ Run:
     python scripts/check_all.py
     python scripts/check_all.py --verbose      # also print the full unit-test output
     python scripts/check_all.py --quick        # skip the --help check
+    python scripts/check_all.py --strict       # fail if any test was skipped (nothing unchecked)
 """
 import argparse
 import os
@@ -100,30 +101,43 @@ def check_help():
     return not failures, f"{len(wanted)} scripts", "\n".join(failures)
 
 
-def check_tests(verbose):
-    started = time.time()
-    result = run([sys.executable, "-m", "unittest", "discover", "-s", os.path.join("tests", "unit")], timeout=1200)
-    output = (result.stdout + result.stderr).strip()
+def interpret_tests(output, returncode, strict, verbose):
+    """Turn unittest's output into (ok, one-line summary, detail to show).
+
+    A skipped test is not a failure, but it means something was not checked (for example the offline
+    embedding model is not downloaded, so its tests are skipped). `strict` refuses to call that clean.
+    """
     ran = re.search(r"Ran (\d+) tests? in ([\d.]+)s", output)
     skipped = re.search(r"skipped=(\d+)", output)
-    detail = "" if result.returncode == 0 and not verbose else output
-    summary = (f"{ran.group(1)} tests in {ran.group(2)}s" if ran else f"no result after {time.time() - started:.0f}s")
+    summary = f"{ran.group(1)} tests in {ran.group(2)}s" if ran else "no result"
     if skipped:
         summary += f" ({skipped.group(1)} skipped)"
-    return result.returncode == 0, summary, detail
+    ok = returncode == 0 and ran is not None
+    detail = output if (not ok or verbose) else ""
+    if ok and strict and skipped:
+        ok = False
+        detail = (f"{skipped.group(1)} test(s) were skipped, which --strict does not accept: something was not "
+                  "checked (for example the offline model is not downloaded: run scripts/download_model.py).")
+    return ok, summary, detail
+
+
+def check_tests(verbose, strict=False):
+    result = run([sys.executable, "-m", "unittest", "discover", "-s", os.path.join("tests", "unit")], timeout=1200)
+    return interpret_tests((result.stdout + result.stderr).strip(), result.returncode, strict, verbose)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Compile, import, --help and unit-test everything.")
     parser.add_argument("--verbose", action="store_true", help="print the full unit-test output")
     parser.add_argument("--quick", action="store_true", help="skip the --help check")
+    parser.add_argument("--strict", action="store_true", help="fail if any unit test was skipped")
     args = parser.parse_args()
     make_output_safe()
 
     checks = [("compile", check_compile), ("imports", check_imports)]
     if not args.quick:
         checks.append(("--help", check_help))
-    checks.append(("unit tests", lambda: check_tests(args.verbose)))
+    checks.append(("unit tests", lambda: check_tests(args.verbose, args.strict)))
 
     print("== check_all ==")
     failed = []

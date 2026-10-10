@@ -4,7 +4,7 @@ from unittest import mock
 
 import _testkit
 from app.config import settings
-from app.rag import fusion, keyword
+from app.rag import fusion, keyword, store
 
 
 def docs(*texts):
@@ -78,7 +78,9 @@ class CacheTests(unittest.TestCase):
         with _testkit.isolated_index():
             _testkit.build_index([_testkit.chunk("a#0", "alpha one")])
             self.assertEqual(len(keyword.search("alpha", 5)), 1)
-            _testkit.build_index([_testkit.chunk("a#0", "alpha one"), _testkit.chunk("b#0", "alpha two")])
+            # Add a chunk straight to the store WITHOUT calling keyword.invalidate(): only the
+            # chunk-count check can notice that the cached index is stale.
+            store.add_chunks([_testkit.chunk("b#0", "alpha two")], _testkit.fake_embed(["alpha two"]))
             self.assertEqual(len(keyword.search("alpha", 5)), 2)
 
     def test_nothing_ingested_gives_an_empty_result(self):

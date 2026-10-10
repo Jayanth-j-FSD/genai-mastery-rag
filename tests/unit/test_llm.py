@@ -138,6 +138,33 @@ class RetryTests(LlmTestCase):
         self.assertIn("OPENAI_API_KEY", str(ctx.exception))
 
 
+class ResponseHelperTests(LlmTestCase):
+    def test_text_of_reads_and_strips_a_normal_reply(self):
+        self.assertEqual(llm.text_of(_testkit.fake_response("  hello  ")), "hello")
+        self.assertEqual(llm.message_of(_testkit.fake_response("x")).content, "x")
+
+    def test_a_reply_with_no_choices_is_empty_not_a_crash(self):
+        from types import SimpleNamespace
+        empty = SimpleNamespace(choices=[], usage=None)
+        self.assertIsNone(llm.message_of(empty))
+        self.assertEqual(llm.text_of(empty), "")
+        self.assertEqual(llm.text_of(SimpleNamespace(choices=None)), "")
+
+    def test_none_content_is_empty_text(self):
+        self.assertEqual(llm.text_of(_testkit.fake_response(None)), "")
+
+    def test_the_served_model_is_what_the_provider_reports_else_what_was_asked_for(self):
+        reply = _testkit.fake_response("x")
+        reply.model = "provider-says-this"
+        self.use(reply, _testkit.fake_response("y"))
+        llm.chat([], model="asked-for")
+        self.assertEqual(llm.last_model(), "provider-says-this")
+        llm.chat([], model="asked-for")
+        self.assertEqual(llm.last_model(), "asked-for")
+        llm.reset_last_model()
+        self.assertIsNone(llm.last_model())
+
+
 class LimiterTests(LlmTestCase):
     def test_third_call_in_a_minute_waits_when_limit_is_two(self):
         self.use(*[_testkit.fake_response() for _ in range(3)])

@@ -77,6 +77,11 @@ class GroundingTests(unittest.TestCase):
         with reply("   "):
             self.assertEqual(generator.generate_answer("q", CHUNKS), (generator.IDK, [], False))
 
+    def test_a_provider_reply_with_no_choices_counts_as_a_refusal(self):
+        from types import SimpleNamespace
+        with mock.patch("app.llm.chat", return_value=SimpleNamespace(choices=[], usage=None)):
+            self.assertEqual(generator.generate_answer("q", CHUNKS), (generator.IDK, [], False))
+
     def test_none_content_does_not_crash(self):
         with mock.patch("app.llm.chat", return_value=fake_response(None)):
             self.assertEqual(generator.generate_answer("q", CHUNKS), (generator.IDK, [], False))

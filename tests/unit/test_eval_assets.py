@@ -44,6 +44,18 @@ class EvalSetTests(unittest.TestCase):
                          if any(diagnose._normalize(phrase) in NORMALISED[source] for source in case["expected_sources"])]
                 self.assertTrue(found, f"none of {case['expect_contains']} appears in {case['expected_sources']}")
 
+    def test_cases_with_bare_number_answers_have_evidence_that_is_still_in_the_documents(self):
+        # "12" or "60" can match almost any document, so the phrase check above proves little for those
+        # cases. Their `evidence` sentences state the fact itself and must still be in an expected source.
+        for case in eval_set.in_corpus_cases():
+            phrases = case["expect_contains"]
+            if phrases and all(any(ch.isdigit() for ch in p) and len(p) <= 6 for p in phrases):
+                with self.subTest(case=case["id"]):
+                    self.assertTrue(case.get("evidence"), "a bare-number case needs evidence sentences")
+            for sentence in case.get("evidence", []):
+                with self.subTest(case=case["id"], evidence=sentence):
+                    self.assertTrue(any(diagnose._normalize(sentence) in NORMALISED[s] for s in case["expected_sources"]))
+
     def test_refusal_cases_really_are_absent_from_every_document(self):
         refusals = eval_set.refusal_cases()
         self.assertGreaterEqual(len(refusals), 4)

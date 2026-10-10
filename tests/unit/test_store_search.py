@@ -72,12 +72,19 @@ class ExactSearchTests(unittest.TestCase):
 
 
 class AnnSwitchTests(unittest.TestCase):
-    def test_ann_setting_still_uses_chromas_own_index(self):
+    def test_the_setting_selects_the_search_path(self):
         with isolated_index(dense_search="ann"):
             build_index([chunk("a#0", "alpha beta"), chunk("b#0", "gamma delta")])
-            result = store.query(fake_embed(["alpha beta"])[0], 2)
-            self.assertEqual(result["ids"][0][0], "a#0")
+            vector = fake_embed(["alpha beta"])[0]
+            with mock.patch.object(store, "_query_exact", wraps=store._query_exact) as exact_path:
+                result = store.query(vector, 2)
+                self.assertEqual(exact_path.call_count, 0)                # "ann" must NOT use brute force
+            self.assertEqual(result["ids"][0][0], "a#0")                  # but Chroma's own index still answers
             self.assertEqual(len(result["distances"][0]), 2)
+            with mock.patch.object(settings, "dense_search", "exact"), \
+                    mock.patch.object(store, "_query_exact", wraps=store._query_exact) as exact_path:
+                store.query(vector, 2)
+                self.assertEqual(exact_path.call_count, 1)                # "exact" must use it
 
     def test_default_setting_is_exact(self):
         from app.config import Settings

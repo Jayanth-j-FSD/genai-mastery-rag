@@ -51,6 +51,9 @@ HANDBOOK = "Synthetic_HR_Policy_RAG_Test_Dataset.md"
 #                   An EMPTY list means "not in the corpus — the app must refuse".
 # expect_contains:  a correct answer contains at least ONE of these phrases.
 # favours:          prediction — "keyword", "dense", or "either".
+# evidence:        (optional) exact sentences from the documents that state the fact. Added for the cases
+#                   whose accepted phrases are bare numbers ("12", "60"), which appear almost anywhere, so
+#                   a unit test can prove the fact itself is still in the document.
 # absent_terms:    (refusal cases only) words that prove the topic really is absent;
 #                   a unit test fails if any corpus file ever contains one.
 CASES = [
@@ -141,6 +144,7 @@ CASES = [
     # --- facts that live in SEVERAL documents: a fair answer may cite any of them ---
     {
         "id": "ambiguous-home-office",
+        "evidence": ["home-office equipment: up to $500 per year"],
         "question": "How much can I claim for home-office equipment?",
         "expected_sources": ["expenses.md"],
         "expect_contains": ["$500", "500"],
@@ -149,6 +153,7 @@ CASES = [
     },
     {
         "id": "ambiguous-leave-days",
+        "evidence": ["employees receive 18 days of annual leave", "24 days of annual leave per calendar year"],
         "question": "How many annual leave days do full-time employees get?",
         "expected_sources": [ACME_LEAVE, HANDBOOK, "benefits.md"],
         "expect_contains": ["18", "24"],
@@ -157,6 +162,7 @@ CASES = [
     },
     {
         "id": "ambiguous-notice-period",
+        "evidence": ["30 calendar days of written notice", "60 calendar days for confirmed employees"],
         "question": "How many days of notice must a confirmed or permanent employee give before resigning?",
         "expected_sources": [ACME_TERMS, HANDBOOK],
         "expect_contains": ["30", "60"],
@@ -165,6 +171,7 @@ CASES = [
     },
     {
         "id": "ambiguous-learning-budget",
+        "evidence": ["inr 30,000 per financial year", "annual learning budget of $1,000"],
         "question": "What is the annual learning and certification budget per employee?",
         "expected_sources": [HANDBOOK, "benefits.md"],
         "expect_contains": ["30,000", "1,000"],
@@ -173,6 +180,7 @@ CASES = [
     },
     {
         "id": "detail-sick-days",
+        "evidence": ["12 paid sick-leave days", "12 days of sick leave"],
         "question": "How many sick leave days do employees get per year?",
         "expected_sources": [ACME_LEAVE, HANDBOOK],
         "expect_contains": ["12"],
@@ -207,6 +215,7 @@ CASES = [
     },
     {
         "id": "detail-notice-acme",
+        "evidence": ["30 calendar days of written notice"],
         "question": "Under the Acme employment terms, how many days of written notice must a permanent employee give?",
         "expected_sources": [ACME_TERMS],
         "expect_contains": ["30"],
@@ -217,6 +226,7 @@ CASES = [
     # --- the track documents: remote work and the cloud policy ---
     {
         "id": "track-remote-eligibility",
+        "evidence": ["after completing 60 days of service"],
         "question": "After how many days of service may an employee request remote work?",
         "expected_sources": [REMOTE],
         "expect_contains": ["60"],
@@ -225,6 +235,7 @@ CASES = [
     },
     {
         "id": "track-internet-claim",
+        "evidence": ["up to 50 usd per month"],
         "question": "How much can I claim each month for internet used for remote work?",
         "expected_sources": [REMOTE],
         "expect_contains": ["50"],
@@ -259,6 +270,7 @@ CASES = [
     },
     {
         "id": "handbook-casual-leave",
+        "evidence": ["6 days of casual leave per calendar year"],
         "question": "How many days of casual leave do employees get per year?",
         "expected_sources": [HANDBOOK],
         "expect_contains": ["6 days"],
@@ -267,6 +279,7 @@ CASES = [
     },
     {
         "id": "handbook-holidays",
+        "evidence": ["12 designated company holidays"],
         "question": "How many designated company holidays does the company publish each year?",
         "expected_sources": [HANDBOOK],
         "expect_contains": ["12"],

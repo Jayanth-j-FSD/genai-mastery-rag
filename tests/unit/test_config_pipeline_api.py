@@ -127,11 +127,29 @@ class PipelineTests(unittest.TestCase):
         chat.assert_not_called()
         self.assertEqual(read_traces(), [])
 
-    def test_mode_can_be_forced_per_question(self):
+    def test_mode_can_be_forced_per_question_and_really_reaches_retrieval(self):
         pipeline.ingest()
-        with mock.patch("app.llm.chat", return_value=fake_response("18 days [source: leave.md]")):
+        with mock.patch("app.llm.chat", return_value=fake_response("18 days [source: leave.md]")), \
+                mock.patch.object(pipeline.retriever, "retrieve_for_mode",
+                                  wraps=pipeline.retriever.retrieve_for_mode) as spy:
             result = pipeline.answer("annual leave days", mode="hybrid")
         self.assertEqual(result["retrieval_mode"], "hybrid")
+        self.assertEqual(spy.call_args.args[2], "hybrid")                 # not merely echoed back
+
+    def test_the_trace_names_the_model_that_answered_and_none_when_no_call_was_made(self):
+        pipeline.ingest()
+
+        def chat(messages, **kwargs):
+            llm._last_model["name"] = "served-model"
+            return fake_response("18 days [source: leave.md]")
+        with mock.patch("app.llm.chat", side_effect=chat):
+            pipeline.answer("annual leave days")
+        self.assertEqual(read_traces()[-1]["config"]["llm_model_served"], "served-model")
+        llm._last_model["name"] = "stale-from-an-earlier-question"
+        with mock.patch.object(settings, "min_relevance", 0.99), mock.patch("app.llm.chat") as chat_again:
+            pipeline.answer("completely unrelated words here")
+        chat_again.assert_not_called()                                     # refused by the relevance floor
+        self.assertIsNone(read_traces()[-1]["config"]["llm_model_served"])   # and the stale name is NOT reused
 
 
 def status_error(error_class, status):
