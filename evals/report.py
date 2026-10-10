@@ -136,3 +136,25 @@ def format_compare(before, after):
                  f"{1 / n:.1%} and by far more inside a small group. Read the named cases above, not only the percentages." if n
                  else "No cases in common between the two runs.")
     return lines
+
+
+def format_runs(runs, markdown=False):
+    """One row per saved run, so a series of experiments reads as a single table.
+
+    `runs` is a list of loaded result dicts. The counts are numbers of cases ("38/41"), not percentages,
+    because with 41 cases a percentage hides how small a change is.
+    """
+    header = ["run", "what was changed", "chunks", "rules", "judge", "both"]
+    rows = []
+    for run in runs:
+        meta = run.get("meta", {})
+        overall = summarize(run)["overall"]
+        changed = ", ".join(f"{k}={v}" for k, v in (meta.get("overrides") or {}).items()) or "nothing (the baseline settings)"
+        judged = f"{overall['judge_pass']}/{overall['judged']}" if overall["judged"] else "not run"
+        rows.append([meta.get("label", "?"), changed, str(meta.get("chunk_count", "?")),
+                     f"{overall['rules']}/{overall['n']}", judged, f"{overall['both']}/{overall['n']}"])
+    if markdown:
+        lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+        return lines + ["| " + " | ".join(row) + " |" for row in rows]
+    widths = [max(len(str(cell)) for cell in column) for column in zip(header, *rows)]
+    return ["  ".join(str(cell).ljust(width) for cell, width in zip(line, widths)) for line in [header] + rows]
