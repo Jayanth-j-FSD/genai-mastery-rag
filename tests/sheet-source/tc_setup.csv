@@ -1,0 +1,12 @@
+Step|What to do|Command|Done when|Status|Notes
+1|Install Python 3.11 or newer. This machine currently has only a 0-byte Windows Store stub, so nothing can run yet.|Download from python.org and tick "Add python.exe to PATH"|python --version prints a real version, not "Python was not found"||This is the hard blocker for every test below.
+2|Create a virtual environment inside AI-Task|python -m venv .venv|A .venv folder exists||
+3|Activate it|.venv\Scripts\activate (PowerShell) or source .venv/Scripts/activate (Git Bash)|The prompt shows (.venv)||
+4|Install dependencies|pip install -r requirements.txt|fastapi, openai, chromadb, langchain-text-splitters and pypdf all install without error||No Week 4 or Week 5 dependency was added, so this list is unchanged from Week 3.
+5|Create your .env|copy .env.example .env|A .env file exists and is NOT tracked by git||git status must never show .env. It is in .gitignore.
+6|Paste your real OpenAI key into .env|Edit OPENAI_API_KEY=sk-...|scripts/ask.py no longer reports "No OpenAI API key found"||
+7|Confirm the corpus|Look in data/corpus/|9 readable documents present (.md files)||The .uploaded_documents.json is ignored by the loader - only .txt, .md and .pdf are read.
+8|Set the Week 3 baseline config|Edit .env: CHUNK_SIZE=800, CHUNK_OVERLAP=120, TOP_K=4|Values match Config A on the Chunk Experiment sheet||
+9|IMPORTANT for a fair Week 3 test - use the Week 3 search|Edit .env: RETRIEVAL_MODE=dense|Week 3 is graded on the dense search you built that week. Hybrid is the Week 4 change.||If you test Week 3 with hybrid on, you are demonstrating Week 4's work, not Week 3's.
+10|Build the index|python scripts/ingest.py|Prints document and chunk counts (test SM-01)||Re-run this every time you change CHUNK_SIZE.
+11|Optional - start the API for the browser tests|uvicorn app.main:app --reload|http://127.0.0.1:8000/docs opens||Needed only for the C2-03, C2-04 and SM-03 rows.
