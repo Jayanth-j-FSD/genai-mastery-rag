@@ -17,7 +17,10 @@ import asyncio
 import os
 import sys
 
-from fastmcp import Client
+os.environ.setdefault("FASTMCP_CHECK_FOR_UPDATES", "off")      # an update check would write a cache file outside the project
+
+from fastmcp import Client      # noqa: E402
+from fastmcp.exceptions import ToolError      # noqa: E402
 
 PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -43,4 +46,8 @@ async def main(query):
 
 
 if __name__ == "__main__":
-    asyncio.run(main(" ".join(sys.argv[1:]) or "notice period for a permanent employee"))
+    try:
+        asyncio.run(main(" ".join(sys.argv[1:]) or "notice period for a permanent employee"))
+    except ToolError as exc:                  # the server refused the call and said why (for example: no index yet)
+        print(f"\nThe server answered with an error: {exc}")
+        sys.exit(1)

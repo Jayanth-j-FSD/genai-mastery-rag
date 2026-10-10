@@ -27,6 +27,7 @@ from app.agent.defense import Defense, trusted_contacts_from   # noqa: E402
 from app.config import BASE_DIR, settings                  # noqa: E402
 from app.console import make_output_safe                   # noqa: E402
 from app.mcp.client import MCPToolProvider, load_specs     # noqa: E402
+from app.rag import pipeline                               # noqa: E402
 
 
 def main(argv=None):
@@ -42,6 +43,9 @@ def main(argv=None):
     make_output_safe()
     if not args.list and not args.question:
         parser.error("give a question, or use --list")
+    if args.max_steps is not None and args.max_steps <= 0:         # 0 would silently fall back to the default
+        print(f"Error: --max-steps must be greater than 0, got {args.max_steps}.")
+        return 1
 
     try:
         specs = load_specs(args.config)
@@ -49,6 +53,8 @@ def main(argv=None):
         print(f"Error: could not read the MCP config {args.config!r}: {exc}")
         return 1
     try:
+        if not args.list and any("policy_server" in " ".join(spec.args) for spec in specs):
+            pipeline.require_index()                              # the policy server needs it; say so up front, not as "no passages"
         with MCPToolProvider(specs, require_read_only=args.require_read_only) as provider:
             print("\n".join(provider.report()))
             if args.list:
@@ -58,6 +64,9 @@ def main(argv=None):
                 return 1
             question = " ".join(args.question)
             print(f"\nQuestion: {question}\n")
+            if args.defense:
+                print("Note: with --defense a final answer must cite a policy document the agent retrieved (or be the plain "
+                      "refusal), so an answer that comes only from another tool, such as the HRIS, is withheld.\n")
             defense = Defense(trusted_contacts=trusted_contacts_from(settings.corpus_dir),
                               system_prompt=loop.SYSTEM_PROMPT) if args.defense else None
             run = loop.run_agent(question, provider.tools, max_steps=args.max_steps, model=args.model,
