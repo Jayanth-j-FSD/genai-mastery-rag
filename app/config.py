@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     # because each starts with its own heading. Off by default for the same reason as above.
     boilerplate_min_repeats: int = 0
 
+    # --- Week 7: the agent loop's stop conditions (app/agent/loop.py) ---
+    # An agent that cannot stop is a bug, so every run is bounded three ways. Whichever limit is hit first
+    # ends the run with a named reason, and a caller can pass different limits for a single run.
+    agent_max_steps: int = 8              # think-and-act rounds (model calls) before giving up
+    agent_max_total_tokens: int = 40000   # prompt + completion tokens summed over the whole run
+    agent_timeout_seconds: float = 120.0  # wall-clock seconds for the whole run
+
     # --- pipeline knobs (the graded chunk-size experiment lives here) ---
     chunk_size: int = 800       # characters per chunk
     chunk_overlap: int = 120    # characters shared between neighbouring chunks
@@ -151,6 +158,22 @@ class Settings(BaseSettings):
         """0 turns it off; 1 would delete every line, so anything below 2 (but 0) is a mistake."""
         if value != 0 and value < 2:
             raise ValueError(f"boilerplate_min_repeats must be 0 (off) or at least 2, got {value}")
+        return value
+
+    @field_validator("agent_max_steps", "agent_max_total_tokens")
+    @classmethod
+    def _check_agent_limits(cls, value: int) -> int:
+        """A limit of zero would end every run before it starts."""
+        if value < 1:
+            raise ValueError(f"must be 1 or greater, got {value}")
+        return value
+
+    @field_validator("agent_timeout_seconds")
+    @classmethod
+    def _check_agent_timeout(cls, value: float) -> float:
+        """A zero or negative timeout would end every run at once."""
+        if value <= 0:
+            raise ValueError(f"agent_timeout_seconds must be greater than 0, got {value}")
         return value
 
     @field_validator("llm_timeout_seconds")
