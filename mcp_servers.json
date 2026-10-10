@@ -1,0 +1,8 @@
+{
+  "servers": [
+    {"name": "policy", "command": "python", "args": ["-m", "app.mcp.servers.policy_server"]},
+    {"name": "utils", "command": "python", "args": ["-m", "app.mcp.servers.utils_server"]},
+    {"name": "hris", "command": "python", "args": ["-m", "app.mcp.servers.hris_server"],
+     "allow": ["get_leave_balance", "get_employee_summary", "list_direct_reports"]}
+  ]
+}
