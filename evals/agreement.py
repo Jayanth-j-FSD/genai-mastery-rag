@@ -13,19 +13,22 @@ and these numbers say how often they agree.
 Both verdicts are "pass" or "fail". The positive class is "pass".
 """
 
-# A widely used rule of thumb for reading kappa (Landis and Koch, 1977), not a law.
-_KAPPA_BANDS = [(0.0, "worse than chance"), (0.20, "slight"), (0.40, "fair"),
-                (0.60, "moderate"), (0.80, "substantial"), (1.01, "almost perfect")]
+# A widely used rule of thumb for reading kappa (Landis and Koch, 1977), not a law. Their bands are
+# 0.00-0.20 slight, 0.21-0.40 fair, 0.41-0.60 moderate, 0.61-0.80 substantial, 0.81-1.00 almost perfect,
+# so each band INCLUDES its upper edge: exactly 0.60 is the top of "moderate".
+_KAPPA_BANDS = [(0.20, "slight"), (0.40, "fair"), (0.60, "moderate"), (0.80, "substantial")]
 
 DEFAULT_MIN_AGREEMENT = 0.80
-DEFAULT_MIN_KAPPA = 0.60
+DEFAULT_MIN_KAPPA = 0.60      # a convention. It is the top of "moderate"; a stricter reader asks for "substantial" (above 0.60)
 
 
 def kappa_label(kappa):
     if kappa is None:
         return "undefined (all verdicts identical)"
+    if kappa < 0:
+        return "worse than chance"
     for upper, label in _KAPPA_BANDS:
-        if kappa < upper:
+        if kappa <= upper:
             return label
     return "almost perfect"
 

@@ -1,4 +1,5 @@
 """Week 6 building blocks: the cases, the rule checks, the judge, the agreement maths and the report."""
+import hashlib
 import json
 import os
 import tempfile
@@ -206,6 +207,12 @@ class JudgeTests(unittest.TestCase):
         for idea in ("Faithful", "Responsive", "Honest about absence", "Conflicts"):
             self.assertIn(idea, prompt)
 
+    def test_the_rubric_text_is_pinned_to_its_version(self):
+        digest = hashlib.sha256(judge.SYSTEM_PROMPT.encode("utf-8")).hexdigest()[:16]
+        self.assertEqual((judge.RUBRIC_VERSION, digest), ("1", "8b916243ef36fb3f"),
+                         "The judge rubric changed. Bump RUBRIC_VERSION in evals/judge.py, so cached verdicts from the "
+                         "old rubric are not reused, and update this pin.")
+
     def test_the_cache_key_changes_with_anything_that_could_change_the_verdict(self):
         retrieved = [{"source": "A.md", "text": "t"}]
         base = judge.cache_key("m1", "q", retrieved, "a", "r")
@@ -276,6 +283,14 @@ class AgreementTests(unittest.TestCase):
         self.assertFalse(agreement.is_trustworthy(good, min_kappa=0.95))
         self.assertFalse(agreement.is_trustworthy(good, min_agreement=0.99))
 
+    def test_kappa_bands_follow_landis_and_koch_with_inclusive_upper_edges(self):
+        expected = [(-0.01, "worse than chance"), (0.0, "slight"), (0.20, "slight"), (0.21, "fair"), (0.40, "fair"),
+                    (0.41, "moderate"), (0.60, "moderate"), (0.61, "substantial"), (0.80, "substantial"),
+                    (0.81, "almost perfect"), (1.0, "almost perfect")]
+        for value, label in expected:
+            with self.subTest(kappa=value):
+                self.assertEqual(agreement.kappa_label(value), label)
+
     def test_kappa_labels(self):
         self.assertEqual(agreement.kappa_label(-0.1), "worse than chance")
         self.assertEqual(agreement.kappa_label(0.5), "moderate")
@@ -330,6 +345,12 @@ class ReportTests(unittest.TestCase):
         text = "\n".join(report.format_compare(run("baseline", [entry("a", "x", False)]), run("after", [entry("a", "x", True)])))
         for needle in ("before 'baseline' vs after 'after'", "+100pt", "fixed by the change    : 1", "one case moves the overall score by 100.0%"):
             self.assertIn(needle, text)
+
+    def test_comparing_a_judged_run_with_an_unjudged_one_warns_that_the_scores_are_not_alike(self):
+        judged, unjudged = run("a", [entry("x", "t", True, "pass")]), run("b", [entry("x", "t", True)])
+        unjudged["meta"]["models"]["judge"] = None
+        self.assertIn("WARNING: only one of these runs used the judge", "\n".join(report.format_compare(judged, unjudged)))
+        self.assertNotIn("WARNING", "\n".join(report.format_compare(judged, judged)))
 
     def test_comparing_runs_with_nothing_in_common_does_not_crash(self):
         text = "\n".join(report.format_compare(run("b", [entry("a", "x", True)]), run("a", [entry("z", "x", True)])))

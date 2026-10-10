@@ -22,7 +22,7 @@ from evals import report, runner                # noqa: E402
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="List saved eval runs and their scores.")
-    parser.add_argument("labels", nargs="*", help="labels to show, in order (default: every saved run, oldest first)")
+    parser.add_argument("labels", nargs="*", help="labels to show, in order (default: every saved run, alphabetical)")
     parser.add_argument("--markdown", action="store_true", help="print a markdown table")
     args = parser.parse_args(argv)
     make_output_safe()
@@ -31,7 +31,7 @@ def main(argv=None):
         if args.labels:
             runs = [runner.load_results(label) for label in args.labels]
         else:
-            paths = sorted(glob.glob(os.path.join(runner.RESULTS_DIR, "*.json")), key=os.path.getmtime)
+            paths = sorted(glob.glob(os.path.join(runner.RESULTS_DIR, "*.json")))       # by name: file times mean nothing after a clone
             runs = [runner.load_results(path) for path in paths]
     except FileNotFoundError as exc:
         print(f"Error: {exc}")

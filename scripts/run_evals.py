@@ -60,22 +60,25 @@ def main(argv=None):
         print("No cases selected.")
         return 1
 
-    judge_note = "no judge" if args.no_judge else f"judge {judge.judge_model()}"
-    print(f"Running {len(cases)} case(s): answer model {settings.llm_model}, {judge_note}"
-          + (f", overrides {overrides}" if overrides else ""))
-    if args.no_judge is False and judge.judge_model() == settings.llm_model:
-        print("Note: JUDGE_MODEL is not set, so the answer model also judges its own answers. "
-              "Set JUDGE_MODEL to a different model for a fairer judge.")
-    print()
-
     try:
         with runner.overridden(overrides):
+            # The header is printed INSIDE the override, so it names the models this run really uses.
+            judge_note = "no judge" if args.no_judge else f"judge {judge.judge_model()}"
+            print(f"Running {len(cases)} case(s): answer model {settings.llm_model}, {judge_note}"
+                  + (f", overrides {overrides}" if overrides else ""))
+            if args.no_judge is False and judge.judge_model() == settings.llm_model:
+                print("Note: JUDGE_MODEL is not set, so the answer model also judges its own answers. "
+                      "Set JUDGE_MODEL to a different model for a fairer judge.")
+            print()
             results = runner.run_cases(cases, label=args.label, with_judge=not args.no_judge,
                                        use_cache=not args.no_cache, overrides=overrides)
     except (RuntimeError, ValueError) as exc:
         print(f"Error: {exc}")
         return 1
     path = runner.save_results(results)
+    if path.endswith(".incomplete.json"):
+        print("\nNote: this run stopped early, so it was saved beside the earlier complete run with the same label, "
+              "which was kept.")
 
     print()
     for line in report.format_summary(results):

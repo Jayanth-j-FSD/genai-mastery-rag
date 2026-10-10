@@ -107,7 +107,7 @@ def hidden_mapping(sample, seed):
 
 
 def write_sheet(sample, seed, sheet_path=SHEET_PATH, items_path=ITEMS_PATH):
-    os.makedirs(os.path.dirname(sheet_path), exist_ok=True)
+    os.makedirs(os.path.dirname(sheet_path) or ".", exist_ok=True)
     with open(sheet_path, "w", encoding="utf-8") as handle:
         handle.write(render_sheet(sample, seed))
     with open(items_path, "w", encoding="utf-8") as handle:
@@ -138,4 +138,7 @@ def join_labels(sheet_path=SHEET_PATH, items_path=ITEMS_PATH):
             continue
         rows.append({"id": block["trace_id"], "human": "pass" if verdict == "ok" else "fail",
                      "note": block["note"], **info})
+    missing = sorted(set(hidden) - {block["trace_id"] for block in blocks})
+    if missing:                             # a deleted block must not quietly shrink the sample
+        problems.append(f"{', '.join(missing)}: in {os.path.basename(items_path)} but missing from the sheet; was a block deleted?")
     return rows, problems

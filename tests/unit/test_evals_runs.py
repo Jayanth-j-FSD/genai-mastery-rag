@@ -5,11 +5,11 @@ import _testkit  # noqa: F401  (puts the project root on sys.path)
 from evals import report
 
 
-def run(label, overrides, outcomes, chunks=432):
+def run(label, overrides, outcomes, chunks=432, calls=82):
     """A saved run with one case per outcome: (passed the rules, judge verdict or None)."""
     cases = [{"id": f"c{i}", "problem_type": "t", "passed": passed, "checks": [], "judge": ({"verdict": verdict} if verdict else None)}
              for i, (passed, verdict) in enumerate(outcomes)]
-    return {"meta": {"label": label, "overrides": overrides, "chunk_count": chunks}, "cases": cases}
+    return {"meta": {"label": label, "overrides": overrides, "chunk_count": chunks, "usage": {"calls": calls}}, "cases": cases}
 
 
 BASELINE = run("baseline", {}, [(True, "pass"), (True, "pass"), (False, "fail"), (True, "pass")])
@@ -22,7 +22,7 @@ class FormatRunsTests(unittest.TestCase):
         self.assertEqual(len(lines), 3)
         baseline_cells, changed_cells = lines[1].split(), lines[2].split()
         self.assertEqual(baseline_cells[0], "baseline")
-        self.assertEqual(baseline_cells[-3:], ["3/4", "3/4", "3/4"])         # rules, judge, both
+        self.assertEqual(baseline_cells[-4:], ["82", "3/4", "3/4", "3/4"])   # model calls, rules, judge, both
         self.assertEqual(changed_cells[-3:], ["4/4", "3/4", "3/4"])          # passed every rule, judge failed one, so both = 3
 
     def test_the_baseline_says_nothing_was_changed(self):
@@ -34,7 +34,7 @@ class FormatRunsTests(unittest.TestCase):
     def test_markdown_output_is_a_table(self):
         lines = report.format_runs([BASELINE, CHANGED], markdown=True)
         self.assertTrue(lines[0].startswith("| run |"))
-        self.assertEqual(lines[1], "|---|---|---|---|---|---|")
+        self.assertEqual(lines[1], "|---|---|---|---|---|---|---|")
         self.assertEqual(len(lines), 4)
         self.assertTrue(all(line.startswith("|") and line.endswith("|") for line in lines))
 
@@ -43,6 +43,9 @@ class FormatRunsTests(unittest.TestCase):
         cells = report.format_runs([unjudged])[1]
         self.assertIn("not run", cells)
         self.assertTrue(cells.rstrip().endswith("1/2"))
+
+    def test_a_run_regenerated_from_the_cache_shows_zero_model_calls(self):
+        self.assertIn(" 0 ", report.format_runs([run("again", {}, [(True, "pass")], calls=0)])[1])
 
     def test_chunk_counts_are_shown(self):
         self.assertIn("34", report.format_runs([CHANGED])[1])

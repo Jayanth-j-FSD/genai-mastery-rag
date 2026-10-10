@@ -23,6 +23,8 @@ import os
 import re
 from datetime import datetime
 
+import openai
+
 from app import llm
 from app.config import BASE_DIR, Settings, settings
 from app.rag import chunker, generator, keyword, loader, pipeline, retriever, store
@@ -46,7 +48,7 @@ def parse_overrides(pairs):
     for pair in pairs or []:
         key, separator, raw = pair.partition("=")
         key, raw = key.strip(), raw.strip()
-        if not separator or not hasattr(settings, key):
+        if not separator or key not in Settings.model_fields:       # not hasattr: methods such as copy() are not settings
             raise ValueError(f"--set expects name=value for an existing setting, got {pair!r}")
         current = getattr(settings, key)
         if isinstance(current, bool):
@@ -64,17 +66,23 @@ def parse_overrides(pairs):
 
 @contextlib.contextmanager
 def overridden(overrides):
-    """Apply setting overrides for the duration of a block, validating them like .env values."""
-    saved = {key: getattr(settings, key) for key in overrides}
-    for key, value in overrides.items():
-        setattr(settings, key, value)
+    """Apply setting overrides for the duration of a block, validating them like .env values.
+
+    The overrides are checked on a copy first, and the VALIDATED values are the ones applied, so a value the
+    validators tidy up (embed_provider=Local becomes local) is what the app really runs with. Nothing is
+    changed unless every override is valid, and everything is restored when the block ends or fails.
+    """
+    unknown = [key for key in overrides if key not in Settings.model_fields]
+    if unknown:
+        raise ValueError(f"invalid override: not a setting: {unknown}")
     try:
-        Settings(_env_file=None, **{**settings.model_dump(), **overrides})      # runs the validators
+        validated = Settings(_env_file=None, **{**settings.model_dump(), **overrides})      # runs the validators
     except Exception as exc:
-        for key, value in saved.items():
-            setattr(settings, key, value)
         raise ValueError(f"invalid override: {exc}") from exc
+    saved = {key: getattr(settings, key) for key in overrides}
     try:
+        for key in overrides:
+            setattr(settings, key, getattr(validated, key))
         yield
     finally:
         for key, value in saved.items():
@@ -171,9 +179,12 @@ class JsonCache:
 
 
 def _answer_key(question, chunks):
-    payload = json.dumps([settings.llm_model, generator.SYSTEM_PROMPT, question,
-                          [(c["source"], c["text"]) for c in chunks]], ensure_ascii=False)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    parts = [settings.llm_model, generator.SYSTEM_PROMPT, question, [(c["source"], c["text"]) for c in chunks]]
+    if settings.min_relevance > 0:
+        # With a relevance floor the generator may refuse WITHOUT calling the model, so the floor and the best
+        # score decide the answer. They join the key only when the floor is on, so earlier keys stay valid.
+        parts.append([settings.min_relevance, max((c.get("score") or 0 for c in chunks), default=None)])
+    return hashlib.sha256(json.dumps(parts, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
 def answer_one(question, chunks, cache):
@@ -182,6 +193,7 @@ def answer_one(question, chunks, cache):
     cached = cache.get(key)
     if cached is not None:
         return cached, True
+    llm.reset_last_model()                    # an answer given without a model call must not claim the last call's model
     answer, sources, grounded = generator.generate_answer(question, chunks)
     reply = {"answer": answer, "grounded": grounded, "sources": [s.document for s in sources],
              "model_served": llm.last_model()}
@@ -235,9 +247,10 @@ def run_cases(cases, label="latest", with_judge=True, use_cache=True, overrides=
                 judged = judge_cached = None
                 if with_judge:
                     judged, judge_cached = judge_one(case, result, verdicts)
-            except llm.QuotaExhausted as exc:
-                stopped = str(exc)
-                say(f"\nSTOPPED at case {case['id']!r}: {exc}\nSaved what finished; run again later to resume (cached calls are free).")
+            except (llm.QuotaExhausted, openai.OpenAIError) as exc:
+                # A daily quota, or a provider failure that survived the retries: keep what finished and stop.
+                stopped = str(exc) if isinstance(exc, llm.QuotaExhausted) else f"the provider failed ({type(exc).__name__}): {exc}"
+                say(f"\nSTOPPED at case {case['id']!r}: {stopped}\nSaved what finished; run again later to resume (cached calls are free).")
                 break
             entry = {"id": case["id"], "problem_type": case["problem_type"], "origin": case.get("origin", ""),
                      "question": case["question"], "reference": case["reference"],
@@ -272,7 +285,18 @@ def run_cases(cases, label="latest", with_judge=True, use_cache=True, overrides=
 
 
 def save_results(results, path=None):
+    """Write a run to its file. A run that stopped early never replaces a complete run with the same label:
+    it is written beside it as `<label>.incomplete.json`, so a quota that runs out cannot destroy a good result.
+    """
     path = path or results_path(results["meta"]["label"])
+    if not results["meta"].get("complete", True) and os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as handle:
+                existing_is_complete = bool(json.load(handle).get("meta", {}).get("complete", False))
+        except (OSError, json.JSONDecodeError):
+            existing_is_complete = False
+        if existing_is_complete:
+            path = path[: -len(".json")] + ".incomplete.json"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(results, handle, ensure_ascii=False, indent=1)

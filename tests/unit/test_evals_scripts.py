@@ -17,6 +17,7 @@ from test_evals_runner import DOCS, NO_REGRESSIONS, make_corpus
 
 sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))
 import compare_evals       # noqa: E402
+import list_runs           # noqa: E402
 import make_judge_sheet    # noqa: E402
 import make_regressions    # noqa: E402
 import run_evals           # noqa: E402
@@ -268,6 +269,23 @@ class JudgeValidationTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("cannot be judged", out)
 
+    def test_a_deleted_block_is_reported_not_quietly_ignored(self):
+        self.make("--n", "6")
+        self.grade({s: "ok" for s in sorted(self.hidden())})
+        head, *blocks = open(self.sheet, encoding="utf-8").read().split("## trace ")
+        open(self.sheet, "w", encoding="utf-8").write(head + "".join("## trace " + b for b in blocks[2:]))     # two blocks deleted
+        code, out = call(validate_judge, "--in", self.sheet)
+        self.assertEqual(code, 1)
+        self.assertIn("missing from the sheet", out)
+
+    def test_a_sheet_with_no_folder_in_its_path_can_be_written(self):
+        here = os.getcwd()
+        os.chdir(self.tmp)
+        self.addCleanup(os.chdir, here)
+        code, _ = call(make_judge_sheet, "--runs", "base", "--out", "plain-sheet.md", "--n", "4")
+        self.assertEqual(code, 0)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "plain-sheet.md")))
+
     def test_a_sheet_that_does_not_match_its_items_file_is_refused(self):
         self.make("--n", "6")
         self.grade({s: "ok" for s in sorted(self.hidden())})                  # every block graded...
@@ -388,6 +406,31 @@ class RegressionScriptTests(unittest.TestCase):
         self.write(CODED_NOTES)
         blocks, _ = worksheet.parse(self.notes)
         self.assertEqual(len(make_regressions.build_cases(blocks)), len(worksheet.failures(blocks)))
+
+
+class ListRunsScriptTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
+        self.enterContext(mock.patch.object(runner, "RESULTS_DIR", self.tmp))
+        for label in ("b-run", "a-run"):                                   # saved in this order on purpose
+            runner.save_results(fixture_run(label, [judged_entry("c1", "A.", "pass")]))
+
+    def test_runs_are_listed_alphabetically_and_a_given_order_is_kept(self):
+        code, out = call(list_runs)
+        self.assertEqual(code, 0)
+        self.assertLess(out.index("a-run"), out.index("b-run"))
+        code, out = call(list_runs, "b-run", "a-run")
+        self.assertLess(out.index("b-run"), out.index("a-run"))
+
+    def test_an_unknown_label_and_an_empty_folder_are_clear_errors(self):
+        code, out = call(list_runs, "nope")
+        self.assertEqual(code, 1)
+        self.assertIn("Error", out)
+        for name in os.listdir(self.tmp):
+            os.remove(os.path.join(self.tmp, name))
+        code, out = call(list_runs)
+        self.assertEqual(code, 1)
+        self.assertIn("No saved runs", out)
 
 
 if __name__ == "__main__":

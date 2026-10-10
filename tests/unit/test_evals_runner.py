@@ -1,10 +1,15 @@
 """The eval runner: private index, caching by exact input, overrides, and stopping safely."""
 import contextlib
+import hashlib
 import io
+import json
 import os
 import tempfile
 import unittest
 from unittest import mock
+
+import httpx
+import openai
 
 import _testkit
 from _testkit import fake_response, isolated_index, patched_embeddings
@@ -178,7 +183,8 @@ class IndexTests(RunnerCase):
         self.assertEqual(base, runner.index_key(docs))
         with mock.patch.object(settings, "chunk_size", 300):
             self.assertNotEqual(base, runner.index_key(docs))
-        with mock.patch.object(settings, "embed_provider", "openai"):
+        other_provider = "local" if settings.embed_provider != "local" else "openai"       # differs from whatever .env set
+        with mock.patch.object(settings, "embed_provider", other_provider):
             self.assertNotEqual(base, runner.index_key(docs))
         changed = [dict(doc, text=doc["text"] + " More.") for doc in docs]
         self.assertNotEqual(base, runner.index_key(changed))
@@ -197,6 +203,74 @@ class IndexTests(RunnerCase):
             with self.assertRaises(RuntimeError):
                 with runner.isolated_index():
                     pass
+
+
+class RelevanceFloorCacheTests(RunnerCase):
+    """With MIN_RELEVANCE on, the generator may refuse without calling the model, so the floor decides the answer."""
+
+    CHUNKS = [{"source": "a.md", "text": "t", "score": 0.3}]
+
+    def test_the_floor_joins_the_key_only_when_it_is_on_so_earlier_keys_stay_valid(self):
+        old = json.dumps([settings.llm_model, generator.SYSTEM_PROMPT, "q", [("a.md", "t")]], ensure_ascii=False)
+        base = runner._answer_key("q", self.CHUNKS)
+        self.assertEqual(base, hashlib.sha256(old.encode("utf-8")).hexdigest())
+        with mock.patch.object(settings, "min_relevance", 0.9):
+            floored = runner._answer_key("q", self.CHUNKS)
+        with mock.patch.object(settings, "min_relevance", 0.5):
+            other = runner._answer_key("q", self.CHUNKS)
+        self.assertEqual(len({base, floored, other}), 3)
+
+    def test_a_model_answer_cached_without_a_floor_is_not_served_when_a_floor_would_refuse(self):
+        self.run_three(label="open")
+        self.calls.clear()
+        with mock.patch.object(settings, "min_relevance", 0.99):
+            floored = self.run_three(label="floored")
+        parental = next(c for c in floored["cases"] if c["id"] == "detail-parental-leave")
+        self.assertEqual(parental["answer"], generator.IDK)
+        self.assertFalse(parental["cached"]["answer"])
+        self.assertEqual([call for call in self.calls if call[0] is None], [], "the answer model should not have been called")
+
+    def test_a_refusal_cached_under_a_floor_is_not_served_once_the_floor_is_off(self):
+        with mock.patch.object(settings, "min_relevance", 0.99):
+            self.run_three(label="floored")
+        open_run = self.run_three(label="open")
+        parental = next(c for c in open_run["cases"] if c["id"] == "detail-parental-leave")
+        self.assertIn("16 weeks", parental["answer"])
+
+    def test_an_answer_given_without_a_model_call_does_not_claim_the_previous_calls_model(self):
+        with mock.patch("app.llm.reset_last_model") as reset:
+            runner.answer_one("q", self.CHUNKS, runner.JsonCache(os.path.join(self.cache, "x.json"), False))
+        reset.assert_called_once()
+
+
+class SaveAndFailureTests(RunnerCase):
+    def label_path(self, label):
+        return os.path.join(self.cache, "results", f"{label}.json")
+
+    def test_an_incomplete_run_never_replaces_a_complete_one(self):
+        path = self.label_path("keep")
+        complete = {"meta": {"label": "keep", "complete": True}, "cases": [{"id": "a"}]}
+        incomplete = {"meta": {"label": "keep", "complete": False}, "cases": []}
+        self.assertEqual(runner.save_results(complete, path), path)
+        saved_to = runner.save_results(incomplete, path)
+        self.assertTrue(saved_to.endswith("keep.incomplete.json"))
+        self.assertEqual(runner.load_results(path)["cases"], [{"id": "a"}])
+
+    def test_an_incomplete_run_is_saved_normally_when_nothing_complete_exists(self):
+        path = self.label_path("fresh")
+        self.assertEqual(runner.save_results({"meta": {"label": "fresh", "complete": False}, "cases": []}, path), path)
+
+    def test_a_provider_failure_after_the_retries_stops_the_run_and_keeps_what_finished(self):
+        def flaky(messages, **kwargs):
+            if "bonus" in messages[-1]["content"].lower():
+                raise openai.APIConnectionError(request=httpx.Request("POST", "http://provider.invalid"))
+            return self.chat(messages, **kwargs)
+
+        with mock.patch("app.llm.chat", side_effect=flaky):
+            results = self.run_three(label="flaky")
+        self.assertFalse(results["meta"]["complete"])
+        self.assertIn("the provider failed (APIConnectionError)", results["meta"]["stopped_because"])
+        self.assertEqual([c["id"] for c in results["cases"]], ["code-err4032", "detail-parental-leave"])     # it stopped at absent-bonus
 
 
 class OverrideAndSelectionTests(unittest.TestCase):
@@ -227,6 +301,21 @@ class OverrideAndSelectionTests(unittest.TestCase):
             with runner.overridden({"top_k": 0}):
                 pass
         self.assertEqual(settings.top_k, original)
+
+    def test_a_method_name_is_not_a_setting(self):
+        with self.assertRaises(ValueError):
+            runner.parse_overrides(["copy=1"])
+
+    def test_a_value_the_validators_tidy_up_is_applied_in_its_tidy_form(self):
+        with runner.overridden({"embed_provider": "Local", "dense_search": "ANN"}):
+            self.assertEqual((settings.embed_provider, settings.dense_search), ("local", "ann"))
+
+    def test_an_unknown_name_is_refused_and_nothing_else_is_changed(self):
+        before = settings.top_k
+        with self.assertRaises(ValueError):
+            with runner.overridden({"top_k": before + 1, "copy": 1}):
+                pass
+        self.assertEqual(settings.top_k, before)
 
     def test_cases_can_be_picked_by_id_type_or_count(self):
         everything = runner.select_cases(regressions_path=NO_REGRESSIONS)

@@ -113,6 +113,9 @@ def format_compare(before, after):
     result = compare(before, after)
     b_label, a_label = before.get("meta", {}).get("label", "before"), after.get("meta", {}).get("label", "after")
     lines = [f"=== before '{b_label}' vs after '{a_label}' ===", ""]
+    if bool(before.get("meta", {}).get("models", {}).get("judge")) != bool(after.get("meta", {}).get("models", {}).get("judge")):
+        lines += ["WARNING: only one of these runs used the judge, so the scores below mix the rules-only score with the "
+                  "rules-and-judge score. Run both the same way before trusting a comparison.", ""]
     for key, run in (("before", before), ("after", after)):
         meta = run.get("meta", {})
         lines.append(f"{key:<7}: answer {meta.get('models', {}).get('answer', '?')}, judge "
@@ -144,14 +147,15 @@ def format_runs(runs, markdown=False):
     `runs` is a list of loaded result dicts. The counts are numbers of cases ("38/41"), not percentages,
     because with 41 cases a percentage hides how small a change is.
     """
-    header = ["run", "what was changed", "chunks", "rules", "judge", "both"]
+    header = ["run", "what was changed", "chunks", "model calls", "rules", "judge", "both"]
     rows = []
     for run in runs:
         meta = run.get("meta", {})
         overall = summarize(run)["overall"]
         changed = ", ".join(f"{k}={v}" for k, v in (meta.get("overrides") or {}).items()) or "nothing (the baseline settings)"
         judged = f"{overall['judge_pass']}/{overall['judged']}" if overall["judged"] else "not run"
-        rows.append([meta.get("label", "?"), changed, str(meta.get("chunk_count", "?")),
+        calls = (meta.get("usage") or {}).get("calls", "?")          # 0 for a run regenerated entirely from the cache
+        rows.append([meta.get("label", "?"), changed, str(meta.get("chunk_count", "?")), str(calls),
                      f"{overall['rules']}/{overall['n']}", judged, f"{overall['both']}/{overall['n']}"])
     if markdown:
         lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
