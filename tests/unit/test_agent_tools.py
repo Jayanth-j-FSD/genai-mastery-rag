@@ -49,8 +49,8 @@ class CalculateTests(unittest.TestCase):
             self.assertIn(fragment, str(caught.exception))
 
     def test_results_that_are_not_ordinary_numbers_are_refused(self):
-        for expression, fragment in (("(-8) ** 0.5", "real"), ("1e999", "finite"), ("1e308 * 10", "finite"),
-                                     ("1e999 - 1e999", "finite")):
+        for expression, fragment in (("(-8) ** 0.5", "real"), ("(-8) ** 0.5 % 3", "real"), ("(-8) ** (1/3) // 2", "real"),
+                                     ("1e999", "finite"), ("1e308 * 10", "finite"), ("1e999 - 1e999", "finite")):
             with self.subTest(expression=expression), self.assertRaises(ToolError) as caught:
                 calculate(expression)
             self.assertIn(fragment, str(caught.exception))

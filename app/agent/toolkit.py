@@ -59,6 +59,8 @@ def _evaluate(node):
         if isinstance(node.op, ast.Pow) and abs(right) > _MAX_EXPONENT:
             raise ToolError(f"exponent too large (limit {_MAX_EXPONENT}).")
         value = _BINARY[type(node.op)](left, right)
+        if isinstance(value, complex):              # a negative base to a fractional power; % and // would then fail
+            raise ToolError("that has no real-number result.")
         if isinstance(value, int) and value.bit_length() > _MAX_BITS:
             raise ToolError("the result is too large.")
         return value
@@ -81,8 +83,6 @@ def calculate(expression):
         raise ToolError("division by zero.")
     except OverflowError:
         raise ToolError("the result is too large.")
-    if isinstance(value, complex):                 # a negative number to a fractional power
-        raise ToolError("that has no real-number result.")
     if isinstance(value, float) and not math.isfinite(value):
         raise ToolError("the result is not a finite number.")
     return str(round(value, 6) if isinstance(value, float) else value)
