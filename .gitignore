@@ -1,6 +1,14 @@
-.venv/
+.venv*/
+.python312/
 __pycache__/
 *.pyc
 .env
 data/chroma/
 data/traces/
+
+# Local secrets — never commit
+free_keys.txt
+*_keys.txt
+*.key
+secrets.*
+
