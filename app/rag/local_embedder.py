@@ -18,9 +18,9 @@ _session = None
 _tokenizer = None
 
 
-def _model_dir() -> str:
-    d = settings.local_embed_dir or os.path.expanduser("~/.cache/ai-task-minilm")
-    return d
+def model_dir() -> str:
+    """Where the model files live: LOCAL_EMBED_DIR if set, else ~/.cache/ai-task-minilm."""
+    return settings.local_embed_dir or os.path.expanduser("~/.cache/ai-task-minilm")
 
 
 def _load():
@@ -30,7 +30,7 @@ def _load():
         import onnxruntime as ort
         from tokenizers import Tokenizer
 
-        d = _model_dir()
+        d = model_dir()
         model_path = os.path.join(d, "onnx", "model.onnx")
         tok_path = os.path.join(d, "tokenizer.json")
         if not os.path.exists(model_path) or not os.path.exists(tok_path):

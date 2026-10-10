@@ -6,7 +6,7 @@ import _testkit  # noqa: F401
 from app.config import settings
 from app.rag import embedder, local_embedder
 
-MODEL_FILE = os.path.join(local_embedder._model_dir(), "onnx", "model.onnx")
+MODEL_FILE = os.path.join(local_embedder.model_dir(), "onnx", "model.onnx")
 
 
 def dot(a, b):
