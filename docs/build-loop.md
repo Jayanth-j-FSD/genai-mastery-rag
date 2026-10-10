@@ -10,8 +10,14 @@ git tag week-4   ← Week 3 + this week's one change
 git tag week-5   ← Week 4 + this week's analysis
 ```
 
-To show any past week exactly as it was: `git checkout week-3`, look around, then
-`git checkout main` to come back.
+To see any past week's *code* exactly as it was: `git checkout week-3`, look around, then
+`git checkout main` to come back. (Those three tags predate the free-provider support, so running
+one needs a real OpenAI key and a re-ingest. To see a week's *behaviour* on current code, set
+`RETRIEVAL_MODE=dense` for Week 3 or `hybrid` for Week 4.)
+
+From Week 6 on, each week also gets its own branch, a pull request into the previous week's
+branch, and a gate before the tag: see [GOAL.md](GOAL.md) for the delivery rules and
+`python scripts/check_all.py` for the gate.
 
 ---
 
@@ -48,17 +54,22 @@ which one earned it. Other techniques from the topic list get studied and writte
 **Never rewrite a documented meaning.** If a function's docstring says what it returns,
 later weeks add a new function beside it rather than changing what the old one does. Week 3's
 `retrieve()` still behaves exactly as its docstring says, in every later week. This is what
-keeps `git checkout week-3` honest.
+keeps the Week 3 tag an honest picture of Week 3. (When a function's *implementation* was wrong
+rather than its meaning, as with the approximate search in `store.query`, it is fixed in a
+clearly labelled hardening change and the meaning stays the same: see `docs/hardening/`.)
 
 ---
 
 ## What cannot be faked
 
-This machine has no Python and no API key, so **no week's numbers can be produced by writing
-them into a document**. Every script below prints its own numbers when you run it, and every
-docs table that needs a real measurement ships with an empty cell and the command that fills
-it. An empty cell is honest. A guessed number would not survive the mentor asking
-"show me".
+Weeks 3 to 5 were written on a machine with no Python and no API key, so **no week's numbers can
+be produced by writing them into a document**, and that rule outlived the machine. Every script
+prints its own numbers when you run it, and every docs table that needs a real measurement ships
+with an empty cell and the command that fills it. An empty cell is honest. A guessed number would
+not survive the mentor asking "show me". (The scripts have since been run: the generated outputs
+are in `docs/week3/chunk-experiment.md`, `docs/week4/eval-results.md` and
+`docs/week4/failure-labels-dense.md`; the interpretation in `findings.md` is still to be written
+by hand.)
 
 Week 5 is stricter still: its deliverable is ~20 traces *you* read. The brief says reading
 your own failures is "the one part that can't be automated". So Week 5 builds the sampling,
@@ -166,10 +177,12 @@ docs/
 ├── overview.md        ← what the app is, and the week-by-week arc
 ├── project-info.md    ← the structure and how a request flows
 ├── TODO.md            ← the live checklist
-├── week3/             ← frozen: the build week
+├── GOAL.md            ← the goal, the delivery rules (branches, tags, review) and the status
+├── hardening/         ← what changed after the three tags, and why
+├── week3/             ← frozen: the build week (+ the generated chunk-experiment output)
 ├── week4/             ← README (task) · CHANGES (what changed vs week 3) · findings (the numbers)
 ├── week5/             ← README · CHANGES · worksheet · coded-notes · ranked-problems · taxonomy
-└── week6/             ← not started
+└── week6/ ...         ← each later week adds its own folder, never editing an earlier one
 ```
 
 Three kinds of file live in those folders, and it matters which is which: written by hand

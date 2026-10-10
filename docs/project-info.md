@@ -9,18 +9,22 @@ you can read the app with confidence. No prior knowledge of the codebase assumed
 AI-Task/
 ├── README.md              ← how to run it
 ├── requirements.txt       ← the Python packages to install
-├── .env.example           ← copy to .env, paste your OPENAI_API_KEY
+├── .env.example           ← copy to .env, paste your key (free Gemini key or OpenAI)
 ├── .gitignore             ← keeps secrets + generated data out of git
 │
 ├── docs/                  ← YOU ARE HERE — all project documentation
-│   ├── overview.md          what & why & the 4-week arc
+│   ├── GOAL.md              the goal, the delivery rules (branches, tags, review), the status
+│   ├── overview.md          what & why & the week-by-week arc
 │   ├── project-info.md      this file: structure + how it works
 │   ├── build-loop.md        the nine-step process each week follows
 │   ├── TODO.md              the live checklist
-│   ├── week3/  week4/  week5/  week6/   per-week notes
+│   ├── hardening/           what changed after the three tags, and why
+│   ├── week3/  week4/  week5/           per-week notes (later weeks add their own folder)
 │
 ├── app/                   ← the application
-│   ├── config.py            all settings (models, chunk size, top-K, mode, paths)
+│   ├── config.py            all settings (models, chunk size, top-K, mode, limits, paths)
+│   ├── llm.py               EVERY chat-model call: rate limit, retries, timeout, token counts
+│   ├── console.py           small helpers so the scripts never crash on a Windows console
 │   ├── models.py            the shapes of a request and a response
 │   ├── tracing.py           writes + reads a full record of every request
 │   ├── worksheet.py         (wk5) parses the hand-filled error-analysis notes
@@ -28,8 +32,9 @@ AI-Task/
 │   └── rag/                 the pipeline — ONE FILE PER STAGE:
 │       ├── loader.py          1. read files          → text
 │       ├── chunker.py         2. split into pieces   → chunks
-│       ├── embedder.py        3. text → vectors      → embeddings
-│       ├── store.py           4. save/search vectors → Chroma
+│       ├── embedder.py        3. text → vectors      → embeddings (API or local)
+│       ├── local_embedder.py  3. the offline model: onnxruntime + tokenizers, 384 numbers
+│       ├── store.py           4. save/search vectors → Chroma (exact search by default)
 │       ├── retriever.py       5. question → top matches (dense or hybrid)
 │       ├── generator.py       6. matches → grounded, cited answer
 │       ├── keyword.py         (wk4) BM25 keyword search over the same chunks
@@ -40,7 +45,10 @@ AI-Task/
 ├── scripts/               ← run from the terminal
 │   ├── ingest.py            build the index from data/corpus/
 │   ├── ask.py               ask one question
+│   ├── download_model.py    fetch the offline embedding model once (size + checksum verified)
+│   ├── check_all.py         compile + import + --help + unit tests: "is anything broken?"
 │   ├── compare_chunks.py    compare two chunk sizes (check #4, automated)
+│   ├── compare_ann_exact.py how often Chroma's approximate search disagrees with exact search
 │   ├── inspect_traces.py    (wk4) question / fetched / answer, side by side
 │   ├── diagnose_failures.py (wk4) label every case with evidence
 │   ├── eval_retrieval.py    (wk4) hit-rate@3 before vs after, and what stayed broken
@@ -55,9 +63,11 @@ AI-Task/
 │   └── traces/              a log line per request (auto-generated)
 │
 └── tests/
-    ├── questions.md         your ~10 test questions (week 3)
+    ├── unit/                offline unit tests: fake embedder, stub model, throwaway index
+    ├── questions.md         the Week 3 hand-run checklist (11 questions)
     ├── eval_set.py          (wk4) the same idea, labelled so a script can score it
-    └── trace_questions.txt  (wk5) ~40 questions, to build a population of real traces
+    ├── trace_questions.txt  (wk5) the question bank used to build a population of real traces
+    └── nexora_eval_questions.md   the Nexora policy's own questions + answer key (kept OUT of the corpus)
 ```
 
 Rule of thumb: **`app/rag/` is the brain, one stage per file. `data/` is what it reads and
@@ -75,7 +85,8 @@ scripts/ingest.py
    └─▶ pipeline.ingest()
          ├─ loader.load_documents()   read every file in data/corpus/  → text + source name
          ├─ chunker.chunk_documents() cut each doc into ~800-char pieces (config.chunk_size)
-         ├─ embedder.embed_texts()    send chunks to OpenAI → a vector per chunk
+         ├─ embedder.embed_texts()    a vector per chunk: the local model, or the embedding API
+         ├─ store.reset_collection()  only NOW is the old index cleared (a failed embed keeps it)
          └─ store.add_chunks()        save vectors + text + source into Chroma (data/chroma/)
 ```
 
@@ -87,12 +98,14 @@ After this, your documents are searchable. You only re-run it when the documents
 ```
 scripts/ask.py "question"   OR   POST /ask {question}
    └─▶ pipeline.answer(question)
+         ├─ pipeline.require_index()       nothing indexed? stop with a clear message
          ├─ retriever.retrieve_for_mode()   pick the search strategy, then:
-         │    ├─ dense  → retrieve()        embed the question, take the nearest chunks
+         │    ├─ dense  → retrieve()        embed the question, take the nearest chunks (store.query: exact)
          │    └─ hybrid → retrieve_hybrid() dense + keyword.search(), merged by fusion.fuse()
          ├─ generator.generate_answer()
          │      build a prompt with ONLY those chunks + rules:
          │        "answer only from this, cite the source, else say I don't know"
+         │      call the model through llm.chat() (rate limit + retries)
          │      → (answer, sources, grounded)
          └─ tracing.log_trace()       append the whole request to data/traces/traces.jsonl
    ◀─ returns {answer, sources, grounded, retrieval_mode}
@@ -145,7 +158,10 @@ Week 4:
 - `top_k` — how many chunks to retrieve per question (start 4).
 - `min_relevance` — optional floor; if the best chunk is weaker than this, answer
   "I don't know" without asking the model. `0.0` = off (tune after seeing real scores).
-- `llm_model` / `embed_model` — which OpenAI models to use.
+- `llm_model` / `embed_model` — which chat and embedding models to use.
+- `embed_provider` — `local` (free, offline) or `openai` (the API). Changing it needs a re-ingest.
+- `llm_rpm` / `llm_max_retries` / `llm_timeout_seconds` — the chat limiter in `app/llm.py`.
+- `dense_search` — `exact` (default) or `ann` (Chroma's approximate index; see `docs/hardening/`).
 - `retrieval_mode` — `dense` (Week 3) or `hybrid` (Week 4). **Week 4's graded experiment.**
 - `hybrid_candidates` / `rrf_k` — how many candidates each search contributes, and how
   sharply the merge favours top positions. Turn `hybrid_candidates` down if keyword noise
@@ -158,7 +174,8 @@ Week 4:
 - **Week 4** (done) added an _inspection view_ over `data/traces/` and a second retrieval
   strategy — new files under `app/rag/`, same pipeline shape, nothing rewritten.
 - **Week 5** _reads_ `data/traces/` to rank problems — no new app code, just analysis tools.
-- **Week 6** adds an `evals/` folder that scores the app automatically.
+- **Week 6** adds an eval harness that scores the app automatically; weeks 7 to 9 add an agent, its
+  trajectory evals and an MCP layer. [GOAL.md](GOAL.md) has the plan.
 
 Because every stage is isolated and every request is traced, those additions slot in without
 rewrites. That's why the structure looks the way it does. Week 4 proved it: the inspection

@@ -1,5 +1,9 @@
 # Week 5 — Error Analysis
 
+> **Note (2026-10-11).** Step 2 below: the "exact command that reproduces the identical draw" now
+> writes to a separate file and takes `--upto N`, so re-checking a sample can never overwrite
+> your notes. Details in [../hardening/README.md](../hardening/README.md).
+
 ## The task (from the brief)
 Until now you fixed whatever problems you happened to notice, which misses the ones you never
 saw. This week you become systematic: read a fair batch of about 20 real answers the app gave,

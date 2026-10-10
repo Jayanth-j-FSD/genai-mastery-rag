@@ -91,10 +91,12 @@ All settings, with their meaning, are in `app/config.py`. A bad value fails at s
 - **Why search is exact.** Chroma's approximate index (HNSW) returned the wrong top chunk for a
   large share of questions on this corpus, and differently on every run: the handbook contains one
   chunk repeated 136 times, and identical vectors confuse the graph search. Exact search compares the
-  question with all 432 vectors in milliseconds and never varies. `scripts\compare_ann_exact.py`
+  question with every stored vector (432 today) in milliseconds and never varies. `scripts\compare_ann_exact.py`
   shows the difference on your machine. Details: [docs/hardening/README.md](docs/hardening/README.md).
-- **Free-tier limits.** Gemini's free tier allowed 5 chat requests per minute per model when
-  measured. `app/llm.py` throttles, retries and reports a used-up daily quota clearly.
+- **Free-tier limits are per model.** Measured on Gemini's free tier: the flagship alias
+  (`gemini-flash-latest`) allowed 5 requests a minute and a hard daily cap near 20, while the lite
+  models took 14 back to back. `.env.example` therefore uses `gemini-flash-lite-latest`. `app/llm.py`
+  throttles to `LLM_RPM`, retries, and stops with a clear message when a daily quota is used up.
 - **The old tags.** `week-3`, `week-4` and `week-5` are the code exactly as built. They predate the
   free-provider support, so running one needs a real OpenAI key and a re-ingest. To see a week's
   *behaviour* on the current code, set `RETRIEVAL_MODE=dense` (Week 3) or `hybrid` (Week 4).
