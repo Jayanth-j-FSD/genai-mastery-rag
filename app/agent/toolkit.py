@@ -13,6 +13,7 @@ Three rules every tool follows:
 """
 import ast
 import datetime
+import math
 import operator
 from dataclasses import dataclass
 from typing import Callable
@@ -80,6 +81,10 @@ def calculate(expression):
         raise ToolError("division by zero.")
     except OverflowError:
         raise ToolError("the result is too large.")
+    if isinstance(value, complex):                 # a negative number to a fractional power
+        raise ToolError("that has no real-number result.")
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ToolError("the result is not a finite number.")
     return str(round(value, 6) if isinstance(value, float) else value)
 
 
@@ -94,8 +99,10 @@ def add_days(date, days):
     except ValueError:
         raise ToolError(f"{date!r} is not a valid date. Use YYYY-MM-DD, for example 2026-11-03.")
     try:
+        if isinstance(days, bool) or (isinstance(days, float) and not days.is_integer()):    # 2.9 is not 2, and nan/inf are not whole
+            raise ValueError(days)
         days = int(days)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         raise ToolError("days must be a whole number of calendar days.")
     if abs(days) > 36500:
         raise ToolError("days is out of range (limit 100 years).")

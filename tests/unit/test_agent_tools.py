@@ -48,6 +48,14 @@ class CalculateTests(unittest.TestCase):
                 calculate(expression)
             self.assertIn(fragment, str(caught.exception))
 
+    def test_results_that_are_not_ordinary_numbers_are_refused(self):
+        for expression, fragment in (("(-8) ** 0.5", "real"), ("1e999", "finite"), ("1e308 * 10", "finite"),
+                                     ("1e999 - 1e999", "finite")):
+            with self.subTest(expression=expression), self.assertRaises(ToolError) as caught:
+                calculate(expression)
+            self.assertIn(fragment, str(caught.exception))
+        self.assertEqual(calculate("8 ** 0.5"), "2.828427")                                # a real root still works
+
     def test_empty_none_wrong_type_and_overlong_input(self):
         for bad in ("", "   ", None, 12, ["1"], "1+" * 150):
             with self.subTest(bad=bad), self.assertRaises(ToolError):
@@ -69,11 +77,17 @@ class AddDaysTests(unittest.TestCase):
     def test_days_may_arrive_as_a_number_or_a_numeric_string(self):
         self.assertEqual(add_days("2026-01-01", "10"), add_days("2026-01-01", 10))
 
+    def test_a_whole_number_written_as_a_float_is_accepted_but_a_fraction_is_not_rounded_away(self):
+        self.assertEqual(add_days("2026-01-01", 10.0), add_days("2026-01-01", 10))
+        with self.assertRaises(ToolError) as caught:
+            add_days("2026-01-01", 2.9)
+        self.assertIn("whole number", str(caught.exception))
+
     def test_bad_dates_and_days_give_advice(self):
         for date in ("03/11/2026", "2026-13-01", "2026-02-30", "tomorrow", "", None, 20261103):
             with self.subTest(date=date), self.assertRaises(ToolError):
                 add_days(date, 1)
-        for days in ("soon", None, [1], 1.5 if False else "x"):
+        for days in ("soon", None, [1], "x", "10.5", 1.5, 2.9, float("inf"), float("-inf"), float("nan"), True):
             with self.subTest(days=days), self.assertRaises(ToolError):
                 add_days("2026-01-01", days)
         with self.assertRaises(ToolError) as caught:
