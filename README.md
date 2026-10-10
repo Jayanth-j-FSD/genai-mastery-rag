@@ -22,10 +22,11 @@ OpenAI-compatible chat model (Google Gemini's free tier by default, so nothing h
 
 ## Quick start
 
-PowerShell (Git Bash and macOS/Linux: use `.venv/bin/python` or `.venv/Scripts/python.exe` the same way).
+PowerShell. On macOS/Linux use `python3.12 -m venv .venv` and `.venv/bin/python`; Git Bash on Windows uses
+`.venv/Scripts/python.exe`.
 
 ```powershell
-python -m venv .venv
+py -3.12 -m venv .venv                                  # the Windows launcher: a bare `python` can be the Store stub
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 copy .env.example .env                                  # then paste your key into OPENAI_API_KEY
 .\.venv\Scripts\python.exe scripts\download_model.py    # the offline embedding model, once
@@ -89,13 +90,16 @@ All settings, with their meaning, are in `app/config.py`. A bad value fails at s
 ## Things worth knowing
 
 - **Why search is exact.** Chroma's approximate index (HNSW) returned the wrong top chunk for a
-  large share of questions on this corpus, and differently on every run: the handbook contains one
-  chunk repeated 136 times, and identical vectors confuse the graph search. Exact search compares the
+  large share of questions on this corpus, and differently on every run. The handbook contains one
+  chunk repeated 136 times and another 108 times, which is the likely cause (not verified; the fix does
+  not depend on it). Exact search compares the
   question with every stored vector (432 today) in milliseconds and never varies. `scripts\compare_ann_exact.py`
   shows the difference on your machine. Details: [docs/hardening/README.md](docs/hardening/README.md).
 - **Free-tier limits are per model.** Measured on Gemini's free tier: the flagship alias
   (`gemini-flash-latest`) allowed 5 requests a minute and a hard daily cap near 20, while the lite
-  models took 14 back to back. `.env.example` therefore uses `gemini-flash-lite-latest`. `app/llm.py`
+  models took 14 back to back. `.env.example` therefore uses `gemini-flash-lite-latest`. The outputs
+  committed under `docs/` were produced with the explicit name `gemini-3.5-flash-lite` (an alias moves over
+  time), so set `LLM_MODEL` to that exact name to replay them. `app/llm.py`
   throttles to `LLM_RPM`, retries, and stops with a clear message when a daily quota is used up.
 - **The old tags.** `week-3`, `week-4` and `week-5` are the code exactly as built. They predate the
   free-provider support, so running one needs a real OpenAI key and a re-ingest. To see a week's

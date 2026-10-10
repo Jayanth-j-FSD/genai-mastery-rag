@@ -7,8 +7,8 @@ tags `week-3`, `week-4` and `week-5` are untouched and still show the code as it
 
 Weeks 3 to 5 were written on a machine with no Python and no API key, so none of it had ever run.
 The first real run, on the real corpus, found problems that would make a reviewer's first run
-fail or mislead. A second pass, an independent read of every file and all three briefs by a reader
-who did not write the code, found more. This branch fixes them without changing the meaning of any
+fail or mislead. A read of every file and all three briefs found
+more, and a second pass over the fixes themselves found a few more. This branch fixes them without changing the meaning of any
 documented function: the Week 3 `retrieve()` still means "the nearest chunks by meaning", it now
 actually returns them.
 
@@ -43,26 +43,38 @@ Chroma's approximate index and with an exact search over the same stored vectors
 often they disagree. The approximate index is rebuilt in memory each time the program starts, so each
 run is a new draw.
 
-Three separate runs on 2026-10-11 (432 chunks, local embeddings, the 74 questions in
-`tests/trace_questions.txt`), k = 4:
+Every run below is appended to [ann-vs-exact.md](ann-vs-exact.md) by `--save`, so the numbers can be checked
+against the committed file and re-run with the same command. All on 2026-10-11, 432 chunks, local
+embeddings, the 74 questions in `tests/trace_questions.txt`, k = 4.
+
+**Chroma's default approximate index**, three separate runs:
 
 | run | top-1 chunk differs from exact | top-4 set differs from exact | mean overlap@4 |
 |---|---|---|---|
-| 1 | 24 of 74 (32%) | 30 of 74 (41%) | 0.682 |
-| 2 | 13 of 74 (18%) | 17 of 74 (23%) | 0.841 |
-| 3 | 48 of 74 (65%) | 58 of 74 (78%) | 0.409 |
+| 1 | 38 of 74 (51%) | 48 of 74 (65%) | 0.500 |
+| 2 | 21 of 74 (28%) | 32 of 74 (43%) | 0.730 |
+| 3 | 49 of 74 (66%) | 57 of 74 (77%) | 0.341 |
+
+**A tuned approximate index** (`--ef-search 500`, a throwaway copy with a wider search, the usual first
+thing to try), three more runs:
+
+| run | top-1 chunk differs from exact | top-4 set differs from exact | mean overlap@4 |
+|---|---|---|---|
+| 1 | 0 of 74 (0%) | 5 of 74 (7%) | 0.970 |
+| 2 | 4 of 74 (5%) | 14 of 74 (19%) | 0.932 |
+| 3 | 0 of 74 (0%) | 4 of 74 (5%) | 0.970 |
 
 Exact search returns the same answer every time, so it has no such table: its overlap with itself is
-1.000. The spread between runs is the point: the approximate index was not just inaccurate, it was
-unpredictable, which is the worst property for something a reviewer runs once. One concrete case:
-"How far in advance do I have to request leave?" loses the Acme leave policy entirely under the
+1.000. Two things stand out. The default index was not just inaccurate, it was unpredictable (28% to 66%
+of top results wrong between runs), which is the worst property for something a reviewer runs once.
+And tuning helps a great deal without ever reaching exact: the top-4 set still differed on 5% to 19% of
+questions. Only exact search is deterministic, and at this size it costs milliseconds. One concrete
+case: "How far in advance do I have to request leave?" loses the Acme leave policy entirely under the
 approximate search and finds it at rank 2 under exact search.
 
-A throwaway experiment (not part of the repository) tried to tune the approximate index instead:
-over 45 questions in fresh processes, raising `ef_search` to 500 cut the top-1 disagreements to 0 or 1
-and the largest setting to 0, but the top-4 set still differed on 1 to 6 questions, and the Chroma
-default disagreed on the top result for 9 to 19. Only exact search is deterministic, and at this
-size it costs milliseconds.
+The likely cause is that identical vectors (264 of the 432 chunks are exact copies) mislead the graph
+search, and that the index is rebuilt in memory each time the program starts. Neither mechanism was
+verified; the fix does not depend on them, because exact search has no such behaviour.
 
 ## The mentor checks for Weeks 3 to 5, after hardening
 
@@ -101,9 +113,10 @@ top of `tests/eval_set.py`:
 
 The set grew from 18 to 32 cases: it now covers the Acme policies, the Northstar remote-work policy,
 the Nexora cloud policy, facts that exist only in the heavily repeated handbook, and four refusal
-cases that really are absent. `tests/unit/test_eval_assets.py` checks every expected phrase against
-the real documents and every "absent" topic against the whole corpus, so the set cannot go stale
-silently again. The six keyword-favouring and four dense-favouring cases that the Week 4 prediction
+cases that really are absent. `tests/unit/test_eval_assets.py` checks that at least one accepted phrase of every case appears in an
+expected document, that the cases whose phrases are bare numbers (which match almost anywhere) also
+carry an `evidence` sentence still found in the documents, and every "absent" topic against the whole
+corpus, so the set cannot go stale silently again. The six keyword-favouring and four dense-favouring cases that the Week 4 prediction
 talks about still exist in those numbers.
 
 ## Errata added to earlier docs
@@ -121,7 +134,9 @@ README were corrected directly because they describe the process and the setup, 
 - **Four fictional companies are mixed** and the four Northwind sample files are off-track for HR.
   Left in: they give Week 5 more to find.
 - **The Excel workbook** was built for the earlier corpus and its Setup sheet predates the free
-  provider. Rebuilding it needs Excel.
+  provider. The risk rows in its CSV source (`tests/sheet-source/tc_risks.csv`) were updated to say what
+  is now resolved, but `tests/Week3-Test-Cases.xlsx` itself is a binary built through Excel
+  (`tests/sheet-source/build_xlsx.ps1`) and was not rebuilt.
 - **The tags cannot run on the free setup.** They are the code as built; see the README.
 - **The keyword index** is cached by chunk count only, so replacing a document with another that
   chunks to the same count, in a long-running server, would serve stale keyword results until a

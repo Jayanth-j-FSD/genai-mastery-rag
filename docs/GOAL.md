@@ -76,8 +76,8 @@ make a reviewer's first run fail, so they are fixed on their own branch with the
   notes. Until they exist, the converter is tested against a fixture and the regression set is empty.
 - The free Gemini tier limits requests per minute **and per day, per model**. The flagship alias hit a
   hard daily cap after about 18 requests during Week 5 hardening, so heavy runs use the lite models,
-  which answered 14 requests back to back. Live runs are throttled, cached where the inputs are
-  identical, and stop with a clear message when a daily quota is gone. Results are only ever
+  which answered 14 requests back to back. Live runs are throttled and stop with a clear message when a daily
+  quota is gone. From Week 6, model calls are also cached by their exact input. Results are only ever
   reported from a run that happened, and the model that produced them is named next to them.
 
 ## Status
@@ -86,7 +86,7 @@ Updated as the work lands. `done` means the gate above passed.
 
 | Item | Status |
 |---|---|
-| Week 5 hardening | done: gate green (168 offline tests), live runs in `docs/hardening/`; tag `week-5-hardened` |
+| Week 5 hardening | done: gate green (196 offline tests); live-run outputs in `docs/week3/`, `docs/week4/` and `docs/hardening/`; tag `week-5-hardened` |
 | Week 6 | not started |
 | Week 7 | not started |
 | Week 8 | not started |
