@@ -54,6 +54,67 @@ Written down **before** the run, and committed before the run, so the history sh
   5. Overall rule score moves from 93% (38/41) to 98% (40/41), no better, because only two cases can improve.
 - **What would prove me wrong**: either retrieval case still failing, or any baseline pass failing.
 
+- **Result** (`evals/results/strip.json`): 37 of 41 cases pass the rule checks (90%), **down** from 38 of 41
+  (93%). The prediction was right on two of its five points and wrong on three:
+  1. `exact-security-email` and `nexora-inactive-accounts` still fail. Wrong.
+  2. `nexora-prod-approvals` still fails. Right: it is an incomplete list, not a retrieval failure.
+  3. A baseline pass broke: `paraphrase-retirement` now answers "I don't know". Wrong.
+  4. The index has 34 chunks. Right.
+  5. The score fell from 93% to 90% instead of rising to 98%. Wrong.
+- **Why it was wrong**:
+  - Stripping helped retrieval, but not enough. `python scripts/screen_retrieval.py` (below) shows the
+    security policy moved from "not in the top 10" to 5th, one place outside the four chunks that reach the
+    model, and the Nexora inactive-accounts chunk from "not in the top 10" to 8th.
+  - The regression is a context effect. In both runs `paraphrase-retirement` has the same three leading
+    chunks and the right one at rank 3; only the 4th chunk differs (a heading-only fragment of the
+    handbook replaces a handbook paragraph). A control run of the baseline with the cache off
+    (`evals/results/noise-check.json`) reproduced the baseline outcome on all 5 cases it re-ran, so the
+    flip is not run-to-run noise. One repeat of 5 cases bounds the noise only weakly.
+  - The two failing questions are hard for dense search by itself, not only crowded out: with the crowding
+    gone they still rank 5th and 8th. The boilerplate was hiding that.
+- **Verdict**: kept as a default-off setting, **not** the improvement.
+
+### Experiment 3: retrieve with fusion and fetch a little wider (`RETRIEVAL_MODE=hybrid`, `TOP_K=6`)
+
+Written down **before** the run, and committed before the run.
+
+- **A free screen first.** Instead of guessing a third time, `python scripts/screen_retrieval.py` asks a
+  cheaper question that needs no model call: under each configuration, does a chunk that holds the answer
+  (right document, contains one of the case's fact strings) reach the top k? 37 cases have an answer.
+
+  | configuration | chunks | top 4 | top 6 | top 8 | top 10 |
+  |---|---|---|---|---|---|
+  | dense (the baseline) | 432 | 35 | 35 | 35 | 35 |
+  | dense + strip (experiment 2) | 34 | 35 | 36 | 37 | 37 |
+  | hybrid | 432 | 36 | 37 | 37 | 37 |
+  | hybrid + strip | 34 | 36 | 37 | 37 | 37 |
+
+  The cases outside the top 4 are `exact-security-email` (dense: not in the top 10; strip: 5th; hybrid: 2nd),
+  `nexora-inactive-accounts` (dense: not in the top 10; strip: 8th; hybrid: 1st) and
+  `paraphrase-retirement` (dense: 3rd; hybrid: **6th**). The screen matches the three live runs so far:
+  it says the baseline loses the first two, that stripping does not recover them, and that hybrid recovers
+  them but pushes the paraphrase case to 6th, which is exactly what the live runs showed.
+- **Hypothesis**: the failures are dense search ranking problems, not only crowding. Hybrid search
+  (meaning plus keywords) recovers the two keyword-like cases, and fetching 6 chunks instead of 4 keeps the
+  paraphrase case that hybrid pushes to 6th. Neither half works alone: widening dense search to 6 changes
+  nothing (35 of 37), and hybrid at 4 still loses one case.
+- **Stated now, so it cannot be hidden later**: the cases that motivated this choice are the cases that
+  measure it, and the screen was read before choosing. This is a screened choice, not a blind one, so the
+  after-score is optimistic. A held-out set is the right next step and is listed in `findings.md`.
+- **Prediction** (falsifiable), for `--label wide --set retrieval_mode=hybrid --set top_k=6`:
+  1. `exact-security-email`, `nexora-inactive-accounts` and `paraphrase-retirement` pass (their useful
+     chunks rank 2, 1 and 6 under hybrid).
+  2. `nexora-prod-approvals` still fails: it has failed in every run, and no retrieval change touches an
+     incomplete list.
+  3. `ambiguous-notice-period`, which hybrid at 4 chunks lost to the judge (it ignored a conflict between
+     two documents), passes again, because more chunks make both documents likelier to be present. This one
+     is a guess.
+  4. At most one baseline pass flips to a failure (a bigger context can change what the model does).
+  5. The rule score goes from 38 of 41 (93%) to 40 of 41 (98%), and the strict score (rules and judge) from
+     38 of 41 to 40 of 41.
+- **What would prove me wrong**: a rule score of 38 of 41 or lower, or two or more baseline passes failing,
+  or any of the three target cases still failing.
+
 (Results are added below once the run has happened.)
 
 ## Considered and deferred

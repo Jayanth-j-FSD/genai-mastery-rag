@@ -39,8 +39,8 @@ group by group.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\run_evals.py --label baseline
-.\.venv\Scripts\python.exe scripts\run_evals.py --label strip --set boilerplate_min_repeats=10
-.\.venv\Scripts\python.exe scripts\compare_evals.py baseline strip --save
+.\.venv\Scripts\python.exe scripts\run_evals.py --label wide --set retrieval_mode=hybrid --set top_k=6
+.\.venv\Scripts\python.exe scripts\compare_evals.py baseline wide --save
 ```
 
 `--set NAME=VALUE` changes one setting for one run, so "after" differs from "before" by exactly that
@@ -79,8 +79,11 @@ the run, and what happened. In short:
    nothing: the crowding chunks are near-duplicates (a unique heading plus the same boilerplate), not
    exact copies. Kept as a default-off setting and **not** counted as the improvement.
 2. **Strip lines repeated many times inside one document** (`BOILERPLATE_MIN_REPEATS=10`). The prediction
-   was committed before this run, so the git history shows the order. The result is in `CHANGES.md` and
-   `before-after.md`.
+   was committed before the run, so the git history shows the order. It was wrong: the score fell from
+   38 to 37 of 41 cases, and stripping did not recover the two retrieval failures.
+3. **Retrieve with fusion and fetch a little wider** (`RETRIEVAL_MODE=hybrid`, `TOP_K=6`), chosen after a
+   free retrieval-only screen (`python scripts/screen_retrieval.py`, no model calls) and again with its
+   prediction committed before the run. The result is in `CHANGES.md` and `before-after.md`.
 
 Other levers exist and are not the improvement: Week 4's hybrid search (`--set retrieval_mode=hybrid`)
 and a larger `TOP_K`. `findings.md` reports them for context only.
