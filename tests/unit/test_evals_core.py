@@ -182,6 +182,16 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(checks.invented_numbers(result(answer), "What are the levels?"), [])
         self.assertEqual(checks.invented_numbers(result("It is 5 days"), "What are the levels?"), ["5"])    # a real figure still counts
 
+    def test_whole_words_stops_a_phrase_matching_inside_a_longer_number(self):
+        case = {"question": "q", "should_refuse": False, "expected_sources": ["A.md"], "expect_contains": ["3 december"],
+                "expect_all": ["7 calendar days"]}
+        decoy = "It ends on 13 December, after 17 calendar days."
+        self.assertTrue(checks.fact_check(case, result(decoy))["passed"])                     # the default is a plain substring
+        self.assertFalse(checks.fact_check(dict(case, whole_words=True), result(decoy))["passed"])
+        honest = "It ends on 3 December, after 7 calendar days."
+        self.assertTrue(checks.fact_check(dict(case, whole_words=True), result(honest))["passed"])
+        self.assertTrue(checks.fact_check(dict(case, whole_words=True), result("**7 calendar days**; ends 3 December."))["passed"])
+
     def test_a_week5_failure_without_expectations_says_so_and_only_checks_refusal(self):
         pending = case(expected_sources=[], expect_contains=[], needs_expected=True)
         found, passed, warnings = checks.check_case(pending, result())

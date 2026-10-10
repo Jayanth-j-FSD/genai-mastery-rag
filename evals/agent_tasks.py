@@ -86,6 +86,12 @@ TASKS = [
      "why": "Not in any document. The agent must search, find nothing, and stop with 'I don't know' instead of looping."},
 ]
 
+# Every expected phrase is matched as whole words, so "7 calendar days" is not found inside "17 calendar days"
+# and "3 december" is not found inside "13 december" (see evals/checks.py).
+for _task in TASKS:
+    _task["whole_words"] = True
+
+
 def get_tasks(only=None):
     """All tasks, or just the ids given. Unknown ids are an error."""
     if not only:

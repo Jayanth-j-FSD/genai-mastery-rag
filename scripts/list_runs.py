@@ -38,7 +38,8 @@ def main(argv=None):
             loaded = [runner.load_results(path) for path in paths]
             runs = [run for run in loaded if "cases" in run]       # races, trajectory runs and injection runs live here too
             if len(runs) < len(loaded):
-                print(f"({len(loaded) - len(runs)} saved file(s) are not eval runs, such as races, and are skipped.)\n")
+                # On stderr, so `--markdown > runs.md` is a clean table.
+                print(f"({len(loaded) - len(runs)} saved file(s) are not eval runs, such as races, and are skipped.)", file=sys.stderr)
     except FileNotFoundError as exc:
         print(f"Error: {exc}")
         return 1

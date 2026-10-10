@@ -424,11 +424,14 @@ class ListRunsScriptTests(unittest.TestCase):
 
     def test_files_that_are_not_eval_runs_are_skipped_not_a_crash(self):
         runner.save_results({"meta": {"label": "race", "complete": True, "approaches": []}, "runs": []}, runner.results_path("race-race"))
-        code, out = call(list_runs)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code, out = call(list_runs)
         self.assertEqual(code, 0)
         self.assertIn("a-run", out)
-        self.assertIn("1 saved file(s) are not eval runs", out)
-        self.assertNotIn("race-race", out.split("\n\n", 1)[1])
+        self.assertNotIn("race-race", out)
+        self.assertNotIn("are not eval runs", out)                       # stdout stays a clean table
+        self.assertIn("1 saved file(s) are not eval runs", err.getvalue())
         code, out = call(list_runs, "race-race")
         self.assertEqual(code, 1)
         self.assertIn("is not an eval run", out)

@@ -166,12 +166,40 @@ class RaceAgentScriptTests(unittest.TestCase):
 
     def test_a_race_is_saved_under_its_own_label_and_an_incomplete_one_exits_non_zero(self):
         for complete, expected in ((True, 0), (False, 1)):
+            label = f"fresh-{'complete' if complete else 'partial'}"
             with self.subTest(complete=complete), mock.patch.object(race_agent.pipeline, "require_index"), \
                     mock.patch.object(race_agent.race, "run_race", return_value=saved_race(complete)):
-                code, text = captured(race_agent.main, ["--label", "fresh", "--repeats", "2", "--only", "t7-conflict"])
+                self.assertFalse(os.path.exists(runner.results_path("race-" + label)))
+                code, text = captured(race_agent.main, ["--label", label, "--repeats", "2", "--only", "t7-conflict"])
             self.assertEqual(code, expected)
             self.assertIn("saved:", text)
-            self.assertTrue(os.path.exists(runner.results_path("race-fresh")))
+            self.assertTrue(os.path.exists(runner.results_path("race-" + label)))
+
+    def test_a_complete_saved_race_is_never_replaced_without_force(self):
+        with mock.patch.object(race_agent.pipeline, "require_index"), \
+                mock.patch.object(race_agent.race, "run_race", return_value=saved_race(True)) as racing:
+            code, text = captured(race_agent.main, ["--label", "t", "--only", "t7-conflict"])      # "t" is saved and complete
+            self.assertEqual(code, 1)
+            self.assertIn("already saved", text)
+            racing.assert_not_called()
+            code, _ = captured(race_agent.main, ["--label", "t", "--only", "t7-conflict", "--force"])
+            self.assertEqual(code, 0)
+            racing.assert_called_once()
+
+    def test_a_partial_saved_race_may_be_raced_again_without_force(self):
+        runner.save_results(saved_race(False), runner.results_path("race-partial"))
+        with mock.patch.object(race_agent.pipeline, "require_index"), \
+                mock.patch.object(race_agent.race, "run_race", return_value=saved_race(True)) as racing:
+            code, _ = captured(race_agent.main, ["--label", "partial", "--only", "t7-conflict"])
+        self.assertEqual(code, 0)
+        racing.assert_called_once()
+
+    def test_rescore_without_show_is_an_error_and_never_starts_a_race(self):
+        with mock.patch.object(race_agent.pipeline, "require_index"), mock.patch.object(race_agent.race, "run_race") as racing:
+            code, text = captured(race_agent.main, ["--rescore"])
+        self.assertEqual(code, 1)
+        self.assertIn("needs --show", text)
+        racing.assert_not_called()
 
 
 if __name__ == "__main__":

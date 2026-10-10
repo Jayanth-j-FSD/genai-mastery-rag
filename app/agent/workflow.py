@@ -42,7 +42,18 @@ def run_workflow(question, top_k=None, model=None, rpm=None, on_step=None, clock
     run = AgentRun(question=question, model=model or settings.llm_model)
     started, usage_before = clock(), llm.usage_snapshot()
 
-    chunks = retriever.retrieve_for_mode(question, top_k or DEFAULT_TOP_K, settings.retrieval_mode)
+    try:
+        chunks = retriever.retrieve_for_mode(question, top_k or DEFAULT_TOP_K, settings.retrieval_mode)
+    except llm.QuotaExhausted:
+        raise
+    except Exception as exc:                         # the index is missing or locked: end this run, not a whole race
+        failed = {"n": 1, "kind": "error", "content": f"retrieval failed ({type(exc).__name__}): {exc}", "tool_calls": [],
+                  "seconds": round(clock() - started, 3), "tokens": {"prompt": 0, "completion": 0}}
+        run.steps.append(failed)
+        if on_step:
+            on_step(failed)
+        run.stop_reason, run.elapsed_seconds, run.usage = "error", round(clock() - started, 3), llm.usage_since(usage_before)
+        return run
     observation = "\n".join(f"[{n}] [source: {c['source']}] {' '.join(c['text'].split())}" for n, c in enumerate(chunks, 1))
     first = {"n": 1, "kind": "retrieve", "content": "", "seconds": round(clock() - started, 3),
              "tokens": {"prompt": 0, "completion": 0},

@@ -107,6 +107,13 @@ class WorkflowTests(unittest.TestCase):
             with self.assertRaises(llm.QuotaExhausted):
                 workflow.run_workflow("q")
 
+    def test_a_retrieval_failure_ends_the_run_as_an_error_instead_of_crashing(self):
+        with mock.patch.object(workflow.retriever, "retrieve_for_mode", side_effect=RuntimeError("database is locked")):
+            run, client = self.run_workflow([fake_response("never asked")])
+        self.assertEqual((run.stop_reason, run.answer, [s["kind"] for s in run.steps]), ("error", None, ["error"]))
+        self.assertIn("retrieval failed (RuntimeError): database is locked", run.steps[0]["content"])
+        self.assertEqual(client.requests, [])                                            # no model call was spent on it
+
     def test_nothing_indexed_still_gives_an_answer_record(self):
         _testkit.store.reset_collection()
         run, client = self.run_workflow([fake_response(loop.IDK)])
@@ -147,6 +154,14 @@ class RaceHelperTests(unittest.TestCase):
         self.assertEqual(race.cited_sources("x [source: A.md] [source: B.md; Made-Up.md]", retrieved), ["A.md", "dir/B.md"])
         self.assertEqual(race.cited_sources("[source: Never-Retrieved.md]", retrieved), [])
         self.assertEqual(race.cited_sources(None, retrieved), [])
+
+    def test_a_tag_naming_two_documents_with_a_repeated_prefix_cites_both(self):
+        retrieved = [{"source": "A.md", "text": "t"}, {"source": "B.md", "text": "t"}]
+        for tag in ("[source: A.md; source: B.md]", "[source: A.md, source: B.md]", "[source: A.md; B.md]",
+                    "[source: A.md] and [source: B.md]"):
+            with self.subTest(tag=tag):
+                self.assertEqual(sorted(race.cited_sources(f"x {tag}", retrieved)), ["A.md", "B.md"])
+        self.assertEqual(race.cited_sources("x [source: A.md; source: Made-Up.md]", retrieved), ["A.md"])
 
     def test_a_dont_know_answer_is_ungrounded_and_a_stopped_run_has_no_answer(self):
         self.assertFalse(race.to_result(agent_run("I don't know based on the provided documents."))["grounded"])
@@ -260,6 +275,51 @@ class RunRaceTests(unittest.TestCase):
         self.assertFalse(rescored["runs"][0]["success"])
         self.assertEqual(rescored["meta"]["rescored_changes"], [])
 
+    def error_run(self, task, approach, repeat):
+        record = self.fake_runs(task, approach, repeat, [])
+        return dict(record, success=False, finished=False, stop_reason="error",
+                    steps=[{"kind": "error", "content": "InternalServerError: down", "tool_calls": []}])
+
+    def test_a_string_of_provider_errors_is_an_outage_that_stops_the_race_with_what_finished_kept(self):
+        task = get_tasks(["t7-single-lookup"])[0]
+        outcomes = [self.fake_runs(task, "agent", 1, [])] + [self.error_run(task, "workflow", n) for n in range(1, 6)]
+        said = []
+        with mock.patch.object(race, "run_one", side_effect=outcomes) as calls:
+            results = race.run_race([task], repeats=5, say=said.append, tools=[])
+        self.assertEqual(calls.call_count, 1 + race.MAX_ERRORS_IN_A_ROW)                 # it stopped asking
+        self.assertEqual(len(results["runs"]), 1 + race.MAX_ERRORS_IN_A_ROW)
+        self.assertFalse(results["meta"]["complete"])
+        self.assertIn("3 runs in a row ended on a provider error", results["meta"]["stopped_because"])
+        self.assertIn("InternalServerError: down", results["meta"]["stopped_because"])
+        self.assertTrue(any("STOPPED" in line for line in said))
+
+    def test_an_error_run_between_good_ones_does_not_stop_the_race(self):
+        task = get_tasks(["t7-single-lookup"])[0]
+        pattern = ["error", "error", "ok", "error", "error", "ok"]
+        outcomes = [self.error_run(task, "agent", n) if kind == "error" else self.fake_runs(task, "agent", n, [])
+                    for n, kind in enumerate(pattern, 1)]
+        with mock.patch.object(race, "run_one", side_effect=outcomes):
+            results = race.run_race([task], approaches=("agent",), repeats=6, say=lambda *_: None, tools=[])
+        self.assertTrue(results["meta"]["complete"])
+        self.assertEqual(len(results["runs"]), 6)
+
+    def test_an_unexpected_crash_in_one_run_keeps_every_earlier_record(self):
+        task = get_tasks(["t7-single-lookup"])[0]
+        said = []
+        with mock.patch.object(race, "run_one", side_effect=[self.fake_runs(task, "agent", 1, []), RuntimeError("index locked")]):
+            results = race.run_race([task], repeats=2, say=said.append, tools=[])
+        self.assertEqual(len(results["runs"]), 1)
+        self.assertFalse(results["meta"]["complete"])
+        self.assertEqual(results["meta"]["stopped_because"], "a run failed unexpectedly (RuntimeError): index locked")
+        self.assertTrue(any("RuntimeError" in line for line in said))
+
+    def test_rescoring_says_which_runs_it_could_not_re_score(self):
+        record = {"task_id": "t7-renamed-away", "approach": "agent", "repeat": 1, "success": True, "finished": True,
+                  "rules_passed": True, "failed_checks": [], "warnings": [], "stop_reason": "final", "answer": "x", "steps": []}
+        rescored = race.rescore({"meta": {"label": "t", "approaches": ["agent"]}, "runs": [record]}, [])
+        self.assertEqual(rescored["meta"]["rescored_skipped"], [{"task_id": "t7-renamed-away", "approach": "agent", "repeat": 1}])
+        self.assertTrue(rescored["runs"][0]["success"])                                  # it keeps the verdict it had
+
     def test_a_provider_failure_stops_the_race_and_keeps_what_finished(self):
         import httpx
         import openai
@@ -295,6 +355,10 @@ class TaskSetTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_tasks(["t7-no-such-task"])
         self.assertEqual([t["id"] for t in get_tasks(["t7-conflict"])], ["t7-conflict"])
+
+    def test_every_task_matches_its_phrases_as_whole_words(self):
+        self.assertTrue(all(task["whole_words"] for task in TASKS))
+        self.assertTrue(all(task["whole_words"] for task in get_tasks()))
 
     def test_every_task_has_what_the_rule_checks_need(self):
         for task in TASKS:
@@ -357,6 +421,16 @@ class TaskSetTests(unittest.TestCase):
             "t7-conflict": "The policy says 20 days of annual leave.",
             "t7-cloud-two-sections": "Yes, give them the whole subscription and keep the keys in a spreadsheet.",
         }
+        decoys = {                                             # the right figures buried inside longer ones, citing the right documents
+            "t7-single-lookup": "116 weeks of paid parental leave.",
+            "t7-carry-forward-sum": "You can carry forward 100 days; 150 are above the limit.",
+            "t7-notice-end-date": "The notice period ends on 13 December 2026.",
+            "t7-leave-end-date": "Your last day of leave is 113 January 2027.",
+            "t7-remote-eligibility": "Not yet: after 160 days of service, then up to three days a week.",
+            "t7-two-documents": "17 calendar days of notice on probation, and 112 paid sick days.",
+            "t7-conflict": "The policies say 118 days and 124 days.",
+            "t7-cloud-two-sections": "No, give them least privilege access; keep access keys in a monkey vault.",
+        }
         for task in TASKS:
             with self.subTest(task=task["id"]):
                 case = dict(task, needs_expected=False)
@@ -368,6 +442,7 @@ class TaskSetTests(unittest.TestCase):
                     good = {"answer": sample_answers[task["id"]], "grounded": True, "sources": sources, "retrieved": []}
                     failures = [dict(good, answer="I am not sure about that at all."),      # says nothing
                                 dict(good, answer=wrong_answers[task["id"]]),               # says the wrong thing
+                                dict(good, answer=decoys[task["id"]]),                      # the right digits inside longer numbers
                                 dict(good, sources=[])]                                     # the right facts, no source
                     if task.get("require_all_sources"):
                         failures.append(dict(good, sources=sources[:1]))                    # only one of the two documents

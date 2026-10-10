@@ -57,12 +57,26 @@ def source_check(case, result):
                                                     f"expected one of {case['expected_sources']}")
 
 
+def _contains(answer, phrase, whole_words):
+    """Is the phrase in the answer? Plain substring by default. With `whole_words` it must stand on its own, so
+    "7 calendar days" is not found inside "17 calendar days" and "3 december" is not found inside "13 december"."""
+    phrase = _clean(phrase)
+    if not whole_words:
+        return phrase in answer
+    return re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", answer) is not None
+
+
 def fact_check(case, result):
-    """Does the answer contain the facts it must? Any one of expect_contains, and all of expect_all."""
+    """Does the answer contain the facts it must? Any one of expect_contains, and all of expect_all.
+
+    A case may set `whole_words` to match its phrases as whole words (the default is a plain substring, which is
+    what the Week 6 cases were scored with).
+    """
     answer = _clean(result["answer"])
-    missing_all = [phrase for phrase in case["expect_all"] if _clean(phrase) not in answer]
+    whole = bool(case.get("whole_words"))
+    missing_all = [phrase for phrase in case["expect_all"] if not _contains(answer, phrase, whole)]
     any_ok = (not case["expect_contains"]
-              or any(_clean(phrase) in answer for phrase in case["expect_contains"]))
+              or any(_contains(answer, phrase, whole) for phrase in case["expect_contains"]))
     if missing_all:
         return _check("has_expected_fact", False, f"missing required phrase(s): {missing_all}")
     if not any_ok:

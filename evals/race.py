@@ -15,9 +15,10 @@ and records, for each run:
 Nothing here decides the winner. The numbers go into docs/week7/findings.md and the decision, which one
 you would ship and why, is yours to write.
 """
+import copy
 import re
 import time
-import copy
+import traceback
 from collections import Counter
 from datetime import datetime
 from types import SimpleNamespace
@@ -35,6 +36,8 @@ from evals.agent_tasks import get_tasks
 APPROACHES = ("agent", "workflow")
 
 _PASSAGE_RE = re.compile(r"\[\d+\]\s*\[source:\s*([^\]]+?)\s*\]\s*(.*)")
+_SOURCE_PREFIX_RE = re.compile(r"^\s*source:\s*", re.IGNORECASE)
+MAX_ERRORS_IN_A_ROW = 3          # a provider that fails this many runs in a row is down, not unlucky
 
 
 def retrieved_from_steps(run):
@@ -52,11 +55,22 @@ def retrieved_from_steps(run):
     return passages
 
 
+def cited_names(answer):
+    """Every document name the answer cites. "[source: A.md; source: B.md]" names both, with the repeated prefix dropped."""
+    names = []
+    for name in generator._cited_names(answer or ""):
+        names.append(name)
+        bare = _SOURCE_PREFIX_RE.sub("", name).strip()
+        if bare != name:
+            names.append(bare)
+    return names
+
+
 def cited_sources(answer, retrieved):
     """Documents the answer cites that were really retrieved (a citation of a document never seen does not count)."""
     known = {chunk["source"] for chunk in retrieved}
     cited = []
-    for name in generator._cited_names(answer or ""):
+    for name in cited_names(answer):
         for source in known:
             if (source == name or source.rsplit("/", 1)[-1] == name.rsplit("/", 1)[-1]) and source not in cited:
                 cited.append(source)
@@ -105,25 +119,37 @@ def run_one(task, approach, repeat, tools, **options):
 
 
 def run_race(tasks=None, approaches=APPROACHES, repeats=3, label="race", say=print, tools=None, **options):
-    """Run every task `repeats` times with every approach. Stops, keeping what finished, if a daily quota runs out."""
+    """Run every task `repeats` times with every approach.
+
+    It stops, keeping every run that finished, when a daily quota runs out, when the provider fails
+    MAX_ERRORS_IN_A_ROW runs in a row, or when a run crashes. `meta.complete` is False in each of those cases.
+    """
     tasks = tasks if tasks is not None else get_tasks()
     tools = tools if tools is not None else default_tools()
     started = datetime.now().isoformat(timespec="seconds")
-    records, stopped = [], None
+    records, stopped, errors_in_a_row = [], None, 0
+    plan = [(repeat, task, approach) for repeat in range(1, repeats + 1) for task in tasks for approach in approaches]
     try:
-        for repeat in range(1, repeats + 1):
-            for task in tasks:
-                for approach in approaches:
-                    record = run_one(task, approach, repeat, tools, **options)
-                    records.append(record)
-                    flag = "ok  " if record["success"] else "FAIL"
-                    say(f"[{flag}] {task['id']:<24} {approach:<9} run {repeat}/{repeats}  "
-                        f"{record['llm_calls']} call(s), {record['prompt_tokens'] + record['completion_tokens']} tokens, "
-                        f"{record['stop_reason']}")
+        for repeat, task, approach in plan:
+            record = run_one(task, approach, repeat, tools, **options)
+            records.append(record)
+            flag = "ok  " if record["success"] else "FAIL"
+            say(f"[{flag}] {task['id']:<24} {approach:<9} run {repeat}/{repeats}  "
+                f"{record['llm_calls']} call(s), {record['prompt_tokens'] + record['completion_tokens']} tokens, "
+                f"{record['stop_reason']}")
+            errors_in_a_row = errors_in_a_row + 1 if record["stop_reason"] == "error" else 0
+            if errors_in_a_row >= MAX_ERRORS_IN_A_ROW:       # one provider error is recorded as a run; a string of them is an outage
+                last = (record["steps"][-1].get("content") if record.get("steps") else "") or "no detail recorded"
+                stopped = f"{errors_in_a_row} runs in a row ended on a provider error (the last: {last})"
+                say(f"\nSTOPPED: {stopped}\nSaved what finished.")
+                break
     except (llm.QuotaExhausted, openai.OpenAIError) as exc:
-        # A daily quota, or a provider failure that survived the retries: keep every run that finished.
+        # A daily quota, or a provider failure that escaped a run: keep every run that finished.
         stopped = str(exc) if isinstance(exc, llm.QuotaExhausted) else f"the provider failed ({type(exc).__name__}): {exc}"
         say(f"\nSTOPPED: {stopped}\nSaved what finished.")
+    except Exception as exc:                     # a crash in one run must not lose the runs that finished
+        stopped = f"a run failed unexpectedly ({type(exc).__name__}): {exc}"
+        say(f"\nSTOPPED: {stopped}\n{traceback.format_exc(limit=-3)}Saved what finished.")
     return {"meta": {"label": label, "started": started, "finished": datetime.now().isoformat(timespec="seconds"),
                      "complete": stopped is None, "stopped_because": stopped, "repeats": repeats,
                      "approaches": list(approaches), "tasks": [t["id"] for t in tasks],
@@ -143,10 +169,11 @@ def rescore(results, tasks=None):
     """
     by_id = {task["id"]: task for task in (tasks if tasks is not None else get_tasks())}
     scored = copy.deepcopy(results)
-    changed = []
+    changed, skipped = [], []
     for record in scored["runs"]:
         task = by_id.get(record["task_id"])
-        if task is None:
+        if task is None:                         # the task was renamed or removed: keep the old verdict, and say so
+            skipped.append({"task_id": record["task_id"], "approach": record["approach"], "repeat": record["repeat"]})
             continue
         result = to_result(SimpleNamespace(steps=record["steps"], answer=record["answer"]))
         rule_checks, passed, warnings = checks.check_case(task, result)
@@ -156,7 +183,7 @@ def rescore(results, tasks=None):
                             "was": record["success"], "now": success})
         record.update(rules_passed=passed, success=success, warnings=warnings,
                       failed_checks=[c["detail"] for c in rule_checks if not c["passed"]])
-    scored["meta"] = dict(scored["meta"], rescored=True, rescored_changes=changed)
+    scored["meta"] = dict(scored["meta"], rescored=True, rescored_changes=changed, rescored_skipped=skipped)
     return scored
 
 

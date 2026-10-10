@@ -15,10 +15,12 @@ In the committed race an agent run took 3.5 model calls on average and a workflo
 default race (9 tasks x 3 repeats x 2 approaches) is about 120 calls. It throttles to LLM_RPM and stops with
 a clear message if a daily quota runs out, keeping what finished.
 
-A new race is saved under its own --label. Racing again without a label would overwrite the committed
-`race` results, so use a new one (for example --label rerun) when you repeat it.
+A new race is saved under its own --label. The committed results are the label `race`, and a complete race is
+never replaced silently: racing again under an existing label stops with a message unless you pass --force. Use a
+new label (for example --label rerun) when you repeat it.
 """
 import argparse
+import json
 import os
 import sys
 from datetime import datetime
@@ -44,6 +46,15 @@ def save_markdown(lines, command):
     print(f"saved: {display_path(out_path, BASE_DIR)}")
 
 
+def already_saved_complete(path):
+    """True when a finished race (not a partial one) is already saved at this path."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return bool(json.load(handle).get("meta", {}).get("complete"))
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Race the agent against the fixed workflow.")
     parser.add_argument("--label", default="race", help="name of this race (default: race)")
@@ -52,10 +63,14 @@ def main(argv=None):
     parser.add_argument("--approaches", nargs="+", choices=race.APPROACHES, default=list(race.APPROACHES))
     parser.add_argument("--save", action="store_true", help="also write docs/week7/race-results.md")
     parser.add_argument("--show", metavar="LABEL", help="print the summary of a saved race (no model calls) instead of racing")
+    parser.add_argument("--force", action="store_true", help="replace an already saved complete race with the same label")
     parser.add_argument("--rescore", action="store_true",
                         help="with --show: re-score the saved runs against the current task definitions and list what changed")
     args = parser.parse_args(argv)
     make_output_safe()
+    if args.rescore and not args.show:             # without --show it would be ignored and a real race would start
+        print("Error: --rescore re-reads a saved race, so it needs --show LABEL (for example --show race --rescore).")
+        return 1
 
     if args.show:
         try:
@@ -74,6 +89,9 @@ def main(argv=None):
             lines += ["", f"{len(changed)} run(s) changed result:"]
             lines += [f"  {c['task_id']:<24}{c['approach']:<10}run {c['repeat']}  {'pass' if c['was'] else 'FAIL'} -> {'pass' if c['now'] else 'FAIL'}"
                       for c in changed]
+            skipped = rescored["meta"]["rescored_skipped"]
+            if skipped:
+                lines.append(f"{len(skipped)} run(s) were not re-scored because their task id no longer exists; they keep the verdict they had.")
         print("\n".join(lines))
         if args.save:
             save_markdown(lines, command)
@@ -87,6 +105,12 @@ def main(argv=None):
         tasks = get_tasks(args.only)
     except (RuntimeError, ValueError) as exc:
         print(f"Error: {exc}")
+        return 1
+
+    path = runner.results_path("race-" + args.label)
+    if already_saved_complete(path) and not args.force:
+        print(f"Error: a complete race is already saved as {display_path(path, BASE_DIR)}. "
+              "Use another --label, or --force to replace it.")
         return 1
 
     runs = len(tasks) * args.repeats * len(args.approaches)
