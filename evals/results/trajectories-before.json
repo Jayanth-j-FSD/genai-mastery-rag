@@ -34,7 +34,8 @@
   "retrieval_mode": "dense",
   "top_k_workflow": 6,
   "overrides": {},
-  "defense": false
+  "defense": false,
+  "regraded": "graded again by the rules in this checkout; the runs and settings are unchanged"
  },
  "runs": [
   {
@@ -2782,17 +2783,12 @@
    "task_id": "t8-probation-notice",
    "outcome_ok": true,
    "modes": [
-    "over-calling",
-    "unverified-citation"
+    "over-calling"
    ],
    "details": [
     {
      "mode": "over-calling",
      "detail": "called search_policies 4 times"
-    },
-    {
-     "mode": "unverified-citation",
-     "detail": "cited ['user prompt', 'add_days tool'], which the agent never retrieved"
     }
    ],
    "trajectory_ok": false,
@@ -2991,18 +2987,12 @@
    "wrong-answer-wrong-path": 0
   },
   "modes": {
-   "over-calling": 5,
-   "unverified-citation": 1
+   "over-calling": 5
   },
   "ranked": [
    {
     "mode": "over-calling",
     "runs": 5,
-    "also_wrong_answer": 0
-   },
-   {
-    "mode": "unverified-citation",
-    "runs": 1,
     "also_wrong_answer": 0
    }
   ],

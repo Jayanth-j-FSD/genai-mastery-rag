@@ -36,7 +36,8 @@
   "overrides": {
    "agent_max_calls_per_tool": 3
   },
-  "defense": false
+  "defense": false,
+  "regraded": "graded again by the rules in this checkout; the runs and settings are unchanged"
  },
  "runs": [
   {
@@ -570,16 +571,9 @@
   {
    "task_id": "t7-carry-forward-sum",
    "outcome_ok": true,
-   "modes": [
-    "unverified-citation"
-   ],
-   "details": [
-    {
-     "mode": "unverified-citation",
-     "detail": "cited ['calculate'], which the agent never retrieved"
-    }
-   ],
-   "trajectory_ok": false,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
    "order_ok": true
   },
@@ -632,25 +626,17 @@
  "summary": {
   "runs": 7,
   "outcome_ok": 7,
-  "trajectory_ok": 6,
+  "trajectory_ok": 7,
   "order_ok": 7,
   "tool_choice_accuracy": 1.0,
   "gap": {
-   "right-answer-right-path": 6,
-   "right-answer-wrong-path": 1,
+   "right-answer-right-path": 7,
+   "right-answer-wrong-path": 0,
    "wrong-answer-right-path": 0,
    "wrong-answer-wrong-path": 0
   },
-  "modes": {
-   "unverified-citation": 1
-  },
-  "ranked": [
-   {
-    "mode": "unverified-citation",
-    "runs": 1,
-    "also_wrong_answer": 0
-   }
-  ],
+  "modes": {},
+  "ranked": [],
   "cost": {
    "tokens": {
     "mean": 3212.5714285714284,

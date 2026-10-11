@@ -15,10 +15,12 @@ one is something a run's recorded steps can show without a model judging it:
   skipped-tool         never called a tool the task needed, so a right answer came from memory or mental arithmetic
   made-up-input        gave add_days a date or a number of days that nobody supplied (not in the question or an
                        earlier result; a number written in words, such as "two weeks", is not recognised)
-  unverified-citation  cited a document it never retrieved
+  unverified-citation  cited a document file name it never retrieved (a label such as a tool's name is not a
+                       document and is not flagged)
   gave-up-quietly      said "I don't know" to an answerable question after at most one search
   no-answer            ended on a limit or an error without answering
-  blocked-answer       the defences withheld an answer on a task that had a legitimate one (a false block)
+  blocked-answer       the defences withheld an answer (every task in the set is a legitimate question, so this
+                       is a false block)
 
 The OUTCOME-VERSUS-TRAJECTORY GAP is the number of runs whose outcome passed while the trajectory showed at
 least one failure mode: right answer, wrong path.
@@ -31,7 +33,7 @@ import re
 from collections import Counter
 from types import SimpleNamespace
 
-from app.agent.defense import dates_in
+from app.agent.defense import date_is_known, dates_in
 from evals import race
 
 MODES = {
@@ -79,6 +81,7 @@ def _is_refusal(answer):
 
 
 _CITATION_RE = re.compile(r"\[source:\s*([^\]]+)\]", re.IGNORECASE)
+_FILE_NAME_RE = re.compile(r"\.[A-Za-z0-9]{1,5}$")
 _SOURCE_PREFIX_RE = re.compile(r"^\s*source:\s*", re.IGNORECASE)
 
 
@@ -92,6 +95,11 @@ def cited_documents(answer):
             if name:
                 names.append(name)
     return names
+
+
+def _looks_like_a_file(name):
+    """A document name ends in an extension (.md, .txt, .pdf); a label such as "calculate" or "user prompt" does not."""
+    return bool(_FILE_NAME_RE.search(name.strip()))
 
 
 def tool_choice_accuracy(task, record):
@@ -124,11 +132,12 @@ def detect_modes(task, record):
     def add(mode, detail):
         found.append({"mode": mode, "detail": detail})
 
-    most_used = max(Counter(names).values(), default=0)
+    counted = Counter(name for name in names if name != "remember")       # notes are exempt from the call budget too
+    most_used = max(counted.values(), default=0)
     if nudged or record.get("stop_reason") in ("max_steps", "repeated_call"):
         add("loop", f"{len(nudged)} repeated call(s), stop reason {record.get('stop_reason')!r}")
     if most_used >= 4:
-        add("over-calling", f"called {Counter(names).most_common(1)[0][0]} {most_used} times")
+        add("over-calling", f"called {counted.most_common(1)[0][0]} {most_used} times")
 
     allowed = set(task.get("allowed_tools") or [])
     unneeded = [name for name in _distinct(names) if name not in expected and name not in allowed and name != "remember"]
@@ -145,11 +154,11 @@ def detect_modes(task, record):
         if call["name"] == "add_days" and not call.get("blocked"):
             arguments = arguments_of(call)
             date = str(arguments.get("date", "")).strip()
-            if date not in known:
+            if not date_is_known(date, known):
                 add("made-up-input", f"add_days was given the date {date!r}, which the question and earlier results never stated")
             try:
                 days = str(abs(int(arguments.get("days"))))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 days = None
             if days is not None and days not in known_numbers:
                 add("made-up-input", f"add_days was given {days} days, a number the question and earlier results never stated")
@@ -161,16 +170,16 @@ def detect_modes(task, record):
     if answer and not _is_refusal(answer):
         retrieved = race.retrieved_from_steps(SimpleNamespace(steps=record.get("steps", [])))
         known_sources = {chunk["source"] for chunk in retrieved}
-        unseen = [name for name in cited_documents(answer)
-                  if not any(source == name or source.rsplit("/", 1)[-1] == name.rsplit("/", 1)[-1] for source in known_sources)]
+        unseen = [name for name in cited_documents(answer) if _looks_like_a_file(name)
+                  and not any(source.lower() == name.lower() or source.rsplit("/", 1)[-1].lower() == name.rsplit("/", 1)[-1].lower()
+                              for source in known_sources)]
         if unseen:
             add("unverified-citation", f"cited {unseen}, which the agent never retrieved")
 
     if answerable and _is_refusal(answer) and names.count("search_policies") <= 1:
         add("gave-up-quietly", f"said I don't know after {names.count('search_policies')} search(es)")
     if record.get("stop_reason") == "output_blocked":
-        if answerable:
-            add("blocked-answer", "the defences withheld the answer to a legitimate question")
+        add("blocked-answer", "the defences withheld the answer to a legitimate question")
     elif record.get("stop_reason") != "final":
         add("no-answer", f"ended with stop reason {record.get('stop_reason')!r}")
     return found

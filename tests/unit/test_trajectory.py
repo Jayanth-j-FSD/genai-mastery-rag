@@ -125,11 +125,37 @@ class DetectModesTests(unittest.TestCase):
         tried = [call("search_policies", {"query": "a"}, "No passages found."), call("search_policies", {"query": "b"}, "No passages found.")]
         self.assertNotIn("gave-up-quietly", modes(TASK, record(tried, answer="I don't know based on the provided documents.", success=False)))
 
-    def test_ending_on_a_limit_is_no_answer_and_a_blocked_legitimate_answer_is_a_false_block(self):
+    def test_ending_on_a_limit_is_no_answer_and_any_withheld_answer_is_a_false_block(self):
         self.assertIn("no-answer", modes(TASK, record(CLEAN, stop="token_budget", answer=None, success=False)))
         self.assertIn("blocked-answer", modes(TASK, record(CLEAN, stop="output_blocked", answer="I can't...", success=False)))
-        refusal_task = dict(TASK, should_refuse=True)
-        self.assertNotIn("blocked-answer", modes(refusal_task, record(CLEAN, stop="output_blocked", answer="I can't...")))
+        refusal_task = dict(TASK, should_refuse=True)           # a withheld refusal is a false block too, and must not hide as "no mode"
+        self.assertIn("blocked-answer", modes(refusal_task, record(CLEAN, stop="output_blocked", answer="I can't...")))
+
+    def test_notes_to_memory_are_not_over_calling(self):
+        notes = [call("remember", {"fact": f"note {n}"}, "Saved note.") for n in range(5)]
+        self.assertNotIn("over-calling", modes(TASK, record(CLEAN + notes)))
+        searches = [call("search_policies", {"query": f"q{n}"}, SEARCH_RESULT) for n in range(4)]
+        self.assertIn("over-calling", modes(TASK, record(searches + CLEAN[1:])))
+
+    def test_only_a_file_name_that_was_never_retrieved_is_an_unverified_citation(self):
+        invented = record(CLEAN, answer="Ends 2026-12-03 [source: terms.md, Made-Up-Policy.md]")
+        self.assertIn("unverified-citation", modes(TASK, invented))
+        label = record(CLEAN, answer="Ends 2026-12-03 [source: terms.md, add_days tool] and [source: user prompt, calculate]")
+        self.assertNotIn("unverified-citation", modes(TASK, label))                # tool names and prompts are labels, not documents
+        self.assertNotIn("unverified-citation", modes(TASK, record(CLEAN, answer="Ends 2026-12-03 [source: TERMS.MD]")))
+
+    def test_a_date_the_question_states_in_any_common_form_is_not_made_up(self):
+        for question in ("Received on 4th of January 2027.", "Received Jan 4, 2027.", "Received 04/01/2027.", "Received on 4 January."):
+            with self.subTest(question=question):
+                task = dict(TASK, question=question)
+                rec = record([CLEAN[0], call("add_days", {"date": "2027-01-04", "days": 30}, "2027-02-03 (Wednesday)")])
+                self.assertNotIn("made-up-input", modes(task, rec))
+        far = record([CLEAN[0], call("add_days", {"date": "2031-05-09", "days": 30}, "x")])
+        self.assertIn("made-up-input", modes(dict(TASK, question="Received on 4th of January 2027."), far))
+
+    def test_an_absurd_number_of_days_does_not_crash_the_grader(self):
+        rec = record([CLEAN[0], call("add_days", {"date": "2026-11-03", "days": 1e999}, "ERROR: whole number")])
+        self.assertIsInstance(modes(TASK, rec), list)
 
 
 class MetricsTests(unittest.TestCase):

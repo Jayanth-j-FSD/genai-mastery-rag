@@ -34,7 +34,8 @@
   "retrieval_mode": "dense",
   "top_k_workflow": 6,
   "overrides": {},
-  "defense": false
+  "defense": false,
+  "regraded": "graded again by the rules in this checkout; the runs and settings are unchanged"
  },
  "runs": [
   {
@@ -2412,16 +2413,9 @@
   {
    "task_id": "t7-carry-forward-sum",
    "outcome_ok": true,
-   "modes": [
-    "unverified-citation"
-   ],
-   "details": [
-    {
-     "mode": "unverified-citation",
-     "detail": "cited ['calculate'], which the agent never retrieved"
-    }
-   ],
-   "trajectory_ok": false,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
    "order_ok": true
   },
@@ -2518,16 +2512,9 @@
   {
    "task_id": "t7-carry-forward-sum",
    "outcome_ok": true,
-   "modes": [
-    "unverified-citation"
-   ],
-   "details": [
-    {
-     "mode": "unverified-citation",
-     "detail": "cited ['calculate'], which the agent never retrieved"
-    }
-   ],
-   "trajectory_ok": false,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
    "order_ok": true
   },
@@ -2624,16 +2611,9 @@
   {
    "task_id": "t7-carry-forward-sum",
    "outcome_ok": true,
-   "modes": [
-    "unverified-citation"
-   ],
-   "details": [
-    {
-     "mode": "unverified-citation",
-     "detail": "cited ['calculate'], which the agent never retrieved"
-    }
-   ],
-   "trajectory_ok": false,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
    "order_ok": true
   },
@@ -2722,25 +2702,17 @@
  "summary": {
   "runs": 33,
   "outcome_ok": 33,
-  "trajectory_ok": 30,
+  "trajectory_ok": 33,
   "order_ok": 33,
   "tool_choice_accuracy": 1.0,
   "gap": {
-   "right-answer-right-path": 30,
-   "right-answer-wrong-path": 3,
+   "right-answer-right-path": 33,
+   "right-answer-wrong-path": 0,
    "wrong-answer-right-path": 0,
    "wrong-answer-wrong-path": 0
   },
-  "modes": {
-   "unverified-citation": 3
-  },
-  "ranked": [
-   {
-    "mode": "unverified-citation",
-    "runs": 3,
-    "also_wrong_answer": 0
-   }
-  ],
+  "modes": {},
+  "ranked": [],
   "cost": {
    "tokens": {
     "mean": 3022.4545454545455,

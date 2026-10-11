@@ -100,6 +100,23 @@ class RunTrajectoriesScriptTests(unittest.TestCase):
         self.assertIn("trajectories 'regraded': 1 run(s)", out)                      # only the agent's runs are graded
         self.assertTrue(os.path.exists(runner.results_path("trajectories-regraded")))
 
+    def test_a_saved_run_is_regraded_in_place_and_keeps_its_settings_and_its_partial_flag(self):
+        stale = dict(saved_run("old", [agent_run(1), agent_run(2, clean=False)], complete=False, stopped="quota"),
+                     summary={"trajectory_ok": 99, "outcome_ok": 99, "modes": {}})
+        stale["meta"]["overrides"] = {"agent_max_calls_per_tool": 3}
+        runner.save_results(stale, runner.results_path("trajectories-old"))
+        with mock.patch.object(run_trajectories.race, "run_race") as racing:
+            code, out = self.call("--regrade", "old")
+        self.assertEqual(code, 0)
+        racing.assert_not_called()
+        self.assertIn("re-graded in place", out)
+        self.assertIn("trajectory clean 99 -> 1", out)
+        saved = runner.load_results("trajectories-old")
+        self.assertEqual((saved["meta"]["complete"], saved["meta"]["overrides"]), (False, {"agent_max_calls_per_tool": 3}))
+        self.assertIn("regraded", saved["meta"])
+        self.assertEqual((saved["summary"]["trajectory_ok"], len(saved["runs"])), (1, 2))
+        self.assertEqual(self.call("--regrade", "missing")[0], 1)
+
     def test_bad_arguments_are_explained_not_tracebacks(self):
         for args, fragment in ((["--repeats", "0"], "--repeats must be 1 or greater"), (["--only", "t7-nope"], "unknown task id"),
                                (["--set", "no_such_setting=1"], "no_such_setting")):

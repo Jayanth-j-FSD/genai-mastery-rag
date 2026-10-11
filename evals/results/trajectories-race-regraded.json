@@ -2,7 +2,8 @@
  "meta": {
   "label": "race-regraded",
   "regraded_from": "race-race",
-  "complete": true
+  "complete": true,
+  "regraded": "graded again by the rules in this checkout; the runs and settings are unchanged"
  },
  "runs": [
   {

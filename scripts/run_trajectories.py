@@ -7,8 +7,9 @@ path is the gap this week is about. It also reports what a run costs: mean and 9
 
 Run:
     python scripts/run_trajectories.py --label before                # runs the agent (model calls)
-    python scripts/run_trajectories.py --label after --set agent_verify=true
+    python scripts/run_trajectories.py --label after --set agent_max_calls_per_tool=3
     python scripts/run_trajectories.py --grade race-race             # re-grade a saved Week 7 race: free
+    python scripts/run_trajectories.py --regrade before              # re-grade a saved run in place, keeping its settings: free
     python scripts/run_trajectories.py --show before                 # print the report of a saved run: free
     python scripts/run_trajectories.py --label guarded --defense     # same tasks with the defences on
 """
@@ -53,6 +54,8 @@ def main(argv=None):
     parser.add_argument("--defense", action="store_true", help="run with the three defence layers on")
     parser.add_argument("--grade", metavar="LABEL_OR_PATH", help="re-grade a saved race or trajectory file instead of running")
     parser.add_argument("--show", metavar="LABEL", help="print the report of a saved trajectory run (no model calls, nothing saved)")
+    parser.add_argument("--regrade", metavar="LABEL", help="grade a saved trajectory run again with today's rules, in place (no model calls; "
+                                                           "its runs, settings and completeness are kept)")
     args = parser.parse_args(argv)
     make_output_safe()
 
@@ -67,6 +70,22 @@ def main(argv=None):
             print(f"(a PARTIAL run: it stopped early, {meta.get('stopped_because') or 'no reason recorded'})\n")
         print("\n".join(trajectory.format_report(saved["summary"], args.show)))
         print_modes(saved["graded"])
+        return 0
+
+    if args.regrade:
+        try:
+            saved = runner.load_results("trajectories-" + args.regrade)
+        except FileNotFoundError as exc:
+            print(f"Error: {exc}")
+            return 1
+        note = "graded again by the rules in this checkout; the runs and settings are unchanged"
+        results, path = grade_and_save(get_tasks(None, include_probes=True), saved["runs"], dict(saved["meta"], regraded=note), args.regrade)
+        old, new = saved.get("summary", {}), results["summary"]
+        print("\n".join(trajectory.format_report(new, args.regrade)))
+        print_modes(results["graded"])
+        print(f"\nre-graded in place. As saved -> now:  trajectory clean {old.get('trajectory_ok')} -> {new['trajectory_ok']},  "
+              f"outcome right {old.get('outcome_ok')} -> {new['outcome_ok']},  modes {old.get('modes')} -> {new['modes']}")
+        print(f"saved: {display_path(path, BASE_DIR)}")
         return 0
 
     try:
