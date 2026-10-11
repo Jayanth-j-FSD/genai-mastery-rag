@@ -139,6 +139,7 @@ class InterleaveTests(unittest.TestCase):
         """A stand-in for race.run_race: one agent run per call, noting which arm ran and the cap in force."""
         def run(tasks, approaches=("agent",), repeats=1, label="x", say=print, **options):
             self.calls.append((label, settings.agent_max_calls_per_tool))
+            say("[ok  ] some-task               agent     run 1/1  2 call(s)")
             if stop_on_call == len(self.calls):
                 return {"meta": {"label": label, "complete": False, "stopped_because": "the free daily quota for this model is used up"}, "runs": []}
             return {"meta": {"label": label, "complete": True, "stopped_because": None}, "runs": [agent_run(1)]}
@@ -169,6 +170,7 @@ class InterleaveTests(unittest.TestCase):
         self.assertEqual(runner.load_results("trajectories-b")["meta"]["overrides"], {"agent_max_calls_per_tool": 3})
         self.assertEqual(runner.load_results("trajectories-a")["meta"]["overrides"], {})
         self.assertIn("trajectories 'b': 2 run(s)", out)
+        self.assertIn("b               [ok  ] some-task               agent     repeat 2/2", out)       # the real repeat, not "run 1/1"
 
     def test_a_quota_that_ends_part_way_leaves_the_arms_balanced_and_the_files_partial(self):
         with self.fake_run(stop_on_call=3):

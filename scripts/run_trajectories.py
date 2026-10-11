@@ -68,8 +68,9 @@ def run_interleaved(arms, tasks, repeats, common, options):
             turn = (repeat + index) % len(arms)
             for label, changes in arms[turn:] + arms[:turn]:
                 with runner.overridden(dict(common, **changes)):
-                    run = race.run_race([task], approaches=("agent",), repeats=1, label=label,
-                                        say=lambda text, label=label: print(f"  {label:<16}{text}"), **options)
+                    run = race.run_race([task], approaches=("agent",), repeats=1, label=label, **options,
+                                        say=lambda text, label=label, repeat=repeat: print(
+                                            f"  {label:<16}{text.replace('run 1/1', f'repeat {repeat}/{repeats}')}"))
                 base_meta = base_meta or run["meta"]
                 for record in run["runs"]:
                     records[label].append(dict(record, repeat=repeat))
