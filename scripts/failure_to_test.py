@@ -163,7 +163,7 @@ def main(argv=None):
         corrected = result_of(good)
         corrected["scored"] = good["raw"].get("retrieved") or []
     else:
-        corrected = {"answer": args.corrected_answer, "grounded": not args.corrected_answer.strip().lower().replace("’", "'").startswith("i don't know"),
+        corrected = {"answer": args.corrected_answer, "grounded": not args.corrected_answer.strip().lower().replace(chr(0x2019), "'").startswith("i don't know"),
                      "sources": logsearch.cited_documents({"answer": args.corrected_answer}), "retrieved": failing["retrieved"]}
     corrected_checks, corrected_passes, _ = checks.check_case(case, corrected)
     if not corrected_passes:
