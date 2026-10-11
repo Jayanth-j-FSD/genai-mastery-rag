@@ -17,18 +17,21 @@ The checks, each a plain rule a reviewer can disagree with:
   allowlist     if the operator listed the tools they expect from a server, anything else is refused
   name          letters, digits, underscore and hyphen only, not absurdly long, and not a name the agent loop
                 reserves for itself ("remember")
-  text          present, not enormous, free of control, zero-width, private-use and unassigned characters, free
-                of words that mix Latin with Cyrillic, Greek or Armenian letters (a Latin word with one Cyrillic
-                letter; a word of up to three letters, digits not counted, is not judged, so units such as "100µs"
-                and "kΩ" pass), and free of instruction-like text, read across line breaks and with look-alike
-                letters made plain (Week 8's sanitizer patterns, so there is one definition of "instruction-like"),
-                and of the combination of two or more signals a tool-poisoning payload is made of (a tag such as
-                <important>, an order to hide it from the user, an order to act first, a path to a secret)
+  text          present, not enormous, free of control, zero-width, lone-surrogate, private-use and unassigned
+                characters and of letters that draw nothing (the Hangul fillers), free of words that mix Latin with
+                Cyrillic, Greek or Armenian letters (a Latin word with one Cyrillic letter; a word of up to three
+                letters whose only foreign letters are the symbols of units is not judged, so "100µs", "kΩ" and
+                "ΔT" pass), and free of instruction-like text, read across line breaks and with look-alike letters
+                made plain (Week 8's sanitizer patterns, so there is one definition of "instruction-like"). The
+                signals a tool-poisoning payload is made of (an order to hide it from the user, an order to act
+                first, a path to a secret, a tag such as <system>) are counted over the WHOLE definition, so a payload
+                split between the description and a parameter is still one payload: two different signals refuse
+                the tool, and a tag such as <important> counts as two
   schema        an object with a modest number of well-named parameters and a modest total size
   read-only     optionally, only tools the server itself declares read-only (readOnlyHint)
 
 What it cannot do: a plain-English instruction that uses none of the trigger words passes, a look-alike letter
-outside the small table below passes, and a harmless description that happens to use a trigger word is refused (the
+outside the table below passes, and a harmless description that happens to use a trigger word is refused (the
 operator can reword their own server, but not someone else's). A character this Python's Unicode tables do not know
 yet is refused, and so is a parameter name such as `$top` or `filter[status]`. Pattern matching is a filter, not a proof.
 """
@@ -45,34 +48,44 @@ MAX_SCHEMA_CHARS = 8000
 MAX_PARAMETERS = 12
 RESERVED_NAMES = frozenset({"remember"})                        # the agent loop adds its memory tool under this name
 _OTHER_ALPHABETS = ("CYRILLIC", "GREEK", "ARMENIAN", "CHEROKEE", "COPTIC")
+_UNIT_SYMBOLS = frozenset("\u03bc\u03a9\u0394\u03c0")           # micro, ohm, delta and pi as NFKC leaves them: the symbols of "µs", "kΩ", "ΔT", "πr"
+_INVISIBLE_LETTERS = frozenset("\u115f\u1160\u3164\uffa0")      # the Hangul fillers: letters that draw nothing, so they can sit between words
 
 # Look-alikes that Unicode compatibility folding does not make plain: Latin letters such as a script g, a dotless i and the
-# small capitals, the Cyrillic, Greek and Armenian letters that are drawn like Latin ones, and typographic apostrophes.
-# Used only to read a COPY of the text for matching; the text itself is never changed.
+# small capitals, the commonest Cyrillic, Greek and Armenian letters drawn like Latin ones, and typographic apostrophes. A
+# letter that is not in this table is not made plain. Used only to read a COPY of the text for matching; the text itself is
+# never changed.
 _CONFUSABLE_LETTERS = {
-    "g": "\u0261\u0262", "a": "\u0251\u1D00\u0430\u03B1", "i": "\u0131\u026A\u0456\u03B9", "b": "\u0299", "c": "\u1D04\u0441", "d": "\u1D05\u0501",
-    "e": "\u1D07\u0435\u03B5", "f": "\uA730", "h": "\u029C\u04BB", "j": "\u1D0A\u0458", "k": "\u1D0B\u03BA", "l": "\u029F", "m": "\u1D0D",
-    "n": "\u0274", "o": "\u1D0F\u043E\u03BF\u0585", "p": "\u1D18\u0440\u03C1", "q": "\u051B", "r": "\u0280", "s": "\uA731\u0455",
-    "t": "\u1D1B\u03C4", "u": "\u1D1C\u03C5\u057D", "v": "\u1D20\u03BD", "w": "\u1D21\u051D", "x": "\u0445\u03C7", "y": "\u028F\u0443",
-    "z": "\u1D22", "A": "\u0410\u0391", "B": "\u0412\u0392", "E": "\u0415\u0395", "H": "\u041D\u0397", "I": "\u0406\u0399", "J": "\u0408",
-    "K": "\u041A\u039A", "M": "\u041C\u039C", "N": "\u039D", "O": "\u041E\u039F", "P": "\u0420\u03A1", "S": "\u0405", "T": "\u0422\u03A4",
-    "X": "\u0425\u03A7", "Y": "\u03A5", "Z": "\u0396", "'": "\u2018\u2019\u02BC"}
+    "a": "\u0251\u1D00\u0430\u03B1", "b": "\u0299", "c": "\u1D04\u0441\u03F2", "d": "\u1D05\u0501", "e": "\u1D07\u0435\u03B5",
+    "f": "\uA730", "g": "\u0261\u0262\u0581", "h": "\u029C\u04BB\u0570", "i": "\u0131\u026A\u0456\u03B9",
+    "j": "\u1D0A\u0458\u03F3", "k": "\u1D0B\u03BA", "l": "\u029F\u04CF", "m": "\u1D0D", "n": "\u0274\u0578",
+    "o": "\u1D0F\u043E\u03BF\u0585", "p": "\u1D18\u0440\u03C1", "q": "\u051B\u0566", "r": "\u0280\u0433", "s": "\uA731\u0455",
+    "t": "\u1D1B\u03C4", "u": "\u1D1C\u03C5\u057D", "v": "\u1D20\u03BD", "w": "\u1D21\u051D", "x": "\u0445\u03C7",
+    "y": "\u028F\u0443", "z": "\u1D22", "A": "\u0410\u0391", "B": "\u0412\u0392", "C": "\u0421\u03F9", "E": "\u0415\u0395",
+    "H": "\u041D\u0397", "I": "\u0406\u0399", "J": "\u0408\u037F", "K": "\u041A\u039A", "M": "\u041C\u039C", "N": "\u039D",
+    "O": "\u041E\u039F", "P": "\u0420\u03A1", "Q": "\u051A", "S": "\u0405", "T": "\u0422\u03A4", "W": "\u051C",
+    "X": "\u0425\u03A7", "Y": "\u03A5\u0423", "Z": "\u0396", "'": "\u2018\u2019\u02BC"}
 _CONFUSABLES = {ord(look_alike): plain_letter for plain_letter, look_alikes in _CONFUSABLE_LETTERS.items() for look_alike in look_alikes}
 
-# The signals a tool-poisoning payload is made of, beyond the Week 8 sanitizer's phrases. Each is common alone ("Before using
-# this tool, call list_projects"; "Reads a .env file"), so ONE does not refuse a tool: it takes two together.
+# The signals a tool-poisoning payload is made of, beyond the Week 8 sanitizer's phrases. Each of the plain ones is common
+# alone ("Before using this tool, call list_projects"; "Reads a .env file"), so ONE does not refuse a tool: it takes two
+# DIFFERENT signals together, anywhere in the same definition. A tag such as <important> is not an ordinary phrase in a tool
+# definition, so it counts as two and refuses alone.
 _POISON_SIGNALS = {
-    "a tag such as <important>": re.compile(r"<\s*/?\s*(important|system|secret|admin)\b", re.I),
+    "a tag such as <important>": re.compile(r"<\s*/?\s*(important|secret|admin)\b", re.I),
+    "a tag such as <system>": re.compile(r"<\s*/?\s*(system|instructions?)\b", re.I),
     "an order to hide it from the user": re.compile(r"\b(do not|don't|never)\s+(tell|mention|reveal|inform|disclose|let)\b.{0,40}\b(user|human|anyone)\b", re.I),
     "an order to act before or first": re.compile(r"\b(before|prior to)\s+(using|calling|you use|you call)\s+this tool\b|\b(call|use)\s+this tool\s+(first|before)\b|\balways\s+call\s+this\s+tool\b", re.I),
     "a path to a secret": re.compile(r"~/|\.ssh\b|\bid_rsa\b|/etc/passwd|\.env\b|%userprofile%", re.I),
 }
+_STRONG_SIGNALS = frozenset({"a tag such as <important>"})
 
 
 def _fold(text):
     """A copy of the text for matching only: compatibility forms made plain (NFKD), combining marks dropped, and the
-    few Latin look-alikes in the table above mapped to their plain letter."""
-    decomposed = unicodedata.normalize("NFKD", text)
+    look-alike letters in the table above mapped to their plain letter. The table is applied before the decomposition too,
+    because NFKD turns a lunate sigma into a final sigma, which no longer looks like a "c"."""
+    decomposed = unicodedata.normalize("NFKD", text.translate(_CONFUSABLES))
     return "".join(char for char in decomposed if unicodedata.category(char) not in ("Mn", "Me")).translate(_CONFUSABLES)
 
 
@@ -82,11 +95,15 @@ def is_plain_name(name):
 
 
 def _odd_character(text):
-    """The first character that has no business in a tool description: a control, format (zero-width, tag),
-    private-use or unassigned character. Line breaks (CR and LF) and tabs are fine, and so is a zero-width joiner
-    inside an emoji sequence."""
+    """The first character that has no business in a tool description: a control, format (zero-width, tag), lone
+    surrogate, private-use or unassigned character, or a letter that draws nothing. Line breaks (CR and LF) and tabs are
+    fine, and so is a zero-width joiner inside an emoji sequence."""
     for index, char in enumerate(text):
-        if char in "\r\n\t" or unicodedata.category(char) not in ("Cc", "Cf", "Co", "Cn"):
+        if char in "\r\n\t":
+            continue
+        if char in _INVISIBLE_LETTERS:
+            return char
+        if unicodedata.category(char) not in ("Cc", "Cf", "Co", "Cn", "Cs"):
             continue
         if char == "\u200d" and 0 < index < len(text) - 1:
             before = text[index - 1] if unicodedata.category(text[index - 1]) != "Mn" or index < 2 else text[index - 2]
@@ -98,18 +115,22 @@ def _odd_character(text):
 
 def _mixed_alphabet_word(text):
     """A word that mixes Latin letters with Cyrillic, Greek or Armenian: the look-alike trick ("ignоre" with a Cyrillic
-    o). A word of up to three letters is not judged, because units and symbols mix alphabets innocently ("µs", "kΩ")."""
-    for word in re.findall(r"\w+", unicodedata.normalize("NFKC", text)):
-        letters = [char for char in word if char.isalpha()]
-        if len(letters) <= 3:                                  # digits do not count: "100µs" is a unit, "ignоre" is a word
-            continue
-        scripts = set()
-        for char in letters:
-            try:
-                scripts.add(unicodedata.name(char).split()[0])
-            except ValueError:
-                scripts.add("UNKNOWN")
+    o). Combining marks are dropped first, so a mark cannot split a word in two. A word of up to three letters whose only
+    foreign letters are the symbols of units is not judged ("µs", "kΩ", "ΔT"); any other short word is."""
+    cleaned = "".join(char for char in unicodedata.normalize("NFKC", text) if unicodedata.category(char) not in ("Mn", "Me"))
+    for word in re.findall(r"\w+", cleaned):
+        script_of = {}
+        for char in word:
+            if char.isalpha():
+                try:
+                    script_of[char] = unicodedata.name(char).split()[0]
+                except ValueError:
+                    script_of[char] = "UNKNOWN"
+        scripts = set(script_of.values())
         if "LATIN" in scripts and scripts & set(_OTHER_ALPHABETS):
+            foreign = {char for char, script in script_of.items() if script in _OTHER_ALPHABETS}
+            if len(script_of) <= 3 and foreign <= _UNIT_SYMBOLS:       # digits do not count: "100µs" is a unit, "ignоre" is a word
+                continue
             return word
     return None
 
@@ -131,8 +152,11 @@ def plain(text, limit=60):
     return shown if len(shown) <= limit else shown[:limit - 3] + "..."
 
 
-def _text_problem(text):
-    """Why this text may not reach the model, or None when it may."""
+def _text_problem(text, seen=None):
+    """Why this text may not reach the model, or None when it may.
+
+    `seen` is the set of poisoning signals found so far in the same tool definition: a payload split between the
+    description and a parameter's description is one payload, so the signals of every string are counted together."""
     if len(text) > MAX_DESCRIPTION_CHARS:
         return f"a {len(text)}-character text (limit {MAX_DESCRIPTION_CHARS})"
     odd = _odd_character(text)
@@ -145,9 +169,12 @@ def _text_problem(text):
     findings = sanitize(folded)[1]
     if findings:
         return f"instruction-like text (possible tool poisoning): {plain(findings[0], 120)}"
-    signals = [name for name, pattern in _POISON_SIGNALS.items() if pattern.search(folded)]
-    if len(signals) >= 2:
-        return f"text that reads like a tool-poisoning payload ({', '.join(signals)})"
+    found = {name for name, pattern in _POISON_SIGNALS.items() if pattern.search(folded)}
+    if seen is not None:
+        seen |= found
+        found = seen
+    if sum(2 if name in _STRONG_SIGNALS else 1 for name in found) >= 2:
+        return f"text that reads like a tool-poisoning payload ({', '.join(sorted(found))})"
     return None
 
 
@@ -186,12 +213,13 @@ def vet_tool(server, tool, allow=None, require_read_only=False):
         return False, f"{server}.{name} has no description, so the model could not choose it sensibly"
     if len(description) > MAX_DESCRIPTION_CHARS:
         return False, f"{server}.{name} has a {len(description)}-character description (limit {MAX_DESCRIPTION_CHARS})"
-    problem = _text_problem(description)
+    seen = set()                                            # the poisoning signals found so far in this one definition
+    problem = _text_problem(description, seen)
     if problem:
         return False, f"{server}.{name} has {problem} in its description"
     title = getattr(tool, "title", None)
     if isinstance(title, str) and title.strip():
-        problem = _text_problem(title)
+        problem = _text_problem(title, seen)
         if problem:
             return False, f"{server}.{name} has {problem} in its title"
 
@@ -209,7 +237,7 @@ def vet_tool(server, tool, allow=None, require_read_only=False):
     for path, text in _strings(schema, "schema"):
         if text is None:
             return False, f"{server}.{name} has an oddly named key in its schema ({path})"
-        problem = _text_problem(text)
+        problem = _text_problem(text, seen)
         if problem:
             return False, f"{server}.{name} has {problem} in its input schema ({path})"
 

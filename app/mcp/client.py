@@ -109,20 +109,27 @@ def _seconds(count):
     return f"{count:.0f} second" + ("" if round(count) == 1 else "s")
 
 
+# Characters that draw nothing and that Week 8's sanitizer strips before it matches (a zero-width space, a word joiner, the
+# bidirectional embeddings, overrides and isolates). They are dropped from server text: written out as text they would hide a
+# keyword split with one of them from that sanitizer.
+_DROPPED = frozenset([0x200B, 0x2060] + list(range(0x202A, 0x202F)) + list(range(0x2066, 0x206A)))
+
+
 def _hidden(char):
-    """A character a server could use to act on the terminal or to hide text: a control other than a line break or tab, a tag
-    character, a bidirectional override or isolate, a zero-width space or a word joiner. Joiners, direction marks and the
-    like that ordinary text needs (emoji, Arabic, Persian) are not in this set."""
-    code = ord(char)
-    return ((unicodedata.category(char) == "Cc" and char not in "\n\t") or 0xE0000 <= code <= 0xE007F
-            or 0x202A <= code <= 0x202E or 0x2066 <= code <= 0x2069 or code in (0x200B, 0x2060))
+    """A character a server could use to act on the terminal or to smuggle text: a control other than a line break or tab,
+    a tag character, or a lone surrogate (the request that carries one cannot be encoded). These are written out as text.
+    Joiners, direction marks and the like that ordinary text needs (emoji, Arabic, Persian) are left alone."""
+    return (unicodedata.category(char) in ("Cc", "Cs") and char not in chr(10) + chr(9)) or 0xE0000 <= ord(char) <= 0xE007F
 
 
 def _printable(text):
-    """Server text with the hidden characters shown as text, so a server cannot clear the screen or retitle the window
-    through a result or an error message. A CR or CRLF line break becomes LF."""
+    """Server text made safe to print and to send on: the hidden characters are written out as text, so a server cannot
+    clear the screen or retitle the window through a result or an error message, and the characters in _DROPPED are
+    dropped. A CR or CRLF line break becomes LF."""
     shown = []
     for char in text.replace(chr(13) + chr(10), chr(10)).replace(chr(13), chr(10)):
+        if ord(char) in _DROPPED:
+            continue
         if not _hidden(char):
             shown.append(char)
         elif ord(char) < 256:
@@ -135,18 +142,18 @@ def _printable(text):
 
 
 def _text_of(result):
-    """The readable text of a tool result: its text blocks joined, or the structured content as JSON. Cut when huge,
-    control characters shown escaped."""
+    """The readable text of a tool result: its text blocks joined, or the structured content as JSON. Made safe to print
+    (see _printable) and cut to MAX_RESULT_CHARS."""
     parts = [block.text for block in (result.content or []) if getattr(block, "type", "") == "text"]
     if parts:
-        text = "\n".join(parts)
+        text = chr(10).join(parts)
     else:
         structured = getattr(result, "structured_content", None)
         text = json.dumps(structured, ensure_ascii=False) if structured is not None else ""
-    text = _printable(text)                  # escaped first, so the cut below is a cut of what the model will actually receive
-    if len(text) > MAX_RESULT_CHARS:
-        text = text[:MAX_RESULT_CHARS] + f"... [cut: the result was {len(text)} characters long]"
-    return text
+    shown = _printable(text[:2 * MAX_RESULT_CHARS])      # the work is bounded by the limit, not by the size of the reply
+    if len(text) > 2 * MAX_RESULT_CHARS or len(shown) > MAX_RESULT_CHARS:
+        shown = shown[:MAX_RESULT_CHARS] + f"... [cut: the result was {len(text)} characters long]"
+    return shown
 
 
 def _why(exc):
