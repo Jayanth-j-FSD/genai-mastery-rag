@@ -26,6 +26,8 @@ default of 0, the agent loop behaves exactly as it did in Week 7.
   call cap could save, from the saved "before" run. `--rescore` judges saved injection runs by today's detectors,
   `run_trajectories.py --regrade LABEL` grades a saved run again with today's rules (in place, keeping its settings),
   and `scripts/replay_defense.py` feeds saved runs through the defences to see what they would have blocked.
+- `scripts/calibrate_leak_window.py` prints the figures behind the output validator's leak window: the longest stretch that honest
+  saved answers share with the system prompt, and what the saved prompt-leak answers share.
 
 ## Validating the grader before trusting it
 

@@ -42,7 +42,7 @@ runs (`my-run` below is one; `before-final` and the labels beside it are the one
 .\.venv\Scripts\python.exe scripts\run_trajectories.py --grade race-race --label my-regrade   # free: re-grade a saved Week 7 race
 .\.venv\Scripts\python.exe scripts\run_injection.py --static                      # free: what the sanitizer alone removes
 .\.venv\Scripts\python.exe scripts\run_injection.py --label r2-final              # model calls: every attack, defences off and on
-.\.venv\Scripts\python.exe scripts\compare_trajectories.py before after --save
+.\.venv\Scripts\python.exe scripts\compare_trajectories.py before-p control --save
 .\.venv\Scripts\python.exe scripts\run_trajectories.py --show before               # free: print a saved run's report
 .\.venv\Scripts\python.exe scripts\run_injection.py --compare layer-sanitize layer-guard-fixed layer-validate final   # free
 .\.venv\Scripts\python.exe scripts\check_prediction.py before-final after-final --noise before-final-2   # free: the prediction, read against the noise floor
