@@ -32,11 +32,30 @@ def lines(text):
     return [line.rstrip() for line in text.strip().splitlines()]
 
 
+def command_blocks(text):
+    """[(command, what it printed)] for every block of the shape above in `text`."""
+    return [(match["command"], match["body"]) for match in BLOCK.finditer(text)]
+
+
+class BlockReaderTests(unittest.TestCase):
+    """The reader of findings.md, tried on text of its own (it runs even while findings.md does not exist)."""
+
+    def test_a_command_line_a_blank_line_and_a_fenced_block_make_one_block(self):
+        text = "Numbers.\n\nCommand: `python scripts/race_team.py --show wk10`\n\n```text\nline one\nline two\n```\n\nMy reading.\n"
+        self.assertEqual(command_blocks(text), [("python scripts/race_team.py --show wk10", "line one\nline two")])
+
+    def test_numbers_typed_by_hand_with_no_command_above_them_make_no_block(self):
+        self.assertEqual(command_blocks("The team used 4,200 tokens a run.\n\n```text\nagent 4200\n```\n"), [])
+
+
 @unittest.skipUnless(os.path.exists(FINDINGS), "findings.md is written after the race")
 class FindingsBlocksTests(unittest.TestCase):
     def blocks(self):
         with open(FINDINGS, encoding="utf-8") as handle:
-            return [(match["command"], match["body"]) for match in BLOCK.finditer(handle.read())]
+            return command_blocks(handle.read())
+
+    def test_the_file_holds_at_least_one_command_block_or_nothing_in_it_is_checked_against_a_command(self):
+        self.assertTrue(self.blocks(), "findings.md has no 'Command: `...`' block, so none of its numbers is compared with what a command prints")
 
     def test_every_command_a_block_names_is_one_that_prints_without_a_model_call(self):
         for command, _body in self.blocks():
