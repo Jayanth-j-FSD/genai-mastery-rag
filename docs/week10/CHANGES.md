@@ -9,9 +9,10 @@ every failed run, and what result would change your mind are blank in `findings.
 
 ## What was added
 
-- `app/agent/team.py`: the team. A manager with two hand-off tools (`ask_policy_researcher`, `ask_calculator`); each hand-off
-  runs a specialist as an ordinary agent loop (`loop.run_agent`) with its own prompt and tool list (`SPECIALISTS`). The
-  specialists' steps are merged into the manager's in time order and tagged with their agent, every agent's calls, tokens and
+- `app/agent/team.py`: the team. A manager with two hand-off tools (`ask_policy_researcher`, `ask_calculator`) and the scratchpad tool (`remember`) that
+  the loop gives every agent; each hand-off runs a specialist as an ordinary agent loop (`loop.run_agent`) with its own prompt and tool
+  list (`SPECIALISTS`). The specialists' steps are merged into the manager's in request order (a manager step comes before the hand-off
+  steps it asked for) and tagged with their agent, every agent's calls, tokens and
   seconds are counted apart, and the whole run comes back as a `TeamRun` (an `AgentRun` plus `team`: `per_agent`, `handoffs`,
   `call_log`, `warnings`, `errors`).
 - `app/llm.py`: `call_scope(label)`, a record of every model call made inside a block (model asked for and model that answered,
@@ -22,7 +23,7 @@ every failed run, and what result would change your mind are blank in `findings.
   subtracting nested global counters, and the split is cross-checked against the process counters. `started_at`, `attempts` and
   the error type are groundwork for Week 11 that Week 10 does not read.
 - `app/pricing.py` and the `PRICE_INPUT_PER_MILLION` and `PRICE_OUTPUT_PER_MILLION` settings (default 0, meaning "not stated";
-  documented in `.env.example`): tokens to dollars with prices you state. There is no price table.
+  documented in `.env.example`, which says no Week 10 command reads them): tokens to dollars with prices you state. There is no price table.
 - `evals/race.py`: the team as a third runner (`run_one(task, "team", ...)`), added beside the two Week 7 approaches, which stay
   the default of the Week 7 race (`APPROACHES` is unchanged). An option the team does not take is an error.
 - `evals/team_report.py`, `evals/team_prediction.py`: the numbers and the pre-registered prediction as arithmetic.
@@ -36,7 +37,7 @@ every failed run, and what result would change your mind are blank in `findings.
   ordinary in-process function that runs another agent loop. It keeps Weeks 7 to 9 untouched and makes the team measurable
   with the instruments that already exist. Neither MCP nor A2A is involved.
 - **A specialist sees only the question the manager sends.** That is the lean hand-off: the whole conversation is not forwarded.
-  The cost a hand-off that did forward it would have added is reported as a derived lower bound, not run.
+  The cost a hand-off that did forward it would have added is reported as a derived estimate between a floor and a ceiling, not run.
 - **One token budget and one time limit for the team, per-agent step limits.** The budgets are the single agent's, checked by the
   manager between its calls and handed to each specialist as what is left, so the team cannot spend more than one agent could.
   The step limits are per agent (manager 8, researcher 8, calculator 4), so the team's total number of calls is not capped as a
@@ -52,15 +53,26 @@ every failed run, and what result would change your mind are blank in `findings.
 - **Usage the way every arm measures it.** A run's usage is what the process counters moved by (as `run_agent` and the workflow do).
   The per-call records split it by agent and cross-check it; a difference is a warning in the result, and a race stops on one.
 - **Cost without a price table.** The free tier bills nothing and any price put in the code would be a guess that looks like a fact.
-  The report gives cost in relative units (an input token is 1 unit, an output token r units), the claim that holds for any prices
-  (the cost ratio lies between the input-token ratio and the output-token ratio), and requests; dollars only from prices you pass
+  The report gives cost in relative units (an input token is 1 unit, an output token r units), the claim that holds for any one input
+  price and one output price (the cost ratio lies between the input-token ratio and the output-token ratio; a cheaper price for cached input is a
+  third price it does not cover), and requests; dollars only from prices you pass
   with their source. The report never reads the `PRICE_*` settings, so a stale `.env` cannot put dollars into a saved report.
 - **Quality is described, not ranked.** The nine tasks leave the single agent near the ceiling, the three repeats of a task are
   correlated, and the rule checks match words. The report gives intervals, the discordant pairs with the exact McNemar p, every
   failed run in full, and a sensitivity view that drops every unit in which any agent hit a limit or the provider failed.
-- **Frozen before it counts.** A race refuses code that is not committed; only a pilot (`pilot-` label) may run on an uncommitted
-  tree. Each result records the commit and a hash of the code, prompts, checks, tasks and corpus, and `--resume` refuses after any
-  of them changed. The prediction is committed before the race. Everything the pilots found is listed below.
+- **Frozen before it counts.** A race refuses code that is not committed (the race's own result files and the cache do not count as code),
+  refuses when git cannot be read, and refuses when `prediction.md` is not committed and unchanged; only a pilot (`pilot-` label) may run on
+  an uncommitted tree. Each result records the commit, a hash of every code file under `app/` and `evals/` and of the two race scripts, the
+  prompts, checks, tasks, corpus, the settings that change a run and the prediction document's git blob, and `--resume` refuses after any
+  of them changed. A resume keeps the first stamp, records itself, lists arms added by it as not interleaved, and runs again the runs that
+  ended on provider trouble. Everything the pilots found is listed below.
+- **A request is what the quota counts.** `--max-calls` counts every attempt, retries and failed calls included, because a free key's day is
+  spent in requests. The outage stop is kept per arm, so a failure that hits only the team stops the race at the team's third failed run.
+- **A partial race gets no verdict.** The prediction's thresholds are registered for 9 tasks x 3 repeats, 27 units. A race that is incomplete,
+  or that leaves another number of usable units, is read and shown but not judged; an empty reply counts as provider trouble.
+- **A crashed specialist keeps its record, and a quota stop starts nothing more.** The hand-off record carries the calls, tokens and steps the
+  specialist had made when it died, so the saved record never contradicts the per-agent split; after a daily-quota stop in a specialist the
+  manager's remaining hand-offs of that step are refused without a model call.
 - **Pilots on other questions.** The prompts were shaken down on questions from the Week 5 bank that are not race tasks (any
   question close to a race task is left out by a script), plus two calculation questions of my own, because no bank question needs
   a calculation. A prompt changed once as a result.
@@ -70,7 +82,7 @@ every failed run, and what result would change your mind are blank in `findings.
 | | single agent | team |
 |---|---|---|
 | prompt | the Week 7 prompt, unchanged | one per agent; sentences borrowed from the single agent's are word for word (tested) |
-| tools | search, calculate, add days | the manager: two hand-offs; researcher: search; calculator: calculate, add days |
+| tools | search, calculate, add days (and the scratchpad `remember`) | the manager: two hand-offs (and `remember`); researcher: search; calculator: calculate, add days (and `remember`) |
 | steps | 8 in all | manager 8, researcher 8, calculator 4, each its own |
 | token budget and time limit | 40,000 tokens, 300 s | the same, shared by the whole team |
 | memory (scratchpad, shortening of old results) | on | on, every agent |
@@ -110,7 +122,7 @@ Sentences only the team's prompts have, with their purpose and the check they co
 
 ## The prediction, written before the race
 
-In `prediction.md`, committed after the code and the prompts and before the first race run, as arithmetic in `evals/team_prediction.py`. Every prediction is about a measured quantity and none says which design to use. A test checks that the thresholds in that file are the ones written there.
+In `prediction.md`, committed after the code and the prompts and before the first race run (the race script refuses to start unless it is committed and unchanged), as arithmetic in `evals/team_prediction.py`. Every prediction is about a measured quantity and none says which design to use. A test checks that the thresholds in that file are the ones written there, and that the range it quotes from `--plan` is the range the plan computes. The thresholds are registered for 9 tasks x 3 repeats; a race of another size is not judged against them.
 
 ## Pilots and live runs made before the race
 
@@ -147,4 +159,18 @@ To be written last, from the final code, with line numbers at the `week-10` tag.
 
 ## Left as they are, and said here
 
-To be completed after the race and the reviews.
+- After a daily-quota stop inside a specialist, the manager still makes its own next request before the run is raised (the existing test
+  pins that the manager is told not to ask again); only the remaining hand-offs are refused. Raising from the manager's step would save one request.
+- A model call whose step never reaches the loop's `on_step` still counts in the calls and tokens but has no step of its own; closing that would
+  change `loop.py`.
+- A value in a run record that cannot be saved as JSON ends the race with a traceback after saving what finished, instead of being dropped; a lone
+  surrogate in an answer is replaced first. No real record holds one.
+- The order of arms inside a unit is balanced for who goes first but not for who goes before whom: with `--noise`, the single agent runs before the team
+  in 18 of 27 units. Six orders cannot balance 27 units.
+- `meta["interleaved"]` stays true after a resume that adds an arm, and `meta["llm_rpm"]` stays the first session's value; the caveat and the
+  later rates are in `not_interleaved_arms` and `resumed`.
+- The pilot's "not a race task" guard is word overlap (Jaccard 0.6), so a sub-question of a race task can pass; none of the pilot questions is a race task
+  as written.
+- The 500-request day is the lite-model figure measured in Week 8; the model raced may allow another number.
+- One model on one day, three repeats of nine tasks: variation between races is not measured, and the report says so.
+- To be completed after the race.
