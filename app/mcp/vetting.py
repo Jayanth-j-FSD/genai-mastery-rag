@@ -18,15 +18,18 @@ The checks, each a plain rule a reviewer can disagree with:
   name          letters, digits, underscore and hyphen only, not absurdly long, and not a name the agent loop
                 reserves for itself ("remember")
   text          present, not enormous, free of control, zero-width, private-use and unassigned characters, free
-                of words that mix alphabets (a Latin word with one Cyrillic letter), and free of
-                instruction-like text, read across line breaks (Week 8's sanitizer patterns, so there is one
-                definition of "instruction-like")
+                of words that mix Latin with Cyrillic, Greek or Armenian letters (a Latin word with one Cyrillic
+                letter; words of up to three letters are not judged, so units such as "kΩ" pass), and free of
+                instruction-like text, read across line breaks and with look-alike letters made plain (Week 8's
+                sanitizer patterns, so there is one definition of "instruction-like", plus a few patterns for the
+                shapes a tool-poisoning payload takes)
   schema        an object with a modest number of well-named parameters and a modest total size
   read-only     optionally, only tools the server itself declares read-only (readOnlyHint)
 
-What it cannot do: a plain-English instruction that uses none of the sanitizer's trigger words passes, and a
-harmless description that happens to use one is refused (the operator can reword their own server, but not
-someone else's). Pattern matching is a filter, not a proof.
+What it cannot do: a plain-English instruction that uses none of the trigger words passes, a look-alike letter
+outside the small table below passes, and a harmless description that happens to use a trigger word is refused (the
+operator can reword their own server, but not someone else's). A character this Python's Unicode tables do not know
+yet is refused, and so is a parameter name such as `$top` or `filter[status]`. Pattern matching is a filter, not a proof.
 """
 import json
 import re
@@ -40,6 +43,30 @@ MAX_DESCRIPTION_CHARS = 1200
 MAX_SCHEMA_CHARS = 8000
 MAX_PARAMETERS = 12
 RESERVED_NAMES = frozenset({"remember"})                        # the agent loop adds its memory tool under this name
+_OTHER_ALPHABETS = ("CYRILLIC", "GREEK", "ARMENIAN", "CHEROKEE", "COPTIC")
+
+# Latin look-alikes that Unicode compatibility folding does not make plain: a script g, a dotless i, the small capitals.
+# Used only to read a COPY of the text for matching; the text itself is never changed.
+_CONFUSABLES = str.maketrans({
+    0x0261: "g", 0x0251: "a", 0x0131: "i", 0x026A: "i", 0x1D00: "a", 0x0299: "b", 0x1D04: "c", 0x1D05: "d", 0x1D07: "e",
+    0xA730: "f", 0x0262: "g", 0x029C: "h", 0x1D0A: "j", 0x1D0B: "k", 0x029F: "l", 0x1D0D: "m", 0x0274: "n", 0x1D0F: "o",
+    0x1D18: "p", 0x0280: "r", 0xA731: "s", 0x1D1B: "t", 0x1D1C: "u", 0x1D20: "v", 0x1D21: "w", 0x028F: "y", 0x1D22: "z"})
+
+# The shapes a tool-poisoning payload takes in a tool definition, beyond the Week 8 sanitizer's phrases.
+_POISON_PATTERNS = [
+    re.compile(r"<\s*/?\s*(important|system|instructions?|secret|admin)\b", re.I),
+    re.compile(r"\b(do not|don't|never)\s+(tell|mention|reveal|inform|disclose|let)\b.{0,40}\b(user|human|anyone)\b", re.I),
+    re.compile(r"\b(before|prior to)\s+(using|calling|you use|you call)\s+this tool\b", re.I),
+    re.compile(r"\b(call|use)\s+this tool\s+(first|before)\b|\balways\s+call\s+this\s+tool\b", re.I),
+    re.compile(r"~/|\.ssh\b|\bid_rsa\b|/etc/passwd|\.env\b|%userprofile%", re.I),
+]
+
+
+def _fold(text):
+    """A copy of the text for matching only: compatibility forms made plain (NFKD), combining marks dropped, and the
+    few Latin look-alikes in the table above mapped to their plain letter."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(char for char in decomposed if unicodedata.category(char) not in ("Mn", "Me")).translate(_CONFUSABLES)
 
 
 def is_plain_name(name):
@@ -49,16 +76,25 @@ def is_plain_name(name):
 
 def _odd_character(text):
     """The first character that has no business in a tool description: a control, format (zero-width, tag),
-    private-use or unassigned character. Newlines and tabs are fine."""
-    for char in text:
-        if char not in "\n\t" and unicodedata.category(char) in ("Cc", "Cf", "Co", "Cn"):
-            return char
+    private-use or unassigned character. Line breaks (CR and LF) and tabs are fine, and so is a zero-width joiner
+    inside an emoji sequence."""
+    for index, char in enumerate(text):
+        if char in "\r\n\t" or unicodedata.category(char) not in ("Cc", "Cf", "Co", "Cn"):
+            continue
+        if char == "\u200d" and 0 < index < len(text) - 1:
+            before = text[index - 1] if unicodedata.category(text[index - 1]) != "Mn" or index < 2 else text[index - 2]
+            if unicodedata.category(before) in ("So", "Sk") and unicodedata.category(text[index + 1]) == "So":
+                continue
+        return char
     return None
 
 
 def _mixed_alphabet_word(text):
-    """A word that mixes Latin letters with another alphabet: the look-alike trick ("ignоre" with a Cyrillic o)."""
-    for word in re.findall(r"\w+", text):
+    """A word that mixes Latin letters with Cyrillic, Greek or Armenian: the look-alike trick ("ignоre" with a Cyrillic
+    o). A word of up to three letters is not judged, because units and symbols mix alphabets innocently ("µs", "kΩ")."""
+    for word in re.findall(r"\w+", unicodedata.normalize("NFKC", text)):
+        if len(word) <= 3:
+            continue
         scripts = set()
         for char in word:
             if char.isalpha():
@@ -66,7 +102,7 @@ def _mixed_alphabet_word(text):
                     scripts.add(unicodedata.name(char).split()[0])
                 except ValueError:
                     scripts.add("UNKNOWN")
-        if "LATIN" in scripts and len(scripts) > 1:
+        if "LATIN" in scripts and scripts & set(_OTHER_ALPHABETS):
             return word
     return None
 
@@ -98,9 +134,14 @@ def _text_problem(text):
     word = _mixed_alphabet_word(text)
     if word:
         return f"a word that mixes alphabets ({plain(word)})"
-    findings = sanitize(" ".join(text.split()))[1]            # whitespace folded, so a phrase wrapped over a line still matches
+    folded = " ".join(_fold(text).split())                  # whitespace folded and look-alikes made plain: a wrapped or disguised phrase still matches
+    findings = sanitize(folded)[1]
     if findings:
         return f"instruction-like text (possible tool poisoning): {plain(findings[0], 120)}"
+    for pattern in _POISON_PATTERNS:
+        match = pattern.search(folded)
+        if match:
+            return f"text that reads like a tool-poisoning payload ({plain(match.group(0), 40)})"
     return None
 
 

@@ -1,16 +1,12 @@
 """The MCP client side of the agent (Week 9): connect to MCP servers, discover their tools, hand them over.
 
-MCP (the Model Context Protocol) is a standard "socket" between an AI app and tools. Three
-roles, and the answer to "where does the AI run?" is in the first two:
+MCP (the Model Context Protocol) is a standard "socket" between an AI app and tools. Three roles:
 
-  HOST    the program that contains the AI integration. Here that is our agent: the loop in app/agent/loop.py and the
-          model calls it makes. The host decides what to ask the model and when to call a tool. In this project the
-          model itself is a hosted API (Gemini), so its computation happens at the provider. What matters for MCP is
-          that no model runs in, or is called by, a server.
+  HOST    the application that integrates a model and decides what to ask it and when to call a tool. Here that is
+          our agent: the loop in app/agent/loop.py.
   CLIENT  a connector inside the host that speaks MCP to exactly ONE server. This file builds them.
-  SERVER  a separate program that offers tools (app/mcp/servers/). It contains no AI and does not call one. It only
-          answers "list your tools" and "run this tool with these arguments", and sees the client's name and
-          version, nothing about which model, if any, is behind it.
+  SERVER  a separate program that offers tools (app/mcp/servers/) and answers "list your tools" and "run this tool
+          with these arguments".
 
 Discovery is the point. The agent is never told which tools exist. At start-up this module connects to each
 server listed in a config file, asks it "tools/list", vets every answer, and wraps what passes as an ordinary
@@ -21,15 +17,16 @@ Transport is stdio: the host starts each server as a child process and they exch
 per line, on its standard input and output (see scripts/mcp_raw_demo.py to watch them). A child process gets
 only a small safe set of environment variables plus what the config gives it, so a server never inherits
 your API key from the environment. It does run in the project folder, so it could still read a file there
-such as .env: the guarantee is about inherited variables, not about files. The MCP library is asynchronous and
+such as .env: the guarantee is about inherited variables, not about files. A config entry runs a program on this
+machine, so list only servers you trust. The MCP library is asynchronous and
 the agent loop is not, so a background thread runs the event loop and this class offers plain blocking calls.
 """
 import asyncio
 import json
-import os
 import sys
 import threading
 import time
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -39,6 +36,10 @@ from app.agent.toolkit import Tool, ToolError
 from app.config import BASE_DIR
 from app.mcp.vetting import RESERVED_NAMES, is_plain_name, plain, vet_tool
 
+GUARDED_NAMES = frozenset({"add_days", "calculate", "search_policies"})   # names the agent's prompt and the Week 8 guard key on
+MAX_TOOLS_PER_SERVER = 40      # every accepted definition goes into every model request, so the number is capped
+MAX_DEFINITION_CHARS = 60000   # ...and so is the total size of all the definitions together
+MAX_SERVER_NAME = 32
 MAX_PAGES = 20                 # tools/list is paged; a server that never stops paging is refused, not followed forever
 MAX_RESULT_CHARS = 8000        # a longer tool result is cut, so one result cannot swamp the model's context
 _WAIT_SLICE = 0.2              # seconds: waiting in short slices keeps Ctrl+C responsive on Windows
@@ -62,9 +63,10 @@ def load_specs(path):
     """Read a config file of the form {"servers": [{"name", "command", "args", "env", "cwd", "allow"}, ...]}."""
     with open(path, encoding="utf-8") as handle:
         data = json.load(handle)
-    servers = data.get("servers", []) if isinstance(data, dict) else None
+    servers = data.get("servers") if isinstance(data, dict) else None
     if not isinstance(servers, list):
-        raise ValueError('the config must look like {"servers": [ ... ]}')
+        found = f" (the top-level keys are {sorted(data)})" if isinstance(data, dict) else ""
+        raise ValueError('the config must look like {"servers": [ ... ]}' + found)
     specs, seen = [], set()
     for entry in servers:
         if not isinstance(entry, dict):
@@ -73,6 +75,9 @@ def load_specs(path):
         command = entry.get("command")
         if not name or not isinstance(command, str) or not command.strip():
             raise ValueError(f"every server needs a name and a command, got {entry!r}")
+        if not is_plain_name(name) or len(name) > MAX_SERVER_NAME:
+            raise ValueError(f"server name {name!r} must be a plain identifier of at most {MAX_SERVER_NAME} characters "
+                             "(letters, digits, underscore, hyphen; it can become part of a tool name)")
         if name in seen:
             raise ValueError(f"two servers are called {name!r}")
         seen.add(name)
@@ -95,8 +100,32 @@ def _launch_parameters(spec):
                                  cwd=spec.cwd or str(BASE_DIR))
 
 
+def _definition_size(tool):
+    """How many characters this tool's definition adds to every model request."""
+    return len(json.dumps({"name": tool.name, "description": tool.description or "", "parameters": tool.input_schema or {}}, default=str))
+
+
+def _seconds(count):
+    return f"{count:.0f} second" + ("" if round(count) == 1 else "s")
+
+
+def _printable(text):
+    """A tool result with control and invisible characters shown as text (a server cannot clear the screen or retitle the
+    window through a result). Line breaks and tabs stay."""
+    shown = []
+    for char in text:
+        if char in "\n\t" or unicodedata.category(char) not in ("Cc", "Cf"):
+            shown.append(char)
+        elif ord(char) < 256:
+            shown.append(chr(92) + "x" + format(ord(char), "02x"))
+        else:
+            shown.append(chr(92) + "u" + format(ord(char), "04x"))
+    return "".join(shown)
+
+
 def _text_of(result):
-    """The readable text of a tool result: its text blocks joined, or the structured content as JSON. Cut when huge."""
+    """The readable text of a tool result: its text blocks joined, or the structured content as JSON. Cut when huge,
+    control characters shown escaped."""
     parts = [block.text for block in (result.content or []) if getattr(block, "type", "") == "text"]
     if parts:
         text = "\n".join(parts)
@@ -105,7 +134,7 @@ def _text_of(result):
         text = json.dumps(structured, ensure_ascii=False) if structured is not None else ""
     if len(text) > MAX_RESULT_CHARS:
         text = text[:MAX_RESULT_CHARS] + f"... [cut: the result was {len(text)} characters long]"
-    return text
+    return _printable(text)
 
 
 def _why(exc):
@@ -126,6 +155,9 @@ class MCPToolProvider:
 
     def __init__(self, specs, call_timeout=30.0, connect_timeout=60.0, require_read_only=False):
         self.specs = list(specs)
+        names = [spec.name for spec in self.specs]
+        if len(set(names)) != len(names):
+            raise ValueError(f"two servers are called {sorted(name for name in set(names) if names.count(name) > 1)[0]!r}")
         self.call_timeout, self.connect_timeout, self.require_read_only = call_timeout, connect_timeout, require_read_only
         self.tools, self.rejected, self.rows = [], [], []
         self._loop = self._thread = None
@@ -151,7 +183,7 @@ class MCPToolProvider:
             for spec in self.specs:
                 try:
                     discovered[spec.name] = self._wait(starting[spec.name], self.connect_timeout,
-                                                       f"it did not finish starting within {self.connect_timeout:.0f} seconds")
+                                                       f"it did not finish starting within {_seconds(self.connect_timeout)}")
                 except Exception as exc:        # Ctrl+C (BaseException) goes straight to the cleanup below
                     raise MCPServerError(f"the MCP server {spec.name!r} could not be started: {_why(exc)}") from exc
             self._build_tools(discovered)
@@ -180,8 +212,8 @@ class MCPToolProvider:
             try:
                 return future.result(_WAIT_SLICE)
             except TimeoutError:
-                if future.done():              # the coroutine itself raised it: pass it on as it is
-                    raise
+                if future.done():              # it finished while the slice ran out: its result, or the error it raised itself
+                    return future.result()
                 if time.monotonic() >= deadline:
                     future.cancel()
                     raise TimeoutError(what) from None
@@ -221,6 +253,9 @@ class MCPToolProvider:
     async def _shutdown(self):
         for stop in self._stops.values():
             stop.set()
+        for name, task in self._tasks.items():
+            if name not in self._clients:      # never connected: there is nothing to close politely, so cancel it at once
+                task.cancel()
         tasks = list(self._tasks.values())
         if tasks:
             _done, pending = await asyncio.wait(tasks, timeout=5)
@@ -234,16 +269,23 @@ class MCPToolProvider:
         """Vet every discovered tool first, then name the accepted ones.
 
         Names are made unique only among the tools that were ACCEPTED, so a refused tool cannot rename a good one.
-        Two accepted tools that share a name get a server prefix; a tool offered twice by one server, or one whose
-        name collides with the agent's own, is refused.
+        Two accepted tools that share a name get a server prefix, except for the names the agent's prompt and the
+        Week 8 guard key on (GUARDED_NAMES): the first server that offers one keeps it and a later copy is refused,
+        because a prefixed copy would escape the guard. A tool offered twice by one server, one whose name collides
+        with the agent's own, and any tool past the per-server or the total size limit are refused.
         """
-        accepted = []
+        accepted, total = [], 0
         for spec in self.specs:
-            names_here = set()
+            names_here, count_here = set(), 0
             for tool in discovered[spec.name]:
                 ok, reason = vet_tool(spec.name, tool, allow=spec.allow, require_read_only=self.require_read_only)
                 if ok and tool.name in names_here:
                     ok, reason = False, f"{spec.name}.{tool.name} is offered twice by this server"
+                size = _definition_size(tool) if ok else 0
+                if ok and count_here >= MAX_TOOLS_PER_SERVER:
+                    ok, reason = False, f"{spec.name}.{tool.name} is past the limit of {MAX_TOOLS_PER_SERVER} tools from one server"
+                elif ok and total + size > MAX_DEFINITION_CHARS:
+                    ok, reason = False, f"{spec.name}.{tool.name} would take all the tool definitions past {MAX_DEFINITION_CHARS} characters"
                 row = {"server": spec.name, "tool": tool.name, "accepted": ok, "reason": reason,
                        "description": (tool.description or "").strip()}
                 self.rows.append(row)
@@ -251,11 +293,21 @@ class MCPToolProvider:
                     self.rejected.append(row)
                     continue
                 names_here.add(tool.name)
+                count_here, total = count_here + 1, total + size
                 accepted.append((spec, tool, row))
         counts = Counter(tool.name for _spec, tool, _row in accepted)
         used = set(RESERVED_NAMES)
         for spec, tool, row in accepted:
-            public_name = tool.name if counts[tool.name] == 1 else f"{spec.name}__{tool.name}"
+            if tool.name in GUARDED_NAMES and counts[tool.name] > 1:
+                if tool.name in used:
+                    row["accepted"] = False
+                    row["reason"] = (f"{spec.name}.{tool.name}: another server already provides {tool.name}, a name the agent's "
+                                     "prompt and defences key on, so a second copy is refused and not renamed")
+                    self.rejected.append(row)
+                    continue
+                public_name = tool.name
+            else:
+                public_name = tool.name if counts[tool.name] == 1 else f"{spec.name}__{tool.name}"
             if not is_plain_name(public_name) or public_name in used:
                 row["accepted"] = False
                 row["reason"] = (f"{spec.name}.{tool.name} would have to be called {plain(public_name)!r}, which is "
@@ -263,6 +315,7 @@ class MCPToolProvider:
                 self.rejected.append(row)
                 continue
             used.add(public_name)
+            row["public"] = public_name
             self.tools.append(Tool(public_name, row["description"], dict(tool.input_schema or {"type": "object"}),
                                    self._caller(spec.name, tool.name)))
 
@@ -280,7 +333,7 @@ class MCPToolProvider:
             result = self._wait(asyncio.run_coroutine_threadsafe(client.call_tool(tool_name, arguments or {}), self._loop),
                                 self.call_timeout, "no answer")
         except TimeoutError:
-            raise ToolError(f"the MCP server {server!r} did not answer within {self.call_timeout:.0f} seconds. Try something else.")
+            raise ToolError(f"the MCP server {server!r} did not answer within {_seconds(self.call_timeout)}. Try something else.")
         except Exception as exc:
             raise ToolError(f"the MCP server {server!r} failed ({_why(exc)}). Try something else.")
         text = _text_of(result)
@@ -296,5 +349,7 @@ class MCPToolProvider:
         for row in self.rows:
             mark = "  " if row["accepted"] else "X "
             summary = plain(" ".join(row["description"].split()), 70) if row["accepted"] else plain(row["reason"], 160)
-            lines.append(f"  {mark}{plain(row['server'], 30)}.{plain(row['tool'], 40):<22} {summary}")
+            public = row.get("public")
+            called = f"  [called {plain(public, 40)}]" if row["accepted"] and public and public != row["tool"] else ""
+            lines.append(f"  {mark}{plain(row['server'], 30)}.{plain(row['tool'], 40):<22} {summary}{called}")
         return lines

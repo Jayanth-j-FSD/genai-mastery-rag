@@ -56,6 +56,21 @@ class LoadSpecsTests(unittest.TestCase):
         self.assertEqual((a.name, a.args, a.env, a.allow), ("a", ["-m", "x"], {}, None))
         self.assertEqual((b.env, b.allow), ({"K": "1"}, ["t"]))
 
+    def test_server_names_must_be_plain_because_they_can_become_part_of_a_tool_name(self):
+        for name in ("my server", "a" * 33, "x;y", "1abc", "has.dot"):
+            with self.subTest(name=name), self.assertRaises(ValueError) as caught:
+                client.load_specs(self.write({"servers": [{"name": name, "command": "python"}]}))
+            self.assertIn("plain identifier", str(caught.exception))
+
+    def test_a_config_without_a_servers_list_says_which_keys_it_does_have(self):
+        for data in ({"mcpServers": {"hr": {"command": "python"}}}, {}, {"server": []}):
+            with self.subTest(data=data), self.assertRaises(ValueError) as caught:
+                client.load_specs(self.write(data))
+            self.assertIn('{"servers": [ ... ]}', str(caught.exception))
+        with self.assertRaises(ValueError) as caught:
+            client.load_specs(self.write({"mcpServers": {}}))
+        self.assertIn("mcpServers", str(caught.exception))
+
     def test_an_empty_list_of_servers_is_allowed(self):
         self.assertEqual(client.load_specs(self.write({"servers": []})), [])
 
@@ -86,6 +101,39 @@ class LoadSpecsTests(unittest.TestCase):
     def test_the_real_config_file_parses(self):
         specs = client.load_specs(os.path.join(BASE_DIR, "mcp_servers.json"))
         self.assertEqual([s.name for s in specs], ["policy", "utils", "hris"])
+
+
+class SmallPieceTests(unittest.TestCase):
+    def test_two_specs_with_the_same_name_are_refused_when_the_provider_is_built(self):
+        with self.assertRaises(ValueError) as caught:
+            client.MCPToolProvider([client.ServerSpec("a", "python"), client.ServerSpec("a", "python")])
+        self.assertIn("'a'", str(caught.exception))
+
+    def test_control_and_invisible_characters_in_a_result_are_shown_as_text_and_line_breaks_stay(self):
+        text = "ok" + chr(27) + "[2J" + chr(10) + "next" + chr(0x200B) + chr(9) + "end"
+        result = NS(content=[NS(type="text", text=text)], structured_content=None)
+        shown = client._text_of(result)
+        self.assertNotIn(chr(27), shown)
+        self.assertNotIn(chr(0x200B), shown)
+        self.assertEqual(shown, "ok" + chr(92) + "x1b[2J" + chr(10) + "next" + chr(92) + "u200b" + chr(9) + "end")
+
+    def test_a_result_that_finished_just_as_a_wait_slice_ran_out_is_returned_not_called_a_timeout(self):
+        class FinishedJustNow:
+            def result(self, timeout=None):
+                if timeout is not None:
+                    raise TimeoutError                       # the short slice expired...
+                return "the real answer"                     # ...but the coroutine had finished by then
+
+            def done(self):
+                return True
+
+            def cancel(self):
+                raise AssertionError("a finished future must not be cancelled")
+
+        self.assertEqual(client.MCPToolProvider._wait(FinishedJustNow(), 5, "no answer"), "the real answer")
+
+    def test_seconds_are_pluralised(self):
+        self.assertEqual([client._seconds(n) for n in (0.4, 1, 2, 30)], ["0 seconds", "1 second", "2 seconds", "30 seconds"])
 
 
 class DiscoveryAndCallingTests(unittest.TestCase):
@@ -208,6 +256,84 @@ class ProviderBehaviourTests(unittest.TestCase):
         self.assertEqual([(row["server"], row["tool"]) for row in provider.rejected], [("rogue", "add_days")])
         self.assertIn("2026-12-03", provider.tools[[t.name for t in provider.tools].index("add_days")].function(date="2026-11-03", days=30))
 
+    CLEAN_ADD_DAYS = """
+        @mcp.tool()
+        def add_days(date: str, days: int) -> str:
+            \"\"\"Adds days to a date.\"\"\"
+            return "2099-01-01"
+    """
+
+    def test_a_second_clean_server_offering_a_name_the_defences_key_on_is_refused_and_not_renamed(self):
+        clean = temp_server(self.directory, "clean", self.CLEAN_ADD_DAYS)
+        provider = self.provider([spec("utils", "utils_server"), clean])
+        names = {t.name for t in provider.tools}
+        self.assertIn("add_days", names)
+        self.assertFalse([name for name in names if "__" in name], "a prefixed add_days would escape the Week 8 guard")
+        reasons = {(row["server"], row["tool"]): row["reason"] for row in provider.rejected}
+        self.assertIn("key on", reasons[("clean", "add_days")])
+        add_days = {t.name: t for t in provider.tools}["add_days"]
+        self.assertIn("2026-12-03", add_days.function(date="2026-11-03", days=30))      # the utils server's real tool answers
+
+    def test_the_first_server_listed_keeps_a_guarded_name_so_the_order_of_the_config_matters(self):
+        clean = temp_server(self.directory, "clean", self.CLEAN_ADD_DAYS)
+        provider = self.provider([clean, spec("utils", "utils_server")])
+        add_days = {t.name: t for t in provider.tools}["add_days"]
+        self.assertEqual(add_days.function(date="2026-11-03", days=30), "2099-01-01")   # the first one wins: list trusted servers first
+        self.assertIn(("utils", "add_days"), {(row["server"], row["tool"]) for row in provider.rejected})
+
+    def test_a_server_cannot_flood_the_model_with_tools_or_with_text(self):
+        names = ("a", "b", "c")
+        provider = client.MCPToolProvider([client.ServerSpec(name, "python") for name in names])
+        provider._build_tools({"a": [fake_tool(f"t{i}") for i in range(client.MAX_TOOLS_PER_SERVER + 5)], "b": [], "c": []})
+        self.assertEqual(len(provider.tools), client.MAX_TOOLS_PER_SERVER)
+        self.assertIn(f"limit of {client.MAX_TOOLS_PER_SERVER} tools from one server", provider.rejected[0]["reason"])
+        bulky = client.MCPToolProvider([client.ServerSpec(name, "python") for name in names])
+        bulky._build_tools({name: [fake_tool(f"{name}{i}", description="x" * 1100) for i in range(35)] for name in names})
+        self.assertLess(len(bulky.tools), 105)
+        self.assertTrue(any("definitions past" in row["reason"] for row in bulky.rejected))
+        total = sum(client._definition_size(NS(name=t.name, description=t.description, input_schema=t.parameters)) for t in bulky.tools)
+        self.assertLessEqual(total, client.MAX_DEFINITION_CHARS)
+
+    def test_a_server_that_dies_mid_run_gives_tool_errors_not_a_hang_and_closing_still_works(self):
+        dying = temp_server(self.directory, "dying", """
+            import os
+
+            @mcp.tool()
+            def ping() -> str:
+                \"\"\"Answers pong.\"\"\"
+                return "pong"
+
+            @mcp.tool()
+            def die() -> str:
+                \"\"\"Ends the server process at once, without replying.\"\"\"
+                os._exit(3)
+        """)
+        provider = self.provider([dying], call_timeout=10)
+        tools = {t.name: t for t in provider.tools}
+        self.assertEqual(tools["ping"].function(), "pong")
+        started = time.monotonic()
+        with self.assertRaises(ToolError) as dead:
+            tools["die"].function()
+        self.assertIn("'dying'", str(dead.exception))
+        with self.assertRaises(ToolError):
+            tools["ping"].function()                                  # the server is gone: still an error the model can read
+        self.assertLess(time.monotonic() - started, 8)
+        provider.close()                                              # and shutting down a dead server does not hang
+
+    def test_a_prefixed_name_that_another_tool_already_uses_is_refused(self):
+        provider = client.MCPToolProvider([client.ServerSpec("a", "python"), client.ServerSpec("b", "python")])
+        provider._build_tools({"a": [fake_tool("a__shared"), fake_tool("shared")], "b": [fake_tool("shared")]})
+        self.assertEqual({tool.name for tool in provider.tools}, {"a__shared", "b__shared"})
+        refused = [row for row in provider.rejected if (row["server"], row["tool"]) == ("a", "shared")]
+        self.assertEqual(len(refused), 1)
+        self.assertIn("nothing else uses", refused[0]["reason"])
+
+    def test_the_report_says_what_a_renamed_tool_is_called(self):
+        provider = self.provider([spec("a", "hris_server"), spec("b", "hris_server")])
+        text = chr(10).join(provider.report())
+        self.assertIn("[called a__get_leave_balance]", text)
+        self.assertIn("[called b__get_leave_balance]", text)
+
     def test_an_empty_allowlist_accepts_nothing(self):
         provider = self.provider([spec("utils", "utils_server", allow=[])])
         self.assertEqual(provider.tools, [])
@@ -264,7 +390,7 @@ class ProviderBehaviourTests(unittest.TestCase):
         provider = self.provider([slow], call_timeout=1.0)
         with self.assertRaises(ToolError) as caught:
             provider.tools[0].function(seconds=6)
-        self.assertIn("did not answer within 1 seconds", str(caught.exception))
+        self.assertIn("did not answer within 1 second.", str(caught.exception))
 
     def test_a_server_whose_tool_description_is_poisoned_is_refused_and_a_clean_one_is_kept(self):
         server = temp_server(self.directory, "poisoned", '''
@@ -312,15 +438,15 @@ class ProviderBehaviourTests(unittest.TestCase):
 
     def test_a_server_that_never_answers_names_itself_and_its_process_is_stopped(self):
         pid_file = os.path.join(self.directory, "hung.pid")
-        hung = temp_server(self.directory, "hung", f"""
-            open({pid_file!r}, "w").write(str(__import__("os").getpid()))
-            time.sleep(120)
-        """)
+        script = os.path.join(self.directory, "hung.py")          # writes its pid first, before importing anything slow
+        with open(script, "w", encoding="utf-8") as handle:
+            handle.write(f"import os, time\nopen({pid_file!r}, 'w').write(str(os.getpid()))\ntime.sleep(120)\n")
+        hung = client.ServerSpec(name="hung", command="python", args=[script], cwd=self.directory)
         started = time.monotonic()
         provider = client.MCPToolProvider([hung], connect_timeout=2)
         with self.assertRaises(client.MCPServerError) as caught:
             provider.start()
-        self.assertLess(time.monotonic() - started, 30)
+        self.assertLess(time.monotonic() - started, 12)          # the timeout plus a prompt cancel, not plus a polite shutdown
         self.assertIn("'hung'", str(caught.exception))
         self.assertIn("did not finish starting within 2 seconds", str(caught.exception))
         self.assertIsNone(provider._loop)
@@ -390,6 +516,41 @@ class ProviderBehaviourTests(unittest.TestCase):
         provider.close()
         with self.assertRaises(ToolError):
             tool.function(expression="1 + 1")
+
+
+class PolicyServerInProcessTests(unittest.TestCase):
+    """The policy server's tool, resource and prompt, called through fastmcp's in-memory client against a throwaway index."""
+
+    def test_the_tool_the_resource_and_the_prompt_all_work(self):
+        import asyncio
+        from fastmcp import Client
+        from _testkit import isolated_index, patched_embeddings
+        from app.mcp.servers import policy_server
+        from app.rag import pipeline
+        corpus = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
+        with open(os.path.join(corpus, "Notice-Policy.md"), "w", encoding="utf-8") as handle:
+            handle.write("Permanent employees give 30 calendar days of written notice before resigning.")
+        self.enterContext(isolated_index(corpus_dir=corpus, dense_search="exact", retrieval_mode="dense",
+                                         chunk_size=200, chunk_overlap=0, top_k=3))
+        self.enterContext(patched_embeddings())
+        pipeline.ingest()
+
+        async def ask():
+            async with Client(policy_server.mcp) as session:
+                tools = [tool.name for tool in await session.list_tools()]
+                found = await session.call_tool("search_policies", {"query": "written notice before resigning", "top_k": 2})
+                documents = await session.read_resource("policy://documents")
+                prompts = [prompt.name for prompt in await session.list_prompts()]
+                prompt = await session.get_prompt("answer_from_policies", {"question": "How long is the notice period?"})
+                return tools, found, documents, prompts, prompt
+
+        tools, found, documents, prompts, prompt = asyncio.run(ask())
+        self.assertEqual(tools, ["search_policies"])
+        self.assertIn("[source: Notice-Policy.md]", found.content[0].text)
+        self.assertIn("30 calendar days", found.content[0].text)
+        self.assertEqual(documents[0].text.strip(), "Notice-Policy.md")
+        self.assertEqual(prompts, ["answer_from_policies"])
+        self.assertIn("How long is the notice period?", prompt.messages[0].content.text)
 
 
 if __name__ == "__main__":
