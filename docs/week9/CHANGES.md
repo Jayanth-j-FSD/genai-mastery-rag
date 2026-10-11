@@ -44,7 +44,7 @@ loop imports `app.mcp`. That is the point of the week: the agent gets new capabi
   Cyrillic, Greek or Armenian (a word of up to three letters is let through only when its foreign letters are the
   symbols of units); instruction-like text read across line breaks and with look-alike letters made plain; two different
   signals of the ones a poisoning payload is made of (an order to hide it from the user, an order to act first, a path
-  to a secret, a tag such as `<system>`), counted over one tool's whole definition, with a bare tag such as `<important>`
+  to a secret, a tag such as `<system>`), counted over one tool's whole definition, with a tag such as `<important>`
   counting as two; odd or oversized schemas and anything off an operator's allowlist, and optionally anything not
   declared read-only. A plain instruction with no trigger words passes, a single payload signal passes, a look-alike
   letter outside the table passes, signals in two different tools are not added together, and a harmless description

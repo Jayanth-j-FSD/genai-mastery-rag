@@ -96,7 +96,7 @@ Everything below is built and tested except remote MCP, which is described but n
   the symbols of units, so `100µs` and `kΩ` pass), or contains instruction-like text (read across line breaks, with look-alike
   letters made plain), or two different signals of the ones a payload is made of, counted over the whole definition of one tool (an order to
   hide something from the user, an order to act before or first, a path to a secret such as `~/.ssh`, a tag such as `<system>`;
-  any one alone is an ordinary phrase and passes, and a bare tag such as `<important>` counts as two); if its schema is odd or over 8,000 characters; or if it is not on the operator's
+  any one alone is an ordinary phrase and passes, and a tag such as `<important>` counts as two); if its schema is odd or over 8,000 characters; or if it is not on the operator's
   allowlist; optionally, if it is not declared read-only (`--require-read-only`). One server may offer at most 40
   tools, and all the definitions together may take at most 60,000 characters, because every definition goes into
   every model request. This is a gate, not a guarantee: a plain instruction that uses none of the trigger words
@@ -116,7 +116,7 @@ Everything below is built and tested except remote MCP, which is described but n
   question states or that `add_days` or `calculate` produced, so a date that only the HRIS returned (a probation end,
   say) cannot be given to `add_days`. The script says so before it runs. A tool result is made safe to print: control
   characters, tag characters and lone surrogates are written out as text, a Hangul filler is shown as a space, and a zero-width
-  space, a word joiner and the bidirectional controls are dropped (they draw nothing, and the Week 8 sanitizer strips them
+  space, a word joiner, the invisible operators and the bidirectional controls are dropped (they draw nothing, and the Week 8 sanitizer strips them
   before it matches; it strips a few more, such as joiners and direction marks, which stay in the text because ordinary text
   needs them). What a server writes to its own error
   output goes straight to your terminal and is not screened.
