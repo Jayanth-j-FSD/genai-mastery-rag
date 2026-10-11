@@ -43,6 +43,34 @@ A week is done only when all of these hold. They are the gate before its tag is 
 - **Documented meanings never change.** A later week adds a new function beside the old one. Week 3's
   `retrieve()` still means what its docstring says.
 
+## When git is signed in: the push plan
+
+Nothing here has been run. Git was not signed in while the work was built, and the rule was to push, pull and fetch
+nothing, so what exists is local branches and annotated tags. `main` was never touched.
+
+1. Sign in as the repository's own account (`Jayanth-j-FSD`), not a work account. The remote URL names the account
+   (`git remote -v`); a 403 on push means the wrong account is signed in. Do not use `gh` for this repository.
+2. Look before pushing: `git status` is clean, `git branch -vv` shows the five branches below, `git tag -n1` shows the
+   annotated tags below, and `python scripts/check_all.py --strict` is green on the tip being pushed.
+3. Push the branches, oldest first, then the tags, never with `--force`:
+
+   ```
+   git push origin week-5-hardening week-6-evals week-7-agent-loops week-8-agent-failure-modes week-9-mcp
+   git push origin week-5-hardened week-6 week-7 week-8 week-9
+   ```
+
+   The lightweight tags `week-3`, `week-4` and `week-5` are already on GitHub and are never moved.
+4. Open one pull request per week on the GitHub web page, each against the previous week's branch so it shows only
+   that week's change: `week-5-hardening` into `main`, `week-6-evals` into `week-5-hardening`, `week-7-agent-loops`
+   into `week-6-evals`, `week-8-agent-failure-modes` into `week-7-agent-loops`, and `week-9-mcp` into
+   `week-8-agent-failure-modes`. Start each description from that week's `docs/weekN/CHANGES.md`, and take the test
+   counts from the status table below.
+5. Merge in order with merge commits, no squash, so every tag stays reachable from `main`; retarget the next pull
+   request to `main` after each merge.
+6. After the last merge, `git branch -r --contains week-9` should list `origin/main`.
+7. Before the reviewer reads it, the blanks in the status table are still yours: the branches hold tooling and
+   numbers, never your own notes, observations or decisions.
+
 ## The plan
 
 | Week | Brief in one line | What gets built | Needs you |
