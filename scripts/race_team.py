@@ -247,7 +247,7 @@ def make_meta(label, tasks, repeats, arms, model, started, timeout=DEFAULT_TIMEO
                        "passage chars": agent_tools._MAX_PASSAGE_CHARS, "retrieval mode": settings.retrieval_mode},
             "config": {arm: arm_config(arm, timeout) for arm in arms}, "caps": caps_table(arms, timeout),
             "code": code_stamp(files), "code_files": files, "code_history": [], "settings": settings_snapshot(),
-            "prediction_doc": prediction_doc_state()[0], "corpus": corpus_fingerprint(), "resumed": []}
+            "prediction_doc": prediction_doc_state()[0], "corpus": corpus_fingerprint(), "resumed": [], "not_interleaved_arms": []}
 
 
 def provider_trouble(record):
@@ -374,8 +374,8 @@ def pilot_numbers(path_or_label):
         saved = runner.load_results(path_or_label)
     except FileNotFoundError:
         return None
-    team_runs = [run for run in saved["runs"] if run["arm"] == "team"]
-    agent_runs = [run for run in saved["runs"] if run["arm"] == "agent"]
+    team_runs = [run for run in saved["runs"] if run.get("arm") == "team"]           # a race's rows say "approach", not "arm": not a pilot
+    agent_runs = [run for run in saved["runs"] if run.get("arm") == "agent"]
     if not team_runs or not agent_runs:
         return None
     return {"team": sum(run["calls"] for run in team_runs) / len(team_runs), "agent": sum(run["calls"] for run in agent_runs) / len(agent_runs),
@@ -521,6 +521,61 @@ def keep_other_race(path, meta):
         keep_aside(path)
 
 
+def why_set_aside(record):
+    """Why a run that ended on provider trouble is run again, in the words of the report's own test (team_report.provider_trouble)."""
+    if record["stop_reason"] in team_report.TROUBLE_STOPS:
+        return f"the run ended on {record['stop_reason']}"
+    if any(h.get("stop_reason") in team_report.TROUBLE_STOPS for h in (record.get("team") or {}).get("handoffs", [])):
+        return "a hand-off ended on a provider error"
+    return "the run recorded a usage warning or a team error"
+
+
+def resume(args, tasks, arms, meta, started, path, source):
+    """Load a saved race and make it ready to carry on: (results, arms, None), or (None, None, exit code) when it cannot, or need not, be resumed."""
+    if not os.path.exists(source):
+        print(f"Error: there is no saved race to resume at {display_path(path, BASE_DIR)}.")
+        return None, None, 1
+    try:
+        results = runner.load_results(source)
+    except ValueError as exc:                           # a file cut off by a crash, or edited by hand
+        print(f"Error: {display_path(source, BASE_DIR)} cannot be read as a saved race ({exc}).")
+        return None, None, 1
+    saved_meta = results.get("meta") or {}
+    if "arms" not in saved_meta or any("approach" not in run for run in results.get("runs", [])):
+        print(f"Error: {display_path(source, BASE_DIR)} is not a Week 10 race (it records no arms), so it cannot be resumed.")
+        return None, None, 1
+    same_arms = make_meta(args.label, tasks, args.repeats, saved_meta["arms"], args.model, started, args.timeout)
+    differences = changed_since(saved_meta, same_arms)                        # judged on the arms the saved race has
+    if differences:
+        print("Error: the code or settings changed since this race began, so it cannot be resumed as one race (" + ", ".join(differences)
+              + "). Race again under a new label; the old file stays as evidence.")
+        return None, None, 1
+    merged = list(dict.fromkeys(list(saved_meta["arms"]) + arms))
+    trouble = [team_report.provider_trouble(run) for run in results["runs"]]  # the report's own test: such a run measured the provider, not the design
+    have = {(run["repeat"], run["task_id"], run["approach"]) for run, bad in zip(results["runs"], trouble) if not bad}
+    if saved_meta.get("complete") and source == path and all((repeat, task["id"], arm) in have for repeat, task, arm in build_plan(tasks, args.repeats, merged)):
+        print(f"Nothing to resume: the race saved as {display_path(path, BASE_DIR)} is complete and has every run. Nothing was changed.")
+        return None, None, 0                            # a resume that runs nothing must not rewrite the file or its provenance
+    aside = [run for run, bad in zip(results["runs"], trouble) if bad]
+    if aside:                                           # kept as they were, so nothing is lost, but they run again instead of counting as failures
+        saved_meta["set_aside_runs"] = list(saved_meta.get("set_aside_runs") or []) + [dict(run, set_aside_because=why_set_aside(run)) for run in aside]
+        results["runs"] = [run for run, bad in zip(results["runs"], trouble) if not bad]
+        print(f"Set aside {len(aside)} run(s) that ended on provider trouble: they run again, and stay in the file under set_aside_runs "
+              f"({', '.join(f'{run['task_id']} {run['approach']} #{run['repeat']}' for run in aside[:5])}{', ...' if len(aside) > 5 else ''}).")
+    added = [arm for arm in merged if arm not in saved_meta["arms"]]
+    saved_meta["arms"] = saved_meta["approaches"] = merged
+    saved_meta["models"] = {arm: args.model for arm in merged}
+    saved_meta["noise_arm"] = team_report.NOISE if team_report.NOISE in merged else None
+    saved_meta["config"] = {arm: arm_config(arm, args.timeout) for arm in merged}
+    saved_meta["caps"] = caps_table(merged, args.timeout)
+    saved_meta["code_history"] = list(saved_meta.get("code_history") or []) + [{"at": started, "code": meta["code"]}]    # meta.code stays the stamp the race BEGAN on
+    saved_meta["resumed"] = [entry if isinstance(entry, dict) else {"at": entry} for entry in saved_meta.get("resumed") or []] + [
+        {"at": started, "arms_added": added, "rpm": settings.llm_rpm, "model": args.model, "code": meta["code"]}]
+    saved_meta["not_interleaved_arms"] = list(dict.fromkeys(list(saved_meta.get("not_interleaved_arms") or []) + added))   # they ran after the others
+    saved_meta.update(complete=False, stopped_because=None)
+    return results, merged, None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Race the team against the single agent on the same tasks.")
     parser.add_argument("--label", default=None, help="name of this race (saved as evals/results/race-<label>.json)")
@@ -589,6 +644,9 @@ def main(argv=None):
     if args.model.endswith("-latest"):
         print(f"Error: {args.model} is an alias that moves. Name the model itself.")
         return 1
+    if args.label == "race":
+        print("Error: the label race is reserved: race-race.json is the saved Week 7 race that --plan reads. Pick another label.")
+        return 1
     if args.resume and args.force:
         print("Error: --resume carries a race on and --force starts it over: pick one.")
         return 1
@@ -627,31 +685,9 @@ def main(argv=None):
               "or --force to start over.")
         return 1
     if args.resume:
-        if not os.path.exists(source):
-            print(f"Error: there is no saved race to resume at {display_path(path, BASE_DIR)}.")
-            return 1
-        results = runner.load_results(source)
-        same_arms = make_meta(args.label, tasks, args.repeats, results["meta"]["arms"], args.model, started, args.timeout)
-        differences = changed_since(results["meta"], same_arms)               # judged on the arms the saved race has
-        if differences:
-            print("Error: the code or settings changed since this race began, so it cannot be resumed as one race (" + ", ".join(differences)
-                  + "). Race again under a new label; the old file stays as evidence.")
-            return 1
-        saved_meta = results["meta"]
-        merged = list(dict.fromkeys(list(saved_meta["arms"]) + arms))
-        have = {(r["repeat"], r["task_id"], r["approach"]) for r in results["runs"]}
-        if saved_meta.get("complete") and source == path and all((repeat, task["id"], arm) in have for repeat, task, arm in build_plan(tasks, args.repeats, merged)):
-            print(f"Nothing to resume: the race saved as {display_path(path, BASE_DIR)} is complete and has every run. Nothing was changed.")
-            return 0                                    # a resume that runs nothing must not rewrite the file or its provenance
-        saved_meta["arms"] = saved_meta["approaches"] = merged
-        saved_meta["models"] = {arm: args.model for arm in saved_meta["arms"]}
-        saved_meta["noise_arm"] = team_report.NOISE if team_report.NOISE in saved_meta["arms"] else None
-        saved_meta["config"] = {arm: arm_config(arm, args.timeout) for arm in saved_meta["arms"]}
-        saved_meta["caps"] = caps_table(saved_meta["arms"], args.timeout)
-        saved_meta["code_history"] = list(saved_meta.get("code_history") or []) + [{"at": started, "code": meta["code"]}]    # meta.code stays the stamp the race BEGAN on
-        saved_meta["resumed"] = list(saved_meta.get("resumed") or []) + [started]
-        saved_meta.update(complete=False, stopped_because=None)
-        arms = saved_meta["arms"]
+        results, arms, exit_code = resume(args, tasks, arms, meta, started, path, source)
+        if results is None:
+            return exit_code
     else:
         if args.force:
             try:

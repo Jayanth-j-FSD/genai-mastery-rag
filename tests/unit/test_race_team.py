@@ -553,6 +553,12 @@ class PlanCommandTests(unittest.TestCase):
         code, text = captured(race_team.main, ["--plan", "--pilot", "pilot-nope"])
         self.assertEqual((code, "no usable pilot" in text), (1, True))
 
+    def test_a_saved_file_that_is_not_a_pilot_is_a_clear_error_and_not_a_traceback(self):
+        self.saved_week_7()
+        runner.save_results({"meta": {"label": "pilot-w7"}, "runs": [{"approach": "agent", "llm_calls": 3}]}, runner.results_path("pilot-w7"))   # a race's rows have no "arm"
+        code, text = captured(race_team.main, ["--plan", "--pilot", "pilot-w7"])
+        self.assertEqual((code, "no usable pilot" in text), (1, True))
+
 
 class ShowTests(unittest.TestCase):
     def setUp(self):
