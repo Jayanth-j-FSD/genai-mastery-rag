@@ -95,9 +95,32 @@ class HandOffTests(TeamTestCase):
         told = []
         run, _client = self.run_team([asks(to_researcher("m1")), says("30 calendar days"), says("done")], on_step=told.append)
         self.assertEqual([(s["n"], s["agent"], s["handoff"], s["local_n"]) for s in told],
-                         [(1, "researcher", 1, 1), (2, "manager", None, 1), (3, "manager", None, 2)])     # the manager's step that asked comes after the work it caused
+                         [(2, "researcher", 1, 1), (1, "manager", None, 1), (3, "manager", None, 2)])     # the manager's step that asked comes after the work it caused, under the number it has in the saved run
         self.assertEqual(len(told), len(run.steps))
         self.assertEqual([s["agent"] for s in run.steps], ["manager", "researcher", "manager"])           # the returned list is in request order
+
+    def test_every_step_the_caller_is_told_is_the_same_step_the_saved_run_holds_under_the_same_number(self):
+        told = []
+        run, _client = self.run_team([
+            asks(to_researcher("m1"), to_calculator("m2")), says("30 calendar days"),
+            asks(call("c1", "add_days", {"date": "2026-11-03", "days": 30})), says("2026-12-03"),
+            asks(to_researcher("m3", "second thing")), says("another fact"), says("final")], on_step=told.append)
+        self.assertEqual([s["n"] for s in run.steps], list(range(1, 8)))
+        self.assertEqual(sorted(told, key=lambda s: s["n"]), run.steps)               # the console and the saved file cannot disagree about a step
+
+    def test_every_hand_off_belongs_to_a_manager_step_that_is_saved_and_no_step_that_was_told_is_lost_even_when_the_run_is_cut_short(self):
+        shapes = [([asks(to_researcher("m1")), says("30 calendar days")], dict(max_steps=1)),                      # the manager stops right after the hand-off
+                  ([asks(to_researcher("m1"), prompt=60, completion=10), says("30 days", prompt=40, completion=5)], dict(max_total_tokens=100)),
+                  ([asks(to_researcher("m1")), RuntimeError("provider down"), says(IDK)], {}),                   # the specialist fails, the manager goes on
+                  ([asks(to_researcher("m1"), to_calculator("m2")), says("30 days"), says("2026-12-03"), says(IDK)], {})]
+        for script, options in shapes:
+            with self.subTest(options=options):
+                told = []
+                run, _client = self.run_team(script, on_step=told.append, **options)
+                manager_steps = [s for s in run.steps if s["agent"] == "manager"]
+                for handoff in run.team["handoffs"]:
+                    self.assertLessEqual(handoff["after_manager_step"], len(manager_steps))
+                self.assertEqual(len(run.steps), len(told))
 
     def test_a_hand_off_asked_for_with_unreadable_arguments_is_refused_and_the_next_good_one_belongs_to_the_next_manager_step(self):
         run, _client = self.run_team([asks(call("m1", "ask_policy_researcher", "{not json")), asks(to_researcher("m2")),
@@ -148,6 +171,41 @@ class InternalErrorTests(TeamTestCase):
         self.assertFalse(told["ok"])
         self.assertIn("failed unexpectedly (KeyError)", told["observation"])
         self.assertEqual(run.stop_reason, "final")
+
+
+class CrashedSpecialistTests(TeamTestCase):
+    def test_a_specialist_that_dies_after_making_calls_still_shows_them_in_its_hand_off_record_and_its_steps_in_the_run(self):
+        def crashes_on_a_researcher_step(step):             # a bug in the caller's display, say: the loop has already finished that step
+            if step["agent"] == "researcher":
+                raise ValueError("the display broke")
+
+        told = []
+        run, client = self.run_team([
+            asks(to_researcher("m1"), prompt=100, completion=10),
+            asks(call("r1", "search_policies", {"query": "notice"}), prompt=80, completion=8),
+            says(IDK, prompt=60, completion=6)], on_step=lambda step: (told.append(step), crashes_on_a_researcher_step(step)))
+        self.assertEqual(client.script, [])
+        handoff = run.team["handoffs"][0]
+        self.assertEqual((handoff["state"], handoff["stop_reason"]), ("not_finished", "internal_error"))
+        self.assertEqual((handoff["calls"], handoff["prompt_tokens"], handoff["completion_tokens"]), (1, 80, 8))
+        researcher = run.team["per_agent"]["researcher"]
+        self.assertEqual((researcher["calls"], researcher["prompt_tokens"], researcher["completion_tokens"], researcher["handoffs"]), (1, 80, 8, 1))
+        self.assertEqual([(s["n"], s["agent"], s["handoff"]) for s in run.steps], [(1, "manager", None), (2, "researcher", 1), (3, "manager", None)])
+        self.assertEqual(sum(s["tokens"]["prompt"] for s in run.steps), run.usage["prompt_tokens"])          # no model call is missing from the steps
+        self.assertEqual([(c["agent"], c["handoff"], c["prompt_tokens"]) for c in run.team["call_log"]],
+                         [("manager", None, 100), ("researcher", 1, 80), ("manager", None, 60)])
+        self.assertEqual(sorted(told, key=lambda s: s["n"]), run.steps)                                    # what was told is what was saved
+        self.assertEqual((run.team["errors"], run.team["warnings"]), ([{"agent": "researcher", "type": "ValueError"}], []))
+        self.assertIn("failed unexpectedly (ValueError)", run.steps[0]["tool_calls"][0]["observation"])
+
+    def test_a_hand_off_that_breaks_before_it_is_written_down_is_still_written_down_as_not_finished(self):
+        client = FakeClient([asks(to_researcher("m1")), says(IDK)])
+        with mock.patch.object(llm, "_get_client", return_value=client), \
+                mock.patch.object(team._Team, "tokens_used", side_effect=KeyError("bug")):
+            run = team.run_team(QUESTION, TOOLS)
+        self.assertEqual([(h["agent"], h["state"], h["stop_reason"], h["calls"]) for h in run.team["handoffs"]], [("researcher", "not_finished", "internal_error", 0)])
+        self.assertEqual(run.team["errors"], [{"agent": "researcher", "type": "KeyError"}])
+        self.assertEqual(run.team["per_agent"]["researcher"]["handoffs"], 1)
 
 
 class UsageTests(TeamTestCase):
@@ -226,6 +284,38 @@ class UsageTests(TeamTestCase):
         self.assertEqual(run.team["per_agent"]["researcher"]["calls"], 1)
         self.assertEqual(run.team["warnings"], [])                                       # the agents' own calls still add up to the process counters
         self.assertEqual(run.usage["prompt_tokens"], 10 + 40 + 10)
+        handoff = run.team["handoffs"][0]
+        self.assertEqual((handoff["state"], handoff["stop_reason"]), ("not_finished", "internal_error"))
+        self.assertEqual((handoff["calls"], handoff["prompt_tokens"], handoff["completion_tokens"]), (1, 40, 4))   # the hand-off record agrees with the per-agent total
+
+    def test_a_difference_in_tokens_alone_between_the_agents_and_the_process_counters_is_reported_as_a_mismatch(self):
+        def drifts(query, top_k=3):                      # the process counters move by tokens, with no call and no agent to blame
+            llm._usage["prompt_tokens"] += 5
+            return "[1] [source: x.md] text"
+
+        tools = [Tool("search_policies", "s", SEARCH.parameters, drifts), calculator_tool(), date_tool()]
+        run, _client = self.run_team([asks(to_researcher("m1")), asks(call("r1", "search_policies", {"query": "q"})), says("a"), says("b")], tools=tools)
+        self.assertEqual(len(run.team["warnings"]), 1)
+        self.assertIn("usage mismatch", run.team["warnings"][0])
+        self.assertEqual(run.usage["calls"], sum(row["calls"] for row in run.team["per_agent"].values()))      # the calls agree: only the tokens do not
+
+    def test_the_seconds_each_agent_and_hand_off_spent_in_the_model_add_up_to_the_teams_total(self):
+        now, seconds = {"t": 0.0}, iter([1.0, 2.0, 4.0, 8.0])
+
+        class TickingClient(FakeClient):                 # every model call takes the next number of seconds on the fake clock
+            def _create(self, **kwargs):
+                now["t"] += next(seconds)
+                return super()._create(**kwargs)
+
+        client = TickingClient(list(self.SCRIPT))
+        with mock.patch.object(llm, "_get_client", return_value=client), mock.patch.object(llm.time, "monotonic", lambda: now["t"]):
+            run = team.run_team(QUESTION, TOOLS, clock=lambda: now["t"])
+        per_agent = run.team["per_agent"]
+        self.assertEqual((per_agent["manager"]["api_seconds"], per_agent["researcher"]["api_seconds"]), (9.0, 6.0))
+        self.assertEqual(run.team["handoffs"][0]["api_seconds"], 6.0)
+        self.assertEqual(run.usage["api_seconds"], 15.0)
+        self.assertEqual([c["seconds"] for c in run.team["call_log"]], [1.0, 2.0, 4.0, 8.0])
+        self.assertEqual(run.team["warnings"], [])
 
     def test_each_run_starts_with_a_clean_record(self):
         first, _ = self.run_team(list(self.SCRIPT))

@@ -66,8 +66,8 @@ question --> manager --ask_policy_researcher(question)--> researcher --search_po
             final answer
 ```
 
-- The **manager** has no tool except the two hand-offs. It reads the question, asks a specialist one thing at a time, and
-  writes the final answer, citing what the researcher named.
+- The **manager** has the two hand-off tools and the scratchpad tool (`remember`) that the loop gives every agent. It reads
+  the question, asks a specialist one thing at a time, and writes the final answer, citing what the researcher named.
 - A **specialist** is an ordinary agent loop with its own prompt and a short tool list. It sees ONLY the question the
   manager sent, never the manager's conversation, so that question is the whole hand-off.
 - Every agent runs the loop with the same defaults as the single agent, scratchpad memory included. The defences of
@@ -132,8 +132,9 @@ specialists' answers, and the seconds saved if hand-offs asked for in one step h
   agent to tools; A2A connects an agent to other agents." A2A is not implemented here. Nothing in this repository speaks it
   and no A2A library is installed.
 - **Agent card**: a name the brief lists for a description an agent publishes of itself. `agent_summary` in
-  `app/agent/team.py` is a plain summary (name, what it does, its tools) used to word the hand-off tools. It is served nowhere
-  and is not in any protocol's format.
+  `app/agent/team.py` is a plain summary (name, what it does, its tools) built from the same registry entry as the hand-off
+  tool; nothing in the running team calls it, a test checks that the two descriptions are equal, it is served nowhere and it
+  is not in any protocol's format.
 - **MCP versus A2A, in this repository**: Week 9's agent discovers tools over MCP; this week's manager reaches a specialist
   through an ordinary in-process `Tool`, neither MCP nor A2A.
 - **CrewAI, AutoGen**: agent frameworks. This project does not use them: the loop is hand-written, as it has been since
