@@ -51,6 +51,10 @@ OPENING_FACTOR = 1.5
 MAX_LIMIT_STOPS = {TEAM: 3, AGENT: 2}
 UNANSWERABLE, MAX_CALLS_UNANSWERABLE = "t7-unanswerable", 12
 FAILS_IF = ("P1", "P2", "P3", "P6")
+REGISTERED_TASKS, REGISTERED_REPEATS = 9, 3
+REGISTERED_UNITS = REGISTERED_TASKS * REGISTERED_REPEATS       # the units every threshold above was registered for
+ABSOLUTE_COUNT_ROWS = ("P1", "P4", "P5", "P6", "P9")           # thresholds that count runs or tasks, so they only mean something on that size
+NO_DATA = None                                                 # what a check returns as `held` when the number it needs has a zero denominator
 
 
 def _passes(runs):
@@ -62,7 +66,9 @@ def _band(key, name):
 
     def check(clean, _runs):
         value = team_report.ratio(clean["stats"][TEAM][key], clean["stats"][AGENT][key])
-        return value is not None and low <= value <= high, f"{'n/a' if value is None else f'{value:.2f}x'} (band {low} to {high})"
+        if value is None:
+            return NO_DATA, f"n/a, no data: the single agent's figure is zero (band {low} to {high})"
+        return low <= value <= high, f"{value:.2f}x (band {low} to {high})"
     return check
 
 
@@ -70,7 +76,8 @@ def _p1(clean, _runs):
     ratio_held, evidence = _band("calls_mean", "calls")(clean, None)
     tasks = team_report.per_task(clean["results"], (AGENT, TEAM))
     more = [task for task, cells in tasks.items() if AGENT in cells and TEAM in cells and cells[TEAM]["calls"] > cells[AGENT]["calls"]]
-    return ratio_held and len(more) >= MORE_CALLS_ON_AT_LEAST, f"{evidence}; more calls on {len(more)} of {len(tasks)} tasks (needs {MORE_CALLS_ON_AT_LEAST})"
+    held = NO_DATA if ratio_held is NO_DATA else ratio_held and len(more) >= MORE_CALLS_ON_AT_LEAST
+    return held, f"{evidence}; more calls on {len(more)} of {len(tasks)} tasks (needs {MORE_CALLS_ON_AT_LEAST})"
 
 
 def _p4(clean, runs):
@@ -80,6 +87,8 @@ def _p4(clean, runs):
     elsewhere = [run for run in team_runs if run["task_id"] not in CALCULATOR_TASKS]
     used_on, used_elsewhere = sum(asked(run) for run in on), sum(asked(run) for run in elsewhere)
     held = used_on >= CALCULATOR_MIN_ON_THEM and used_elsewhere <= CALCULATOR_MAX_ELSEWHERE
+    if not on or not elsewhere:                         # a count out of no runs is no data, not a pass or a fail
+        held = NO_DATA
     return held, (f"calculator handed work in {used_on} of {len(on)} runs of the calculation tasks (needs at least {CALCULATOR_MIN_ON_THEM}) "
                   f"and in {used_elsewhere} of {len(elsewhere)} other runs (at most {CALCULATOR_MAX_ELSEWHERE})")
 
@@ -90,7 +99,9 @@ def _passes_on(runs, arm, tasks):
 
 def _p5(clean, runs):
     agent, crew = _passes_on(runs, AGENT, CALCULATOR_TASKS), _passes_on(runs, TEAM, CALCULATOR_TASKS)
-    return crew >= agent - PASS_MARGIN_CALCULATION, f"team {crew}, single agent {agent} passes on the calculation tasks (team needs at least {agent - PASS_MARGIN_CALCULATION})"
+    ran = {arm: any(run["approach"] == arm and run["task_id"] in CALCULATOR_TASKS for run in runs) for arm in (AGENT, TEAM)}
+    held = crew >= agent - PASS_MARGIN_CALCULATION if all(ran.values()) else NO_DATA
+    return held, f"team {crew}, single agent {agent} passes on the calculation tasks (team needs at least {agent - PASS_MARGIN_CALCULATION})"
 
 
 def _p6(clean, runs):
@@ -102,13 +113,15 @@ def _p7(clean, runs):
     team_runs = [run for run in runs if run["approach"] == TEAM and run.get("team")]
     one_at_a_time = sum(team_report.overlap_saving(run) == 0 for run in team_runs)
     share = one_at_a_time / len(team_runs) if team_runs else 0.0
-    return share >= ONE_AT_A_TIME_SHARE, f"{one_at_a_time} of {len(team_runs)} team runs ({share:.0%}; needs {ONE_AT_A_TIME_SHARE:.0%})"
+    return (share >= ONE_AT_A_TIME_SHARE if team_runs else NO_DATA), f"{one_at_a_time} of {len(team_runs)} team runs ({share:.0%}; needs {ONE_AT_A_TIME_SHARE:.0%})"
 
 
 def _p8(clean, runs):
     agent, crew = clean["stats"][AGENT]["opening_mean"], clean["stats"][TEAM]["opening_mean"]
     value = team_report.ratio(crew, agent)
-    return value is not None and value >= OPENING_FACTOR, f"{'n/a' if value is None else f'{value:.2f}x'} (needs at least {OPENING_FACTOR}x)"
+    if value is None:
+        return NO_DATA, f"n/a, no data: the single agent has no opening tokens (needs at least {OPENING_FACTOR}x)"
+    return value >= OPENING_FACTOR, f"{value:.2f}x (needs at least {OPENING_FACTOR}x)"
 
 
 def _p9(clean, runs):
@@ -120,8 +133,8 @@ def _p10(clean, runs):
     team_runs = [run for run in runs if run["approach"] == TEAM and run["task_id"] == UNANSWERABLE]
     refused = sum(team_report.answer_features(run)["refused"] for run in team_runs)
     longest = max((run["llm_calls"] for run in team_runs), default=0)
-    return bool(team_runs) and refused == len(team_runs) and longest <= MAX_CALLS_UNANSWERABLE, \
-        f"refused {refused} of {len(team_runs)}, most model calls in one run {longest} (at most {MAX_CALLS_UNANSWERABLE})"
+    held = refused == len(team_runs) and longest <= MAX_CALLS_UNANSWERABLE if team_runs else NO_DATA
+    return held, f"refused {refused} of {len(team_runs)}, most model calls in one run {longest} (at most {MAX_CALLS_UNANSWERABLE})"
 
 
 PREDICTIONS = [
@@ -138,31 +151,98 @@ PREDICTIONS = [
 ]
 
 
+def registered_size_problems(results, dropped, usable):
+    """Why this race is not the 9 tasks x 3 repeats the thresholds were registered for, as sentences (empty when it is)."""
+    meta = results.get("meta") or {}
+    problems = []
+    if not meta.get("complete", True):
+        problems.append(f"the race is incomplete, it stopped: {meta.get('stopped_because') or 'no reason recorded'}")
+    if dropped["kept"] != REGISTERED_UNITS:
+        problems.append(f"{dropped['kept']} usable units, not {REGISTERED_UNITS}: {dropped['dropped_for_provider']} dropped for a provider problem, "
+                        f"{dropped['incomplete']} incomplete")
+    planned = meta.get("tasks")
+    if planned is not None and len(planned) != REGISTERED_TASKS:
+        problems.append(f"{len(planned)} tasks in the plan, not {REGISTERED_TASKS}")
+    read = len({run["task_id"] for run in usable})
+    if read != REGISTERED_TASKS:
+        problems.append(f"the usable units cover {read} task(s), not {REGISTERED_TASKS}")
+    if meta.get("repeats") is not None and meta["repeats"] != REGISTERED_REPEATS:
+        problems.append(f"{meta['repeats']} repeats, not {REGISTERED_REPEATS}")
+    return problems
+
+
+def _status(held, partial):
+    if held is NO_DATA:
+        return "no data"                                # a number that does not exist cannot be partial
+    return "partial" if partial else ("held" if held else "not held")
+
+
 def check_prediction(results):
-    """(rows, failed, dropped): each prediction held or not on the clean units, whether the whole prediction failed, and what was dropped."""
+    """(rows, failed, dropped): each prediction on the clean units, whether the whole prediction failed, and what was dropped.
+
+    Each row has `status`: held, not held, partial (a count registered for 9 tasks x 3 repeats, read on a race that is not that
+    size) or no data (its denominator is zero); `held` is True or False for the first two and None for the others. `failed` is
+    None when no verdict can be given: the race is partial or not the registered size, or a row that decides it has no data.
+    `dropped["registered"]` says what was read and why it is not the registered size. When either arm is missing or no unit is
+    usable the result is ([], False, None): there is nothing to check."""
     if team_report.AGENT not in team_report.arm_names(results) or TEAM not in team_report.arm_names(results):
         return [], False, None
     clean_results, dropped = team_report.clean_units(results, drop_limits=False)
     usable = clean_results["runs"]
+    if dropped["kept"] == 0:
+        return [], False, None
+    problems = registered_size_problems(results, dropped, usable)
     clean = {"results": clean_results, "stats": {arm: team_report.arm_stats(clean_results, arm) for arm in (AGENT, TEAM)}}
     rows = []
     for ident, claim, metric, check in PREDICTIONS:
         held, evidence = check(clean, usable)
-        rows.append({"id": ident, "claim": claim, "metric": metric, "held": bool(held), "evidence": evidence})
-    failed = any(not row["held"] for row in rows if row["id"] in FAILS_IF)
-    return rows, failed, dropped
+        status = _status(held, bool(problems) and ident in ABSOLUTE_COUNT_ROWS)
+        rows.append({"id": ident, "claim": claim, "metric": metric, "status": status, "evidence": evidence,
+                     "held": held if status in ("held", "not held") else None})
+    deciding = [row["held"] for row in rows if row["id"] in FAILS_IF]
+    if problems:
+        failed = None                                   # no verdict on a race that is not the registered size
+    elif any(held is False for held in deciding):
+        failed = True                                   # one deciding row is not held, whatever the others have
+    else:
+        failed = None if None in deciding else False    # all held is a pass; a deciding row with no data is no verdict
+    return rows, failed, dict(dropped, registered={"units": REGISTERED_UNITS, "read": dropped["kept"], "problems": problems})
+
+
+def why_not_checkable(results):
+    """One sentence on why check_prediction found nothing to check, for the script to print under the standard message."""
+    arms = team_report.arm_names(results)
+    for arm in (team_report.AGENT, TEAM):
+        if arm not in arms:
+            return f"the race has no {arm} arm."
+    _clean, dropped = team_report.clean_units(results, drop_limits=False)
+    return (f"read on {dropped['kept']} of {dropped['units']} units: {dropped['dropped_for_provider']} dropped for a provider problem, "
+            f"{dropped['incomplete']} incomplete (a unit is a task and a repeat that both arms ran).")
 
 
 def format_prediction(rows, failed, dropped, label):
     """The result as printable lines."""
     if not rows:
-        return [f"Cannot check the prediction on '{label}': it needs a race with both the agent and the team arm."]
-    lines = [f"=== Week 10 prediction, checked against race '{label}' ===",
-             f"read on {dropped['kept']} of {dropped['units']} units ({dropped['dropped_for_provider']} dropped for a provider problem, "
-             f"{dropped['incomplete']} incomplete; units that hit a limit stay in, P9 counts them)", ""]
+        return [f"Cannot check the prediction on '{label}': it needs a race with both the agent and the team arm, and at least one "
+                "unit (a task and a repeat) that both ran without a provider problem."]
+    registered = dropped.get("registered") or {}
+    problems = registered.get("problems") or []
+    lines = [f"=== Week 10 prediction, checked against race '{label}' ==="]
+    if problems:
+        lines += [f"PARTIAL: read on {registered['read']} of {registered['units']} registered units ({'; '.join(problems)}).",
+                  f"The thresholds were registered for {REGISTERED_TASKS} tasks x {REGISTERED_REPEATS} repeats = {REGISTERED_UNITS} units, so the rows that "
+                  "count runs or tasks (P1's task count, P4, P5, P6, P9) are not decidable on this race, and no verdict is given for the prediction as a whole.", ""]
+    lines += [f"read on {dropped['kept']} of {dropped['units']} units ({dropped['dropped_for_provider']} dropped for a provider problem, "
+              f"{dropped['incomplete']} incomplete; units that hit a limit stay in, P9 counts them)", ""]
+    words = {"held": "held", "not held": "NOT HELD", "partial": "PARTIAL", "no data": "NO DATA"}
     for row in rows:
-        lines.append(f"{row['id']:<4}{'held' if row['held'] else 'NOT HELD':<9}{row['claim']}")
-        lines.append(f"{'':<13}{row['evidence']}")
-    lines += ["", f"The prediction as a whole: {'FAILED' if failed else 'did not fail'} (it fails if any of {', '.join(FAILS_IF)} does not hold).",
-              "Every analysis not listed here is exploratory. The verdict about which design to use is yours to write in findings.md."]
+        status = row.get("status") or {True: "held", False: "not held", None: "no data"}[row["held"]]
+        lines.append(f"{row['id']:<4}{words[status]:<9}{row['claim']}")
+        lines.append(f"{'':<13}{'not decidable on a partial race: ' if status == 'partial' else ''}{row['evidence']}")
+    if failed is None:
+        why = "the race is partial or not the registered size" if problems else "a row that decides it has no data"
+        lines += ["", f"No verdict on the prediction as a whole: {why}."]
+    else:
+        lines += ["", f"The prediction as a whole: {'FAILED' if failed else 'did not fail'} (it fails if any of {', '.join(FAILS_IF)} does not hold)."]
+    lines.append("Every analysis not listed here is exploratory. The verdict about which design to use is yours to write in findings.md.")
     return lines

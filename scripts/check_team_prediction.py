@@ -1,8 +1,11 @@
 """Week 10, mentor check #3: did the team race do what was predicted BEFORE it was run?
 
-`docs/week10/CHANGES.md` states, in a section committed before the first race run, what the team should do
+`docs/week10/prediction.md` states, in a document committed before the first race run, what the team should do
 and what would count as the prediction failing. This reads a saved race and checks each sentence against the numbers, so
 the answer is arithmetic and not a judgement made after seeing the result. It decides nothing about which design to use.
+
+The thresholds were registered for 9 tasks x 3 repeats = 27 units. A race that stopped early, has a different size, or has no
+usable unit gets no verdict: the script says so and exits with 1, the same as for a race it cannot check at all.
 
 Run:
     python scripts/check_team_prediction.py wk10
@@ -29,7 +32,9 @@ def main(argv=None):
         return 1
     rows, failed, dropped = team_prediction.check_prediction(saved)
     print("\n".join(team_prediction.format_prediction(rows, failed, dropped, args.label)))
-    return 0 if rows else 1
+    if not rows:
+        print(f"Why: {team_prediction.why_not_checkable(saved)}")
+    return 0 if rows and failed is not None else 1      # no verdict (nothing to check, partial, no data) is not a clean run
 
 
 if __name__ == "__main__":

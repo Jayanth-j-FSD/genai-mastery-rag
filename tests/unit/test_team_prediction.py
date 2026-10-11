@@ -121,7 +121,7 @@ class PredictionTests(unittest.TestCase):
     def test_a_unit_where_a_run_ended_on_a_provider_error_is_left_out_and_counted(self):
         rows, _failed, dropped = prediction.check_prediction(race(agent=lambda t, r: {"error": True, "success": False} if (t, r) == ("t7-conflict", 1) else {}))
         self.assertEqual((dropped["units"], dropped["kept"], dropped["dropped_for_provider"]), (27, 26, 1))
-        self.assertTrue(all(row["held"] for row in rows))
+        self.assertTrue(all(row["status"] in ("held", "partial") for row in rows))        # 26 units is not the registered 27: the count rows wait
 
     def test_a_race_without_both_arms_cannot_be_checked(self):
         rows, failed, dropped = prediction.check_prediction({"meta": {"arms": ["agent"]}, "runs": []})
