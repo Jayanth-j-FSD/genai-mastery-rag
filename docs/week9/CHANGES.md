@@ -16,7 +16,7 @@ loop imports `app.mcp`. That is the point of the week: the agent gets new capabi
   Week 7 calculator and date tools, now discoverable). `app/mcp/data/hris_employees.json` is the synthetic data.
 - `scripts/run_agent_mcp.py` (the agent with discovered tools), `scripts/mcp_raw_demo.py` (the raw JSON-RPC
   messages, no MCP library) and `scripts/other_agent_demo.py` (a script that imports nothing from this project
-  and calls our policy server with a different client library).
+  and calls our policy server with `fastmcp`'s client, a different package on the same SDK).
 - `fastmcp==4.1.0` and `mcp==2.3.0` pinned in `requirements.txt`.
 
 ## Decisions
@@ -31,29 +31,34 @@ loop imports `app.mcp`. That is the point of the week: the agent gets new capabi
 - **One long-lived task per server.** The MCP library enters and leaves a connection from the same asyncio task,
   and our agent loop is synchronous, so a background thread runs the event loop with one task per server and
   the provider offers plain blocking calls with a timeout.
-- **A child server inherits none of the host's environment variables.** Only the library's small safe set plus
-  what the config names. A test proves a variable set in the host is not visible to the server. It is not a
-  boundary around files: the server runs in the project folder and could read `.env`. A secret a server needs would
-  have to be written in the committed `mcp_servers.json`; expanding `${NAME}` from the environment is deferred.
+- **A child server does not inherit the host's environment, your API key included.** It gets the library's small
+  default set of variables (on Windows 12, such as `PATH`, `USERPROFILE` and `TEMP`) plus what the config names. A test
+  proves a variable set in the host is not visible to the server. It is not a boundary around files: the server runs
+  in the project folder and could read `.env`, and a config entry runs a program on this machine. A secret a server
+  needs would have to be written in the committed `mcp_servers.json`; expanding `${NAME}` from the environment is deferred.
 - **Access control at the server, by not offering.** The HRIS payroll tool exists only when the server is
   started with `HRIS_SCOPE=payroll`; under the default scope an agent cannot discover it.
 - **Vetting is a gate, not a guarantee.** It checks every piece of text the model reads (description, title and
   every string in the input schema), not only the description, and refuses odd or reserved names, control,
-  zero-width, private-use and unassigned characters, words that mix alphabets, instruction-like text read across
-  line breaks, odd or oversized schemas and anything off an operator's allowlist, and optionally anything not
-  declared read-only. A plain instruction with no trigger words passes, and a harmless description that uses a
-  trigger word is refused (both are tests). A tool that passes can still return poisoned results, which is what
+  zero-width, private-use and unassigned characters, words of more than three letters that mix Latin with Cyrillic,
+  Greek or Armenian, instruction-like text read across line breaks and with look-alike letters made plain, the shape
+  of a known poisoning payload, odd or oversized schemas and anything off an operator's allowlist, and optionally
+  anything not declared read-only. A plain instruction with no trigger words passes, a look-alike letter outside a small
+  table passes, and a harmless description that uses a trigger word is refused (all three are tests). A tool that passes can still return poisoned results, which is what
   Week 8's screening of results is for (`--defense`).
 - **A server error is a recoverable observation.** A tool that reports an error, times out or whose server
   dies comes back to the model as an `ERROR:` text it can act on, not as a crash.
 - **Tool names are decided after vetting.** A server prefix is added only when two ACCEPTED tools share a name, so
-  a refused tool cannot rename a good one (the Week 8 guard keys on the name `add_days`). A tool offered twice by
-  one server, one named `remember` (the loop's own), or one whose prefixed name would not be a plain identifier of
-  at most 64 characters is refused.
+  a refused tool cannot rename a good one. The exception is `add_days`, `calculate` and `search_policies`, the names
+  the agent's prompt and the Week 8 guard key on: the first server listed that offers one keeps it and a later copy is
+  refused, because a prefixed copy would escape the guard. A tool offered twice by one server, one named `remember`
+  (the loop's own), or one whose prefixed name would not be a plain identifier of at most 64 characters is refused.
+  Server names must be plain identifiers.
 - **Startup is concurrent and every failure names the server.** All servers are started at once, each wait has its
   own timeout, a server that never answers is cancelled so its process stops, and the error says which server and why
   (`MCPServerError`). Waiting is done in short slices so Ctrl+C is heard. A server that offers more than 20 pages of
-  tools is refused, and a tool result over 8,000 characters is cut.
+  tools is refused, a tool result over 8,000 characters is cut, and a server may offer at most 40 tools and all the
+  definitions together at most 60,000 characters.
 
 ## Considered and deferred
 
