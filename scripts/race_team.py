@@ -35,6 +35,7 @@ import hashlib
 import inspect
 import math
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -59,6 +60,7 @@ CODE_SCRIPTS = ("scripts/race_team.py", "scripts/pilot_team.py")       # and the
 GENERATED = ("evals/results", "evals/cache")                   # what a race writes: output, never code, so it never counts as uncommitted code
 PREDICTION_DOC = "docs/week10/prediction.md"                   # committed before the race, so that git shows the order
 SETTING_NAMES = ("llm_max_retries", "llm_timeout_seconds", "dense_search", "hybrid_candidates", "rrf_k", "bm25_k1", "bm25_b", "embed_provider")
+PLAIN = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'})   # typographic marks a model writes, as plain ASCII
 DEFAULT_TIMEOUT = 300.0        # seconds a run may take: wider than the 120 s default because the free tier's rate-limit pauses count, for BOTH arms
 CODE_KEYS = tuple(os.path.basename(path) for path in STAMPED_FILES)
 GIT_PROBLEM = {"text": ""}     # why the latest git command failed, so a refusal can say what went wrong and not only that git was unreadable
@@ -164,23 +166,46 @@ def corpus_fingerprint():
 
 
 def scrub_text(text, limit=300):
-    """Text that may reach a tracked file: the API key and the project's path replaced, and cut short."""
+    """Text that may reach a tracked file: the API key, the project's path and the home folder (a personal name is in it) replaced, in
+    the forms an error message shows them (plain, forward slashes, doubled backslashes as repr() writes them, any case), and cut short."""
     text = str(text)
     key = settings.openai_api_key
     if key and len(key) >= 8:
         text = text.replace(key, "<key>")
     base = str(BASE_DIR)                                              # a Path in the app, a str in tests: Path.replace would RENAME a file
-    for prefix in {base, base.replace("\\", "/")}:
-        text = text.replace(prefix, "<project>")
+    for place, name in ((base, "<project>"), (os.path.expanduser("~"), "<home>")):
+        if len(place) < 4:                                            # "~" when the home folder is unknown: nothing to replace, and it would eat a tilde
+            continue
+        for form in {place, place.replace("\\", "/"), place.replace("\\", "\\\\")}:
+            text = re.sub(re.escape(form), name, text, flags=re.IGNORECASE)
     return text[:limit]
 
 
+def make_encodable(value):
+    """Replace, in place, any lone surrogate in a record's text (half an emoji, from a model) with '?': it cannot be written to a UTF-8
+    file, and one such character must not lose the run. Returns the value."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            value[key] = make_encodable(item)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            value[index] = make_encodable(item)
+    elif isinstance(value, str):
+        return value.encode("utf-8", "replace").decode("utf-8")
+    return value
+
+
 def scrub_record(record):
-    """Provider error text in a run's steps is cut and scrubbed before it can be saved in a public repo."""
+    """Provider error text in a run's steps is cut and scrubbed before it can be saved in a public repo, and the record made writable."""
     for step in record.get("steps") or []:
         if step.get("kind") == "error":
             step["content"] = scrub_text(step.get("content", ""))
-    return record
+    return make_encodable(record)
+
+
+def plain(lines):
+    """The report's lines with the long dashes and curly quotes a model wrote turned into plain ASCII: the project does not use them."""
+    return [line.translate(PLAIN) for line in lines]
 
 
 def arm_list(noise=False, with_workflow=False):
@@ -442,7 +467,7 @@ def show(args):
     except (FileNotFoundError, ValueError) as exc:
         print(f"Error: {exc}")
         return 1
-    lines = team_report.format_report(saved, price_in, price_out, source)
+    lines = plain(team_report.format_report(saved, price_in, price_out, source))
     command = f"python scripts/race_team.py --show {args.show}" + (f" --price-in {args.price_in} --price-out {args.price_out} "
                                                                   f"--price-source \"{source}\"" if source else "") + (" --rescore" if args.rescore else "")
     if args.rescore:
@@ -450,7 +475,7 @@ def show(args):
         changed = rescored["meta"]["rescored_changes"]
         lines = ["AS RACED (the rule checks as they were when the race ran):", ""] + lines
         lines += ["", "=" * 78, "RE-SCORED with today's rule checks (same runs, same answers, no model calls):", ""]
-        lines += team_report.format_report(rescored, price_in, price_out, source)
+        lines += plain(team_report.format_report(rescored, price_in, price_out, source))
         lines += ["", f"{len(changed)} run(s) changed result:"]
         lines += [f"  {c['task_id']:<24}{c['approach']:<9}run {c['repeat']}  {'pass' if c['was'] else 'FAIL'} -> {'pass' if c['now'] else 'FAIL'}" for c in changed]
     print("\n".join(lines))
@@ -768,7 +793,7 @@ def main(argv=None):
                 print(f"\nWARNING: every run of the {arm} arm ended on provider trouble, so this race measured the provider and not the design. "
                       "Do not quote it: find the cause and race again under a new label.")
     print()
-    print("\n".join(team_report.format_report(results, 0.0, 0.0)))
+    print("\n".join(plain(team_report.format_report(results, 0.0, 0.0))))
     print(f"\nsaved: {display_path(saved_path, BASE_DIR)}")
     return 0 if results["meta"]["complete"] else 1
 

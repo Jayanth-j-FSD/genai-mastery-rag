@@ -356,6 +356,29 @@ class ScrubTests(unittest.TestCase):
         self.assertEqual(record["steps"][0]["content"], "boom at <project>/x")
         self.assertEqual(record["steps"][1]["content"], str(race_team.BASE_DIR))
 
+    def test_the_project_path_is_scrubbed_in_every_form_an_error_message_can_show_it(self):
+        base = str(race_team.BASE_DIR)
+        for form in {base, base.replace("\\", "/"), base.replace("\\", "\\\\"), base.upper(), base.lower()}:        # plain, forward slashes, as repr() shows it, any case
+            with self.subTest(form=form):
+                scrubbed = race_team.scrub_text(f"cannot open {form}/app/x.py")
+                self.assertNotIn(form.lower(), scrubbed.lower())
+                self.assertIn("<project>", scrubbed)
+
+    def test_the_home_folder_is_scrubbed_too_because_a_personal_name_is_in_it(self):
+        home = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
+        self.enterContext(mock.patch.dict(os.environ, {"HOME": home, "USERPROFILE": home}))
+        scrubbed = race_team.scrub_text(f"cannot open {home}{os.sep}cache{os.sep}x and {home.replace(chr(92), '/')}/y")
+        self.assertNotIn(home.lower(), scrubbed.lower())
+        self.assertNotIn(home.replace("\\", "/").lower(), scrubbed.lower())
+        self.assertIn("<home>", scrubbed)
+
+    def test_a_lone_surrogate_in_a_record_is_replaced_so_the_run_can_still_be_saved(self):
+        record = {"answer": "bad \ud83d end", "steps": [{"kind": "tool", "content": "x \udc00"}], "team": {"handoffs": [{"question": "q \ud800"}]}, "n": 3}
+        race_team.scrub_record(record)
+        json.dumps(record, ensure_ascii=False).encode("utf-8")                                   # would raise UnicodeEncodeError before
+        self.assertEqual((record["answer"], record["steps"][0]["content"], record["team"]["handoffs"][0]["question"], record["n"]),
+                         ("bad ? end", "x ?", "q ?", 3))
+
     def test_a_saved_race_holds_neither_the_key_nor_the_path_even_when_the_run_that_stopped_it_carried_both(self):
         folder = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
         self.enterContext(mock.patch.object(runner, "RESULTS_DIR", folder))
@@ -562,6 +585,12 @@ class MainTests(unittest.TestCase):
         self.assertIn("WARNING: every run of the team arm ended on provider trouble", text)
         self.assertNotIn("every run of the agent arm", text)
 
+    def test_an_answer_with_a_lone_surrogate_neither_ends_the_race_nor_spoils_the_saved_file(self):
+        self.racer.outcome = lambda n: {"answer": "bad \ud83d end"}
+        code, text = self.race()
+        self.assertEqual(code, 0, text[-300:])
+        self.assertEqual({run["answer"] for run in self.saved()["runs"]}, {"bad ? end"})
+
     def test_a_finished_race_with_healthy_arms_prints_no_such_warning(self):
         code, text = self.race()
         self.assertEqual(code, 0)
@@ -718,6 +747,22 @@ class ShowTests(unittest.TestCase):
         self.assertIn("QUALITY", written)
         for glyph in ("\u2014", "\u2013"):                                                       # no dashes the project does not use
             self.assertNotIn(glyph, written)
+
+    def test_model_text_with_long_dashes_and_curly_quotes_is_folded_to_plain_ascii_in_what_is_printed_and_saved(self):
+        tasks = get_tasks(TWO)
+        said = "I don\u2019t know \u2014 \u201cquoted\u201d \u2013 end"
+        runs = [fake_record(task, arm, 1, success=(arm == "agent"), answer=said) for task in tasks for arm in ("agent", "team")]
+        meta = race_team.make_meta("g", tasks, 1, ["agent", "team"], "m", "now")
+        meta.update(complete=True)
+        runner.save_results({"meta": meta, "runs": runs}, runner.results_path("race-g"))
+        code, text = captured(race_team.main, ["--show", "g", "--save"])
+        self.assertEqual(code, 0)
+        with open(os.path.join(self.folder, "docs", "week10", "race-results.md"), encoding="utf-8") as handle:
+            written = handle.read()
+        for output in (text, written):
+            for glyph in ("\u2014", "\u2013", "\u2018", "\u2019", "\u201c", "\u201d"):
+                self.assertNotIn(glyph, output)
+        self.assertIn("I don't know - \"quoted\" - end", written)                                  # the meaning survives
 
     def test_an_unknown_saved_race_is_a_clear_error(self):
         code, text = captured(race_team.main, ["--show", "nope"])

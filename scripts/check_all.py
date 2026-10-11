@@ -67,7 +67,7 @@ sys.exit(1 if failed else 0)
 
 def python_files():
     for folder, dirs, files in os.walk(ROOT):
-        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".venv")]
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]    # hidden folders (virtual environments, other working copies) are not the project's own code
         for name in files:
             if name.endswith(".py"):
                 yield os.path.join(folder, name)
