@@ -91,15 +91,16 @@ Everything below is built and tested except remote MCP, which is described but n
   and believes, so it is an input an attacker can write ("tool poisoning"). Every piece of it is checked, not only
   the description: the title and every string in the input schema too. A tool is refused if its name is not a
   plain identifier or is one the agent reserves (`remember`); if any of that text is missing, enormous, contains
-  control, zero-width, private-use or unassigned characters, mixes Latin with Cyrillic, Greek or Armenian inside a
-  word of more than three letters (digits do not count, so `100µs` passes), or contains instruction-like text (read
-  across line breaks, with look-alike letters made plain), or two or more of the signals a payload is made of (a tag
-  such as `<important>`, an order to hide something from the user, an order to act before or first, a path to a secret
-  such as `~/.ssh`; any one alone is an ordinary phrase and passes); if its schema is odd or over 8,000 characters; or if it is not on the operator's
+  control, zero-width, lone-surrogate, private-use or unassigned characters or letters that draw nothing, mixes Latin with
+  Cyrillic, Greek or Armenian inside a word (a word of up to three letters is let through only when its foreign letters are
+  the symbols of units, so `100µs` and `kΩ` pass), or contains instruction-like text (read across line breaks, with look-alike
+  letters made plain), or two different signals of the ones a payload is made of, counted over the whole definition (an order to
+  hide something from the user, an order to act before or first, a path to a secret such as `~/.ssh`, a tag such as `<system>`;
+  any one alone is an ordinary phrase and passes, and a tag such as `<important>` counts as two); if its schema is odd or over 8,000 characters; or if it is not on the operator's
   allowlist; optionally, if it is not declared read-only (`--require-read-only`). One server may offer at most 40
   tools, and all the definitions together may take at most 60,000 characters, because every definition goes into
   every model request. This is a gate, not a guarantee: a plain instruction that uses none of the trigger words
-  passes, a look-alike letter outside a small table passes, and a harmless description that happens to use one is
+  passes, a look-alike letter outside the table passes, and a harmless description that happens to use one is
   refused (`test_what_the_gate_cannot_do_is_written_down_as_facts`). A character the interpreter's Unicode tables do
   not know yet is refused, and so is a parameter name such as `$top` or `filter[status]`.
 - **Names.** Two accepted tools that share a name get a server prefix only when both were accepted, so a refused tool
@@ -113,8 +114,10 @@ Everything below is built and tested except remote MCP, which is described but n
   validator wants a retrieved policy document to be cited (or the plain refusal), so with `--defense` an answer
   that comes only from another tool, such as the HRIS, is withheld; and the date guard accepts only dates the
   question states or that `add_days` or `calculate` produced, so a date that only the HRIS returned (a probation end,
-  say) cannot be given to `add_days`. The script says so before it runs. A tool result is shown with control and
-  invisible characters written out as text.
+  say) cannot be given to `add_days`. The script says so before it runs. A tool result is made safe to print: control
+  and tag characters are written out as text, and a zero-width space, a word joiner and the bidirectional controls are dropped
+  (they draw nothing, and the Week 8 sanitizer strips the same ones before it matches). What a server writes to its own error
+  output goes straight to your terminal and is not screened.
 - **A child server gets a small default environment, not yours.** The client passes a server the library's default
   set of variables (on Windows 12: `APPDATA`, `HOMEDRIVE`, `HOMEPATH`, `LOCALAPPDATA`, `PATH`, `PATHEXT`,
   `PROCESSOR_ARCHITECTURE`, `SYSTEMDRIVE`, `SYSTEMROOT`, `TEMP`, `USERNAME`, `USERPROFILE`) plus what the config file
