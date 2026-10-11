@@ -6,8 +6,10 @@ both, and an honest verdict even if the team lost:
 
   quality  how many runs finished AND passed the rule checks. With a few dozen runs a gap of one or two runs is not
            resolved, so the report gives a 95% interval beside every rate and, for the same task and repeat under two
-           arms, the discordant pairs with the exact McNemar p. A second identical single-agent arm (`agent-2`), when the
-           race has one, is a calibration of that method: its comparison with `agent` should show no difference.
+           arms, the discordant pairs with the exact McNemar p. The repeats of a task are near-copies, so both of those
+           treat them as independent and are optimistic: a by-task line (the arms' pass counts compared task by task, with
+           the exact sign test over tasks) sits beside the pair line. A second identical single-agent arm (`agent-2`), when
+           the race has one, is a calibration of that method: its comparison with `agent` should show no difference.
   speed    seconds inside model calls (what the work costs when no rate limit slows it) AND wall-clock seconds, which here
            mostly measure queueing behind the free tier's rate limit. Calls per run is the other speed number.
   tokens   prompt and completion separately. A prompt is mostly the conversation so far, re-sent on every step. The report
@@ -30,7 +32,7 @@ import json
 import math
 
 from app import pricing
-from evals import race, trajectory
+from evals import trajectory
 from evals.agent_tasks import PATH_PROBES, TASKS, get_tasks
 
 AGENT, TEAM, NOISE, WORKFLOW = "agent", "team", "agent-2", "workflow"
@@ -80,6 +82,12 @@ def ratio(numerator, denominator):
     return numerator / denominator if denominator else None
 
 
+def _stated(price):
+    """A price the caller did not state is 0.0, 'not stated': the report never reads the PRICE_* settings, so a saved report
+    cannot change with whatever is in somebody's .env."""
+    return 0.0 if price is None else price
+
+
 # ---------------------------------------------------------------------------- where the prompt tokens went
 
 def conversations(steps):
@@ -116,18 +124,37 @@ def prompt_breakdown(steps):
     return {"opening": opening, "later": later, "shrank": shrank}
 
 
+def _manager_prompts(record):
+    """The manager's prompt tokens at each of its steps, keyed by the step's own number (local_n)."""
+    return {step.get("local_n"): (step.get("tokens") or {}).get("prompt", 0)
+            for step in record.get("steps", []) if step.get("agent") == "manager"}
+
+
 def forwarded_context_extra(record):
     """Prompt tokens a team run WOULD have added had every hand-off carried the manager's whole conversation so far (derived).
 
-    A lower bound: for each hand-off, the manager's prompt at the step that asked for it, counted once per model call the
-    specialist made (each of those calls would have re-sent it). The measured team hands over only the sub-question.
+    The CEILING of an estimate: for each hand-off, the manager's prompt at the step that asked for it, counted once per model
+    call the specialist made (each of those calls would have re-sent it). That prompt includes the manager's own tool list,
+    which forwarding the conversation would not carry, so the true figure is lower; `forwarded_context_floor` is the other end.
+    The measured team hands over only the sub-question.
     """
     team = record.get("team")
     if not team:
         return 0
-    manager_prompt = {step.get("local_n"): (step.get("tokens") or {}).get("prompt", 0)
-                      for step in record.get("steps", []) if step.get("agent") == "manager"}
+    manager_prompt = _manager_prompts(record)
     return sum(manager_prompt.get(handoff.get("after_manager_step"), 0) * handoff.get("calls", 0)
+               for handoff in team["handoffs"] if handoff.get("state") != "refused")
+
+
+def forwarded_context_floor(record):
+    """The FLOOR of the same estimate (derived): only the conversation history the manager had picked up when it asked, that
+    is its prompt at the asking step minus its first prompt (system prompt, tool list and question), once per specialist call.
+    0 when the manager's first step is not in the record, because then there is nothing to subtract."""
+    team = record.get("team")
+    manager_prompt = _manager_prompts(record) if team else {}
+    if 1 not in manager_prompt:
+        return 0
+    return sum(max(0, manager_prompt.get(handoff.get("after_manager_step"), 0) - manager_prompt[1]) * handoff.get("calls", 0)
                for handoff in team["handoffs"] if handoff.get("state") != "refused")
 
 
@@ -202,7 +229,7 @@ def answer_features(record):
     searched = any(call.get("name") == "search_policies" for step in steps for call in step.get("tool_calls", []))
     handed = bool((record.get("team") or {}).get("handoffs"))
     refused = answer.lower().replace("\u2019", "'").startswith("i don't know")
-    return {"chars": len(answer), "documents": len(set(race.cited_names(answer))), "refused": refused,
+    return {"chars": len(answer), "documents": len(trajectory.cited_documents(answer)), "refused": refused,       # documents, each once: one tag may name several
             "refused_without_searching": refused and not searched, "answered_without_hand_off": bool(answer) and not refused and not handed}
 
 
@@ -220,7 +247,8 @@ def calls_of(record):
 
 
 def arm_stats(results, arm, input_price=None, output_price=None):
-    """Everything the report says about one arm, as plain numbers."""
+    """Everything the report says about one arm, as plain numbers. A price left as None is 'not stated', never a setting."""
+    input_price, output_price = _stated(input_price), _stated(output_price)
     rows = [run for run in results["runs"] if run["approach"] == arm]
     runs = len(rows)
     wins = sum(bool(run["success"]) for run in rows)
@@ -253,6 +281,7 @@ def arm_stats(results, arm, input_price=None, output_price=None):
         "cost_per_success": (sum(costs) / wins) if priced and wins else None,
         "stop_reasons": _counts(run["stop_reason"] for run in rows),
         "forwarded_extra_mean": mean([forwarded_context_extra(run) for run in rows]),
+        "forwarded_floor_mean": mean([forwarded_context_floor(run) for run in rows]),
         "reread_mean": mean([handoff_answers_reread(run) for run in rows]),
         "overlap_saving_mean": mean([overlap_saving(run) for run in rows]),
         "duplicate_searches_mean": mean([duplicate_searches(run) for run in rows]),
@@ -336,6 +365,23 @@ def paired(results, first=AGENT, second=TEAM):
         counts["both" if a and b else "only_" + first if a else "only_" + second if b else "neither"] += 1
     counts["p"] = mcnemar_exact(counts["only_" + first], counts["only_" + second])
     return counts
+
+
+def paired_by_task(results, first=AGENT, second=TEAM):
+    """The pair comparison with the TASK as the unit, because the repeats of a task are near-copies, not independent trials.
+
+    For every task with at least one pair (the same repeat under both arms): which arm passed more of those repeats, or neither.
+    The exact two-sided sign test is over the tasks where the two differ, the test `mcnemar_exact` runs with tasks for pairs."""
+    outcome = {(run["task_id"], run["repeat"], run["approach"]): bool(run["success"]) for run in results["runs"]}
+    passes = {}
+    for (task, repeat, arm), won in outcome.items():
+        if arm == first and (task, repeat, second) in outcome:
+            cell = passes.setdefault(task, [0, 0])
+            cell[0] += won
+            cell[1] += outcome[(task, repeat, second)]
+    more_first, more_second = sum(a > b for a, b in passes.values()), sum(b > a for a, b in passes.values())
+    return {"tasks": len(passes), "more_" + first: more_first, "more_" + second: more_second,
+            "same": len(passes) - more_first - more_second, "p": mcnemar_exact(more_first, more_second)}
 
 
 def task_shape(task_id):
@@ -443,6 +489,7 @@ def clean_units(results, first=AGENT, second=TEAM, drop_limits=True):
 
 def summary(results, input_price=None, output_price=None):
     """Every number the report prints, as one dict (so a test can check them and a script can reuse them)."""
+    input_price, output_price = _stated(input_price), _stated(output_price)
     arms = arm_names(results)
     stats = {arm: arm_stats(results, arm, input_price, output_price) for arm in arms}
     out = {"arms": arms, "stats": stats, "prices": pricing.describe_prices(input_price, output_price),
@@ -454,15 +501,18 @@ def summary(results, input_price=None, output_price=None):
     if AGENT in stats and TEAM in stats:
         single, crew = stats[AGENT], stats[TEAM]
         out["paired"] = paired(results, AGENT, TEAM)
+        out["paired_by_task"] = paired_by_task(results, AGENT, TEAM)
         out["per_agent"] = per_agent_stats(results, TEAM)
         out["team_by_task"] = team_by_task(results, TEAM)
         out["cost_ratio_bounds"] = cost_ratio_bounds(single, crew)
         out["team_over_agent"] = _ratios(crew, single)
         clean, dropped = clean_units(results)
-        out["clean"] = {"dropped": dropped, "paired": paired(clean), "stats": {arm: arm_stats(clean, arm) for arm in (AGENT, TEAM)},
+        out["clean"] = {"dropped": dropped, "paired": paired(clean), "paired_by_task": paired_by_task(clean),
+                        "stats": {arm: arm_stats(clean, arm) for arm in (AGENT, TEAM)},
                         "team_over_agent": _ratios(arm_stats(clean, TEAM), arm_stats(clean, AGENT))}
     if AGENT in stats and NOISE in stats:
-        out["calibration"] = {"paired": paired(results, AGENT, NOISE), "noise_over_agent": _ratios(stats[NOISE], stats[AGENT])}
+        out["calibration"] = {"paired": paired(results, AGENT, NOISE), "by_task": paired_by_task(results, AGENT, NOISE),
+                              "noise_over_agent": _ratios(stats[NOISE], stats[AGENT])}
     return out
 
 
@@ -498,10 +548,17 @@ def _quality_rows(stats, arms):
     return rows
 
 
-def _pair_line(pair, first, second):
-    return (f"paired by task and repeat ({pair['pairs']} pairs): both pass {pair['both']}, only {first} {pair['only_' + first]}, "
+def _pair_line(pair, first, second, lead="paired by task and repeat"):
+    return (f"{lead} ({pair['pairs']} pairs): both pass {pair['both']}, only {first} {pair['only_' + first]}, "
             f"only {second} {pair['only_' + second]}, neither {pair['neither']}; exact McNemar p = {pair['p']:.3f} "
-            f"over {pair['only_' + first] + pair['only_' + second]} discordant pair(s)")
+            f"over {pair['only_' + first] + pair['only_' + second]} discordant pair(s); this treats the repeats of a task as independent, so it is optimistic")
+
+
+def _task_line(by_task, first, second):
+    differing = by_task["more_" + first] + by_task["more_" + second]
+    return (f"by task ({by_task['tasks']} tasks): {first} passed more of the repeats on {by_task['more_' + first]} tasks, {second} on "
+            f"{by_task['more_' + second]}, the same on {by_task['same']}; exact sign test over the {differing} differing task(s) p = {by_task['p']:.3f} "
+            "(the task is the unit here, not the repeat)")
 
 
 def format_report(results, input_price=None, output_price=None, price_source=None):
@@ -550,15 +607,18 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
                  "served from a cache. Neither is in the token numbers below, so a real bill could differ.")
 
     lines += ["", "QUALITY   success = the run finished AND passed the rule checks"] + _quality_rows(stats, arms)
+    lines.append("the 95% interval treats every run as an independent trial, but the repeats of a task are correlated, so it is optimistic")
     if "paired" in data:
         pair = data["paired"]
-        lines.append(_pair_line(pair, AGENT, TEAM))
+        lines += [_pair_line(pair, AGENT, TEAM), _task_line(data["paired_by_task"], AGENT, TEAM)]
         if pair["unpaired"]:
             lines.append(f"not paired (only one arm has a run, left out of the pairs): {', '.join(pair['unpaired'])}")
         lines.append("a difference is only called when the exact p is below 0.05, and with fewer than 6 discordant pairs it cannot be: "
-                     "at this number of runs a gap of one or two runs is not resolved")
+                     "at this number of runs a gap of one or two runs is not resolved. Read the by-task line first: the pair line counts "
+                     "the near-copy repeats of a task as separate trials")
     if "calibration" in data:
-        lines.append(f"calibration, {AGENT} against {NOISE} (the same design twice): " + _pair_line(data["calibration"]["paired"], AGENT, NOISE).split(": ", 1)[1])
+        lines += [_pair_line(data["calibration"]["paired"], AGENT, NOISE, f"calibration, {AGENT} against {NOISE} (the same design twice), paired by task and repeat"),
+                  _task_line(data["calibration"]["by_task"], AGENT, NOISE)]
     lines += ["", "SPEED     per run. Model seconds are time inside model calls. Wall seconds include queueing behind the previous run's calls in the shared rate limiter",
               f"{'arm':<9}{'calls':>7}{'max':>5}{'>8':>4}{'>12':>5}{'model s mean':>14}{'median':>8}{'max':>7}{'wall s mean':>13}{'median':>8}{'max':>7}{'waiting':>9}{'limiter s':>11}"]
     for arm in arms:
@@ -580,9 +640,11 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
                  "so far sent again plus whatever the step added, so an upper bound on re-sent text. per pass = total tokens divided by passing runs.")
     if TEAM in stats and stats[TEAM]["runs"]:
         crew = stats[TEAM]
-        lines.append(f"derived: had every hand-off carried the manager's whole conversation, the team would have sent at least "
-                     f"{crew['forwarded_extra_mean']:.0f} more prompt tokens per run ({ratio(crew['forwarded_extra_mean'], crew['prompt_mean']) or 0:.0%} "
-                     f"on top of its {crew['prompt_mean']:.0f}); the measured team hands over only the sub-question")
+        lines.append(f"derived: had every hand-off carried the manager's whole conversation, the team would have sent between "
+                     f"{crew['forwarded_floor_mean']:.0f} and {crew['forwarded_extra_mean']:.0f} more prompt tokens per run "
+                     f"({ratio(crew['forwarded_floor_mean'], crew['prompt_mean']) or 0:.0%} to {ratio(crew['forwarded_extra_mean'], crew['prompt_mean']) or 0:.0%} "
+                     f"on top of its {crew['prompt_mean']:.0f}): an estimate between a floor (the manager's history only) and a ceiling (its whole prompt, "
+                     "tool list included, which forwarding would not carry), not a lower bound; the measured team hands over only the sub-question")
         lines.append(f"derived: the manager re-reads the specialists' answers on its later calls, about {crew['reread_mean']:.0f} prompt tokens per run")
 
     lines += ["", "COST      relative units: an input token is 1 unit, an output token is r units. No price is assumed; real price lists put r near 4 to 8",
@@ -663,7 +725,7 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
                       f"({dropped['kept']} of {dropped['units']} units kept: {dropped['dropped_for_limits']} dropped for limits, "
                       f"{dropped['dropped_for_provider']} for the provider, {dropped['incomplete']} incomplete)"]
         lines += _quality_rows(clean["stats"], (AGENT, TEAM))
-        lines.append(_pair_line(clean["paired"], AGENT, TEAM))
+        lines += [_pair_line(clean["paired"], AGENT, TEAM), _task_line(clean["paired_by_task"], AGENT, TEAM)]
         ratios = clean["team_over_agent"]
         lines.append(f"{TEAM} / {AGENT} on these units:  calls {_x(ratios['calls'])}, tokens {_x(ratios['tokens'])}, model seconds {_x(ratios['model_seconds'])}")
     lines += ["", f"FAILED RUNS   every run that did not succeed ({len(data['failed'])})"]
