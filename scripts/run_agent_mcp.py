@@ -66,19 +66,21 @@ def main(argv=None):
             print(f"\nQuestion: {question}\n")
             if args.defense:
                 print("Note: with --defense a final answer must cite a policy document the agent retrieved (or be the plain "
-                      "refusal), so an answer that comes only from another tool, such as the HRIS, is withheld.\n")
+                      "refusal), so an answer that comes only from another tool, such as the HRIS, is withheld. The date guard "
+                      "also accepts only dates the question states or that add_days or calculate produced, so a date that only "
+                      "the HRIS returned cannot be given to add_days.\n")
             defense = Defense(trusted_contacts=trusted_contacts_from(settings.corpus_dir),
                               system_prompt=loop.SYSTEM_PROMPT) if args.defense else None
             run = loop.run_agent(question, provider.tools, max_steps=args.max_steps, model=args.model,
                                  defense=defense, on_step=display.show_step)
+    except llm.QuotaExhausted as exc:                             # before RuntimeError: it is a kind of RuntimeError
+        print(f"Stopped: {exc}")
+        return 1
     except (RuntimeError, OSError) as exc:
         print(f"Error: {exc}")
         return 1
     except openai.APIError as exc:
         print(f"Error: the AI provider call failed ({type(exc).__name__}): {exc}")
-        return 1
-    except llm.QuotaExhausted as exc:
-        print(f"Stopped: {exc}")
         return 1
 
     print()

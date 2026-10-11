@@ -111,6 +111,7 @@ class RunAgentMcpAgentTests(unittest.TestCase):
         self.assertIsInstance(agent.call_args.kwargs["defense"], Defense)
         self.assertIn("a final answer must cite a policy document", out)
         self.assertIn("withheld", out)
+        self.assertIn("date guard", out)                          # the second limit: a date only the HRIS returned is refused
 
     def test_without_defense_there_is_no_note_and_no_defence(self):
         code, out, agent = self.call("a question")
@@ -128,10 +129,41 @@ class RunAgentMcpAgentTests(unittest.TestCase):
         self.assertIn("Error: no index yet", out.getvalue())
         provider.assert_not_called()                              # no server was started for a run that cannot work
 
-    def test_listing_the_tools_needs_no_index(self):
-        code, out, _agent = self.call("--list")
+    def provider_that_lists(self):
+        provider = mock.MagicMock()
+        provider.__enter__.return_value = provider
+        provider.report.return_value = ["discovered 1 tool(s)"]
+        return provider
+
+    def test_listing_the_tools_never_asks_for_the_index(self):
+        out = io.StringIO()
+        with (mock.patch.object(run_agent_mcp.pipeline, "require_index") as needed,
+              mock.patch.object(run_agent_mcp, "MCPToolProvider", return_value=self.provider_that_lists()),
+              contextlib.redirect_stdout(out)):
+            code = run_agent_mcp.main(["--list"])                 # the default config does include the policy server
         self.assertEqual(code, 0)
-        self.assertIn("discovered 1 tool(s)", out)
+        needed.assert_not_called()
+        self.assertIn("discovered 1 tool(s)", out.getvalue())
+
+    def test_the_read_only_flag_reaches_the_provider_and_is_off_without_it(self):
+        for args, expected in ((["--list", "--require-read-only"], True), (["--list"], False)):
+            with self.subTest(args=args), mock.patch.object(run_agent_mcp.pipeline, "require_index"), \
+                    mock.patch.object(run_agent_mcp, "MCPToolProvider", return_value=self.provider_that_lists()) as ctor, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                run_agent_mcp.main(args)
+            self.assertIs(ctor.call_args.kwargs["require_read_only"], expected)
+
+    def test_a_used_up_quota_is_shown_as_stopped_and_not_as_an_error(self):
+        provider = self.provider_that_lists()
+        provider.tools = [mock.MagicMock()]
+        out = io.StringIO()
+        with (mock.patch.object(run_agent_mcp.pipeline, "require_index"), mock.patch.object(run_agent_mcp, "MCPToolProvider", return_value=provider),
+              mock.patch.object(run_agent_mcp.loop, "run_agent", side_effect=run_agent_mcp.llm.QuotaExhausted("the free daily quota is used up")),
+              contextlib.redirect_stdout(out)):
+            code = run_agent_mcp.main(["a question"])
+        self.assertEqual(code, 1)
+        self.assertIn("Stopped: the free daily quota is used up", out.getvalue())
+        self.assertNotIn("Error:", out.getvalue())
 
 
 class RawDemoTests(unittest.TestCase):
@@ -140,7 +172,7 @@ class RawDemoTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr[-400:])
         for needle in ("A. THE NEWER WAY", "B. THE OLDER WAY", '"method": "server/discover"', '"method": "initialize"',
                        "notifications/initialized", '"method": "tools/list"', '"method": "tools/call"', '"isError":true',
-                       "never saw a question, a model or an agent"):
+                       "Those were all the requests the server received"):
             self.assertIn(needle, result.stdout)
         self.assertEqual(result.stdout.count("3 tools discovered"), 2)                      # once per way
         self.assertEqual(result.stdout.count('"isError":true'), 2)
@@ -161,10 +193,15 @@ class RawDemoTests(unittest.TestCase):
 class OtherAgentDemoTests(unittest.TestCase):
     def test_the_other_agent_imports_nothing_from_this_project(self):
         with open(os.path.join(BASE_DIR, "scripts", "other_agent_demo.py"), encoding="utf-8") as handle:
-            source = handle.read()
-        imports = [line.strip() for line in source.splitlines() if line.startswith(("import ", "from "))]
-        self.assertTrue(any("fastmcp" in line for line in imports))
-        self.assertFalse([line for line in imports if line.split()[1].split(".")[0] in ("app", "evals", "scripts")], imports)
+            tree = ast.parse(handle.read())
+        imported = set()
+        for node in ast.walk(tree):                               # an import anywhere, indented or inside a function, counts
+            if isinstance(node, ast.Import):
+                imported |= {alias.name.split(".")[0] for alias in node.names}
+            elif isinstance(node, ast.ImportFrom):
+                imported.add((node.module or "").split(".")[0])
+        self.assertIn("fastmcp", imported)
+        self.assertFalse(imported & {"app", "evals", "scripts", "tests"}, imported)
 
 
 if __name__ == "__main__":

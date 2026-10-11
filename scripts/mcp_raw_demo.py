@@ -10,13 +10,12 @@ process:
   A. The newer way (protocol 2026-07-28), which the pinned `mcp` client tries first: there is no handshake.
      The host asks `server/discover`, then sends ordinary requests (`tools/list`, `tools/call`) that each say,
      in `_meta`, which protocol version they speak.
-  B. The older way (protocol 2025-06-18 and before), which a client falls back to for a server that does not
-     know `server/discover`: an `initialize` request, a `notifications/initialized` message, then the same
+  B. The older way (protocol revisions 2024-11-05 to 2025-11-25), which a client falls back to for a server that
+     does not know `server/discover`: an `initialize` request, a `notifications/initialized` message, then the same
      ordinary requests.
 
 In both you will see discovery (`tools/list`), a tool call (`tools/call`) and an error that comes back as data
-instead of a crash. The AI model is not involved anywhere in this script. That is the point: the server only
-answers requests. It does see the client's name and version (`clientInfo`), and nothing about any model.
+instead of a crash. This script calls no AI model: it only sends the requests printed below.
 
 Run:
     python scripts/mcp_raw_demo.py
@@ -103,7 +102,7 @@ def ordinary_requests(talk, meta=None, first_id=2):
     print(f"    -> {len(names)} tools discovered: {names}")
     talk.send({"jsonrpc": "2.0", "id": first_id + 1, "method": "tools/call",
                "params": params({"name": "get_leave_balance", "arguments": {"employee_id": "E1001"}})},
-              "A TOOL CALL: the host (not the server) decided to ask; the server only runs it and answers")
+              "A TOOL CALL: the host asks the server to run one tool, and the server answers")
     talk.receive(first_id + 1)
     talk.send({"jsonrpc": "2.0", "id": first_id + 2, "method": "tools/call",
                "params": params({"name": "get_leave_balance", "arguments": {"employee_id": "nobody"}})},
@@ -145,7 +144,7 @@ def main():
     make_output_safe()
     newer_way()
     older_way()
-    print("\nThe server never saw a question, a model or an agent: only these requests.")
+    print("\nThose were all the requests the server received.")
     return 0
 
 

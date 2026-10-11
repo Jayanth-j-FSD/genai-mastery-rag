@@ -23,6 +23,6 @@ tokenizers==0.23.2
 httpx==0.28.1
 
 # Week 9: MCP. mcp is the official client the agent uses to discover tools; fastmcp builds the small servers in
-# app/mcp/servers/ and is the second, different client library the "someone else's agent" demo uses.
+# app/mcp/servers/ and provides the client that the "someone else's agent" demo uses (a different package, on the same SDK).
 mcp==2.3.0
 fastmcp==4.1.0

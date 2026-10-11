@@ -1,7 +1,7 @@
 """Week 9, mentor check #3: another person's agent calls OUR server.
 
 This script is written as if by someone else. It imports NOTHING from this project, only the
-public `fastmcp` client library, which is a different MCP client from the one our own agent uses. It is told a
+public `fastmcp` client library, a different package from the `mcp` client our own agent uses (it is built on the same SDK). It is told a
 single thing, how to start our policy server (a command and a folder), and from there it discovers what the
 server offers, searches the HR policies, and reads the list of documents. A real outside agent would hand the
 discovered tools to its own model; the model is left out here so the server's side is easy to see.
@@ -17,7 +17,9 @@ import asyncio
 import os
 import sys
 
-os.environ.setdefault("FASTMCP_CHECK_FOR_UPDATES", "off")      # an update check would write a cache file outside the project
+os.environ.setdefault("FASTMCP_CHECK_FOR_UPDATES", "off")      # harmless here: a client-only script shows no banner, so fastmcp does not check anyway
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")                   # a server's text must not crash a redirected Windows console
 
 from fastmcp import Client      # noqa: E402
 from fastmcp.exceptions import ToolError      # noqa: E402
