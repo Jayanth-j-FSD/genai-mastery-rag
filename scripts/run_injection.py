@@ -12,6 +12,7 @@ Run:
     python scripts/run_injection.py --repeats 2 --label final
     python scripts/run_injection.py --static                 # no model: what the sanitizer alone removes
     python scripts/run_injection.py --show final             # no model: re-print a saved run's table
+    python scripts/run_injection.py --show final --rescore   # no model: the same runs judged by today's detectors
     python scripts/run_injection.py --compare layer-sanitize layer-guard-fixed layer-validate final   # side by side
 """
 import argparse
@@ -39,6 +40,7 @@ def main(argv=None):
     parser.add_argument("--static", action="store_true", help="no model calls: show what the sanitizer alone removes")
     parser.add_argument("--show", metavar="LABEL", help="print the table of a saved run (no model calls) instead of running")
     parser.add_argument("--compare", nargs="+", metavar="LABEL", help="put saved runs side by side, one column each (no model calls)")
+    parser.add_argument("--rescore", action="store_true", help="with --show or --compare: judge the saved runs by the current detectors")
     args = parser.parse_args(argv)
     make_output_safe()
 
@@ -48,15 +50,30 @@ def main(argv=None):
         except FileNotFoundError as exc:
             print(f"Error: {exc}")
             return 1
+        if args.rescore:
+            named = [(label, injection.rescore(results)) for label, results in named]
         print("\n".join(injection.format_layer_compare(named)))
         return 0
 
     if args.show:
         try:
-            print("\n".join(injection.format_suite(runner.load_results("injection-" + args.show))))
+            saved = runner.load_results("injection-" + args.show)
         except FileNotFoundError as exc:
             print(f"Error: {exc}")
             return 1
+        if not args.rescore:
+            print("\n".join(injection.format_suite(saved)))
+            return 0
+        scored = injection.rescore(saved)
+        changed = scored["meta"]["rescored_changes"]
+        print("AS SAVED (the detectors as they were when the run was made):\n")
+        print("\n".join(injection.format_suite(saved)))
+        print("\n" + "=" * 78 + "\nRE-SCORED with the current detectors (same runs, same answers, no model calls):\n")
+        print("\n".join(injection.format_suite(scored)))
+        print(f"\n{len(changed)} run(s) changed verdict:")
+        for item in changed:
+            mode = "on " if item["defended"] else "off"
+            print(f"  {item['attack_id']:<24}defences {mode} run {item['repeat']}  reached/worked {item['was']} -> {item['now']}")
         return 0
 
     try:

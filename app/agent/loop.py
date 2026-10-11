@@ -146,12 +146,18 @@ def _call_tool(by_name, name, raw_arguments, defense, step_number):
     if defense:
         defense.step = step_number
         arguments, problem = _parse_arguments(raw_arguments)
-        refusal = None if problem else defense.check_call(name, arguments)
+        try:
+            refusal = None if problem else defense.check_call(name, arguments)
+        except Exception:                    # an argument check that crashes must not let the call through
+            refusal = "BLOCKED: the argument check could not run, so the call was not made."
         if refusal:                          # least privilege: the call never runs
             return refusal, False, True
     observation, ok = _run_tool(by_name, name, raw_arguments)
     if defense:                              # whatever a tool returns is data, never instructions
-        observation = defense.screen(observation, name)
+        try:
+            observation = defense.screen(observation, name)
+        except Exception:                    # a screen that crashes must not hand the model unscreened text
+            observation, ok = "ERROR: the result could not be screened, so it is not shown.", False
     return observation, ok, False
 
 
@@ -160,13 +166,16 @@ def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_se
               defense=None, max_calls_per_tool=None):
     """Run the loop and return an AgentRun. `on_step(step_dict)` is called as each step finishes.
 
-    `max_calls_per_tool` (default: the AGENT_MAX_CALLS_PER_TOOL setting, 0 = off) caps how often one tool may
-    run in this run. A call over the cap is not executed and comes back as a BUDGET observation, so a model that
-    keeps re-asking is told to answer from what it has.
+    `max_calls_per_tool` (default: the AGENT_MAX_CALLS_PER_TOOL setting, 0 = off) caps how many results one
+    tool may return in this run. A call over the cap is not executed and comes back as a BUDGET observation, so a
+    model that keeps re-asking is told to answer from what it has. Only calls that returned a result count: a
+    malformed call, a tool error or a call a defence refused does not use the budget up.
 
     `defense` (an app.agent.defense.Defense, off by default) screens what tools return, checks the arguments
     of every call, and validates the final answer. See that module for what each layer does and does not stop.
     """
+    if max_calls_per_tool is not None and max_calls_per_tool < 0:
+        raise ValueError(f"max_calls_per_tool must be 0 (off) or more, got {max_calls_per_tool}")
     max_steps = max_steps or settings.agent_max_steps
     max_total_tokens = max_total_tokens or settings.agent_max_total_tokens
     timeout_seconds = timeout_seconds or settings.agent_timeout_seconds
@@ -240,7 +249,10 @@ def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_se
             answer = step["content"]
             if defense:
                 defense.step = number
-                reason = defense.validate(answer)
+                try:
+                    reason = defense.validate(answer)
+                except Exception:            # an answer check that crashes must not let the answer through
+                    reason = "the answer check could not run"
                 if reason:                   # withhold it, say so, and keep the draft for the record
                     run.blocked, run.draft_answer, step["kind"] = reason, answer, "blocked"
                     answer = SAFE_REFUSAL
@@ -266,12 +278,12 @@ def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_se
                     stop_after = "repeated_call"
             else:
                 if call_cap and name != "remember" and executed[name] >= call_cap:
-                    observation = (f"BUDGET: {name} has already run {executed[name]} times for this question. Use what you "
-                                   f"found. If it is not enough, reply exactly: {IDK}")
+                    observation = (f"BUDGET: {name} has already returned {executed[name]} results for this question. Use what "
+                                   f"you found. If it is not enough, reply exactly: {IDK}")
                     ok, blocked = False, True
                 else:
                     observation, ok, blocked = _call_tool(by_name, name, raw, defense, number)
-                    if not blocked:
+                    if ok and not blocked:
                         executed[name] += 1
                 seen_calls[signature] = observation
                 repeats = 0

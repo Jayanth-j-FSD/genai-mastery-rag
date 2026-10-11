@@ -38,11 +38,33 @@ class CallBudgetTests(LoopTestCase):
         run, client = self.run_with(script, max_calls_per_tool=2)
         self.assertEqual(RAN, ["a", "b"])                                    # the third never ran
         third = run.steps[2]["tool_calls"][0]
-        self.assertTrue(third["observation"].startswith("BUDGET: echo has already run 2 times"))
+        self.assertTrue(third["observation"].startswith("BUDGET: echo has already returned 2 results"))
         self.assertIn("I don't know based on the provided documents.", third["observation"])
         self.assertEqual((third["ok"], third["blocked"]), (False, True))
         self.assertTrue(client.requests[3]["messages"][-1]["content"].startswith("BUDGET"))
         self.assertEqual(run.stop_reason, "final")
+
+    def test_only_calls_that_returned_a_result_use_the_budget_up(self):
+        script = [asks(call("1", "echo", "{not json")), asks(call("2", "echo", {"wrong": "name"})),
+                  asks(call("3", "echo", {"text": "a"})), asks(call("4", "echo", {"text": "b"})), says("done")]
+        run, _ = self.run_with(script, max_calls_per_tool=2)
+        self.assertEqual(RAN, ["a", "b"])                                    # two bad calls did not count against the cap
+        self.assertEqual([c["ok"] for step in run.steps[:4] for c in step["tool_calls"]], [False, False, True, True])
+
+    def test_a_call_the_defence_refused_does_not_use_the_budget_up(self):
+        from app.agent.defense import Defense
+        defense = Defense(layers=("guard",))
+        script = [asks(call("1", "calculate", {"expression": "9999999 + 1"})), asks(call("2", "calculate", {"expression": "9999999 + 2"})),
+                  asks(call("3", "calculate", {"expression": "2 + 2"})), says("done")]
+        calculator = Tool("calculate", "does sums", {"type": "object", "properties": {"expression": {"type": "string"}}},
+                          lambda expression: f"answer for {expression}")
+        run, _ = self.run_script(script, tools=[calculator], use_memory=False, defense=defense, max_calls_per_tool=1)
+        self.assertEqual([c["blocked"] for step in run.steps[:3] for c in step["tool_calls"]], [True, True, False])
+        self.assertIn("answer for 2 + 2", run.steps[2]["tool_calls"][0]["observation"])      # the one real call still had its turn
+
+    def test_a_negative_cap_is_refused_instead_of_blocking_every_call(self):
+        with self.assertRaises(ValueError):
+            self.run_with([says("x")], max_calls_per_tool=-1)
 
     def test_the_cap_is_per_tool_not_a_total(self):
         script = [asks(call("1", "echo", {"text": "a"})), asks(call("2", "other", {"text": "b"})),
