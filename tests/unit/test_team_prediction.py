@@ -137,7 +137,7 @@ class PredictionTests(unittest.TestCase):
         for word in ("winner", "better", "worse", "should ship"):
             self.assertNotIn(word, text.lower())
 
-    def test_the_bands_and_margins_are_the_ones_the_module_says_it_copied_from_the_changes_document(self):
+    def test_the_registered_bands_and_margins_have_not_moved(self):
         self.assertEqual(prediction.BANDS, {"calls": (1.3, 3.0), "tokens": (0.8, 2.0), "model_seconds": (1.0, 3.0)})
         self.assertEqual((prediction.MORE_CALLS_ON_AT_LEAST, prediction.PASS_MARGIN_CALCULATION, prediction.PASS_MARGIN_ALL), (7, 2, 5))
         self.assertEqual(prediction.FAILS_IF, ("P1", "P2", "P3", "P6"))

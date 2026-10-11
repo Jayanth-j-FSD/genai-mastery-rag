@@ -18,13 +18,14 @@ both, and an honest verdict even if the team lost:
            because it also holds new tool results).
   cost     the free tier bills nothing and this project has no price table, so cost is reported without inventing a
            price: in RELATIVE units (an input token is 1 unit, an output token is r units, for r = 1, 2, 4, 8 and 20), as
-           the one claim that holds for ANY prices (the cost ratio lies between the input-token ratio and the
-           output-token ratio), and as requests, which is what a free tier is spent in. Dollars appear only when you state
-           prices and where you got them (app/pricing.py), labelled as an assumption.
+           the one claim that holds for any one input price and one output price (the cost ratio lies between the
+           input-token ratio and the output-token ratio; a cheaper price for cached input is a third price it does not
+           cover), and as requests, which is what a free tier is spent in. Dollars appear only when you state prices and
+           where you got them (app/pricing.py), labelled as an assumption.
 
 Everything marked "derived" is worked out from recorded numbers, not measured: the extra prompt tokens a hand-off that
-carried the whole conversation would have cost, the tokens the manager re-reads from the specialists' answers, and the
-seconds saved if hand-offs had overlapped.
+carried the whole conversation would have cost (a floor and a ceiling), the tokens the manager re-reads from the
+specialists' answers (an upper bound), and the elapsed seconds saved if hand-offs had overlapped.
 
 Nothing here decides the winner. The numbers go into docs/week10/findings.md; the verdict is yours to write.
 """
@@ -38,7 +39,9 @@ from evals.agent_tasks import PATH_PROBES, TASKS, get_tasks
 
 AGENT, TEAM, NOISE, WORKFLOW = "agent", "team", "agent-2", "workflow"
 AGENTS = ("manager", "researcher", "calculator")
-PRICE_RATIOS = (1, 2, 4, 8, 20)    # output tokens cost this many input tokens: 1 is the plain count, 4 to 8 is typical of real lists
+PRICE_RATIOS = (1, 2, 4, 8, 20)    # output tokens cost this many input tokens: 1 is the plain token count, the rest a grid to read against the prices you state
+UNIT_WIDTH = 14                    # the width of every column of the cost tables, heading and rows alike, so they line up
+NEAR_CEILING = 0.90                # a single-agent success rate from here up leaves little room above it
 DAILY_REQUESTS = 500               # what a free-tier key allowed per model per day when measured (docs/week8)
 LIMIT_STOPS = ("max_steps", "timeout", "token_budget", "repeated_call", "budget")       # a run ended on a limit, not on an answer
 TROUBLE_STOPS = ("error", "quota_exhausted", "empty_reply")                               # a run ended on the provider: a failed call, a spent quota, or a reply with no text and no tool request
@@ -95,8 +98,10 @@ def _stated(price):
 def conversations(steps):
     """The model calls of one run grouped into conversations, each a list of (prompt, completion) tokens in order.
 
-    A single agent has one conversation. A team has the manager's and one per hand-off. A step with no tokens at all had
-    no model call behind it (a provider error), so it is skipped.
+    A single agent has one conversation. A team has the manager's and one per hand-off. A step with no tokens at all is
+    skipped: usually no model call is behind it (an error before any reply), but a provider reply with no choices IS billed
+    and counted although the loop records its step with 0 tokens, so a run's step tokens can fall short of its total
+    (`tokens_in_no_step` measures the gap).
     """
     groups = {}
     for step in steps:
@@ -105,6 +110,16 @@ def conversations(steps):
             continue
         groups.setdefault((step.get("agent"), step.get("handoff")), []).append((tokens.get("prompt", 0), tokens.get("completion", 0)))
     return groups
+
+
+def tokens_in_no_step(record):
+    """Tokens a run was billed beyond what its steps record (a provider reply with no choices leaves a step with 0 tokens), derived as
+    the run's prompt plus completion tokens minus the sum over its steps. 0 for a run with no step record at all: there is nothing to compare."""
+    steps = record.get("steps") or []
+    if not steps:
+        return 0
+    seen = sum((step.get("tokens") or {}).get("prompt", 0) + (step.get("tokens") or {}).get("completion", 0) for step in steps)
+    return max(0, record["prompt_tokens"] + record["completion_tokens"] - seen)
 
 
 def prompt_breakdown(steps):
@@ -162,7 +177,8 @@ def forwarded_context_floor(record):
 
 def handoff_answers_reread(record):
     """Prompt tokens the manager spends re-reading the specialists' answers (derived): each answer's completion tokens,
-    times the manager calls made after the step that asked for it, since the answer sits in the manager's conversation."""
+    times the manager calls made after the step that asked for it, since the answer sits in the manager's conversation.
+    An upper bound: Memory shortens tool results older than the two newest, which this does not subtract."""
     team = record.get("team")
     if not team:
         return 0
@@ -177,9 +193,10 @@ def handoff_answers_reread(record):
 
 
 def overlap_saving(record):
-    """Model seconds a team run would have saved had the hand-offs the manager asked for in ONE step run side by side:
+    """Elapsed seconds a team run would have saved had the hand-offs the manager asked for in ONE step run side by side:
     their summed model seconds minus the longest. Derived: the loop runs them one after the other, and the free tier's
-    request limit would serialise them anyway, so this says what a parallel team could gain, not what this one did."""
+    request limit would serialise them anyway, so this says what a parallel team could gain in elapsed time (the summed
+    model seconds would not change), not what this one did."""
     team = record.get("team")
     if not team:
         return 0.0
@@ -191,8 +208,9 @@ def overlap_saving(record):
 
 
 def duplicate_searches(record):
-    """Searches in a run that repeat an earlier query of the same run, across hand-offs too (the loop's own guard only
-    sees one agent's consecutive repeats)."""
+    """Searches in a run that repeat an earlier query of the same run, across hand-offs too (the loop's own guard works inside
+    one agent's run only: it refuses an exact repeat of a call and stops the run after two in a row, and it never sees a query
+    another agent already made)."""
     seen, repeats = set(), 0
     for step in record.get("steps", []):
         for call in step.get("tool_calls", []):
@@ -265,6 +283,12 @@ def calls_of(record):
     return (record.get("team") or {}).get("call_log") or record.get("call_log") or []
 
 
+def requests_of(record):
+    """Requests a run spent against the provider (derived): every attempt in its per-call records when they were kept (a retried call and
+    a failed call each cost requests), and never fewer than its successful calls, so a short or missing log cannot lower the count."""
+    return max(record["llm_calls"], sum(call.get("attempts", 1) for call in calls_of(record)))
+
+
 def arm_stats(results, arm, input_price=None, output_price=None):
     """Everything the report says about one arm, as plain numbers. A price left as None is 'not stated', never a setting."""
     input_price, output_price = _stated(input_price), _stated(output_price)
@@ -274,6 +298,7 @@ def arm_stats(results, arm, input_price=None, output_price=None):
     prompt, completion = [run["prompt_tokens"] for run in rows], [run["completion_tokens"] for run in rows]
     total = [p + c for p, c in zip(prompt, completion)]
     calls = [run["llm_calls"] for run in rows]
+    requests = [requests_of(run) for run in rows]
     model_seconds, elapsed = [run["api_seconds"] for run in rows], [run["elapsed_seconds"] for run in rows]
     costs = [pricing.cost_of(run["prompt_tokens"], run["completion_tokens"], input_price, output_price) for run in rows]
     priced = bool(rows) and all(cost is not None for cost in costs)
@@ -285,7 +310,7 @@ def arm_stats(results, arm, input_price=None, output_price=None):
         "runs": runs, "success": wins, "finished": sum(bool(run["finished"]) for run in rows),
         "success_rate": wins / runs if runs else 0.0, "interval": [low, high],
         "calls_mean": mean(calls), "calls_max": max(calls, default=0), "calls_over_8": sum(c > 8 for c in calls),
-        "calls_over_12": sum(c > 12 for c in calls), "runs_per_day": ratio(DAILY_REQUESTS, mean(calls)),
+        "calls_over_12": sum(c > 12 for c in calls), "requests_mean": mean(requests), "runs_per_day": ratio(DAILY_REQUESTS, mean(requests)),
         "prompt_mean": mean(prompt), "completion_mean": mean(completion), "tokens_mean": mean(total),
         "tokens_median": median(total), "tokens_max": max(total, default=0),
         "tokens_per_success": sum(total) / wins if wins else None,
@@ -309,6 +334,7 @@ def arm_stats(results, arm, input_price=None, output_price=None):
         "answered_without_hand_off": sum(f["answered_without_hand_off"] for f in features) if arm == TEAM else None,
         "limit_stops": sum(hit_limit(run) for run in rows), "provider_trouble": sum(provider_trouble(run) for run in rows),
         "own_limit_stops": sum(ended_on_limit(run) for run in rows), "side_by_side_runs": sum(asked_side_by_side(run) for run in rows),
+        "no_step_tokens": sum(tokens_in_no_step(run) for run in rows), "no_step_runs": sum(tokens_in_no_step(run) > 0 for run in rows),
     }
 
 
@@ -331,6 +357,7 @@ def instrument_stats(results, arm):
             "errors": sum(call.get("status") == "error" for call in calls),
             "total_reported": len(reporting_total),
             "unexplained_tokens": sum(call["total_tokens"] - call["prompt_tokens"] - call["completion_tokens"] for call in reporting_total),
+            "unexplained_abs": sum(abs(call["total_tokens"] - call["prompt_tokens"] - call["completion_tokens"]) for call in reporting_total),
             "cached_tokens": sum(call.get("cached_tokens") or 0 for call in calls),
             "reasoning_tokens": sum(call.get("reasoning_tokens") or 0 for call in calls),
             "warnings": sum(len((run.get("team") or {}).get("warnings", [])) + bool(run.get("usage_warning")) for run in rows),
@@ -341,19 +368,22 @@ def per_agent_stats(results, arm=TEAM):
     """What each agent of the team spent, summed over its runs, and how the hand-offs ended."""
     rows = [run for run in results["runs"] if run["approach"] == arm and run.get("team")]
     totals = {agent: {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "api_seconds": 0.0, "handoffs": 0} for agent in AGENTS}
-    states = {}
+    states, stops = {}, {}
     for run in rows:
         for agent, row in run["team"]["per_agent"].items():
             for key in totals[agent]:
                 totals[agent][key] += row.get(key, 0)
         for handoff in run["team"]["handoffs"]:
             states[(handoff["agent"], handoff["state"])] = states.get((handoff["agent"], handoff["state"]), 0) + 1
+            key = (handoff["agent"], handoff["state"], handoff.get("stop_reason") or "none")
+            stops[key] = stops.get(key, 0) + 1
     grand = sum(row["prompt_tokens"] + row["completion_tokens"] for row in totals.values())
     for agent, row in totals.items():
         row["tokens"] = row["prompt_tokens"] + row["completion_tokens"]
         row["token_share"] = row["tokens"] / grand if grand else 0.0
         row["calls_per_handoff"] = ratio(row["calls"], row["handoffs"]) if agent != "manager" else None
-    return {"runs": len(rows), "agents": totals, "handoff_states": {f"{agent}:{state}": n for (agent, state), n in sorted(states.items())}}
+    return {"runs": len(rows), "agents": totals, "handoff_states": {f"{agent}:{state}": n for (agent, state), n in sorted(states.items())},
+            "handoff_stops": {f"{agent}:{state}:{reason}": n for (agent, state, reason), n in sorted(stops.items())}}
 
 
 def team_by_task(results, arm=TEAM):
@@ -471,8 +501,9 @@ def path_stats(results, arms, tasks=None):
 
 def cost_ratio_bounds(baseline, other):
     """For ANY non-negative prices, the cost of `other` divided by the cost of `baseline` lies between the input-token
-    ratio and the output-token ratio (a weighted average of the two). None when a baseline count is zero."""
-    if not baseline["prompt_mean"] or not baseline["completion_mean"]:
+    ratio and the output-token ratio (a weighted average of the two). None when a baseline count is zero, or when either arm has no runs
+    (an arm that never ran has no cost to compare)."""
+    if baseline.get("runs", 1) == 0 or other.get("runs", 1) == 0 or not baseline["prompt_mean"] or not baseline["completion_mean"]:
         return None
     ratios = (other["prompt_mean"] / baseline["prompt_mean"], other["completion_mean"] / baseline["completion_mean"])
     return min(ratios), max(ratios)
@@ -572,20 +603,30 @@ def history_lines(meta):
     return lines
 
 
-def closing_text(meta):
-    """The paragraph that ends the report: what the numbers cannot tell you, with what the file knows about the race filled in."""
+def closing_text(meta, stats):
+    """The paragraph that ends the report: what the numbers cannot tell you, with what the race file and the numbers say filled in, so that
+    no sentence asserts something about the data that the data does not show."""
     days = calendar_days(meta)
     when = (f"this race spanned a quota reset (it ran on {len(days)} calendar days: {', '.join(days)}), so it is one model but not one day, "
             "drift between the days is in the comparison, and it is one run of the race" if len(days) > 1
             else "this is one model on one day and one run of the race")
-    return (f"Read before quoting a number: {when}, so variation between races is not measured. "
-            "The runs are few (the repeats of a task are correlated), so quality is described, not ranked: a gap smaller than the intervals "
-            "and the McNemar p allow is not resolved, and with the single agent near the ceiling only a loss can show. The team and the "
-            "single agent differ in more than one thing (prompts, the split of tools, a manager that must rephrase the question, per-agent "
-            "step limits), so this compares THIS team with the Week 7 agent as it stands, not multi-agent with single-agent in general. "
-            "Wall-clock time is mostly the shared rate limiter, and a timeout is probably the limiter unless model seconds alone exceed the "
-            "budget. Parallel hand-offs were not tried. Tokens are the provider's own counts. Dollars are only as good as the prices you "
-            "state. The verdict is yours to write in docs/week10/findings.md.")
+    counts = [row["runs"] for row in stats.values()]
+    size = (f"Each arm has {counts[0]} run{'' if counts[0] == 1 else 's'}" if counts and len(set(counts)) == 1
+            else f"The arms have {', '.join(str(n) for n in counts)} runs")
+    near_ceiling = AGENT in stats and stats[AGENT]["runs"] and stats[AGENT]["success_rate"] >= NEAR_CEILING
+    rate = meta.get("llm_rpm")
+    parts = [f"Read before quoting a number: {when}, so variation between races is not measured.",
+             f"{size} and the repeats of a task are correlated, so quality is described, not ranked: a gap smaller than the intervals "
+             "and the McNemar p allow is not resolved" + (", and with the single agent near the ceiling only a loss can show." if near_ceiling else "."),
+             "The team and the single agent differ in more than one thing (prompts, the split of tools, a manager that must rephrase the "
+             "question, per-agent step limits), so this compares THIS team with the Week 7 agent as it stands, not multi-agent with "
+             "single-agent in general."]
+    if rate:
+        parts.append(f"With a rate limit of {rate} calls a minute, wall-clock time is mostly the shared rate limiter, and a timeout is probably the "
+                     "limiter unless model seconds alone exceed the budget.")
+    parts.append("Parallel hand-offs were not tried. Tokens are the provider's own counts. Dollars are only as good as the prices you state. "
+                 "The verdict is yours to write in docs/week10/findings.md.")
+    return " ".join(parts)
 
 
 # ---------------------------------------------------------------------------- the whole comparison
@@ -620,6 +661,9 @@ def summary(results, input_price=None, output_price=None):
 
 
 def _ratios(other, baseline):
+    if not other["runs"] or not baseline["runs"]:                # an arm that never ran has no ratio: n/a, never 0.00x
+        return {"calls": None, "tokens": None, "prompt": None, "completion": None, "model_seconds": None, "elapsed": None,
+                "units": {r: None for r in PRICE_RATIOS}}
     return {"calls": ratio(other["calls_mean"], baseline["calls_mean"]), "tokens": ratio(other["tokens_mean"], baseline["tokens_mean"]),
             "prompt": ratio(other["prompt_mean"], baseline["prompt_mean"]),
             "completion": ratio(other["completion_mean"], baseline["completion_mean"]),
@@ -640,14 +684,30 @@ def _num(value, width, digits=0):
     return f"{'n/a':>{width}}" if value is None else f"{value:>{width}.{digits}f}"
 
 
+_TYPOGRAPHIC = {0x2018: "'", 0x2019: "'", 0x201C: '"', 0x201D: '"', 0x2013: "-", 0x2014: "-", 0x2026: "...", 0x00A0: " "}
+
+
+def _ascii(text):
+    """Plain ASCII for words a model wrote: curly quotes and dashes become the plain ones and anything else not ASCII becomes '?', so a report
+    saved under docs/ stays plain. Only what is printed is changed; the saved runs keep the model's exact words."""
+    return str(text).translate(_TYPOGRAPHIC).encode("ascii", "replace").decode("ascii")
+
+
+def _no_runs(arm):
+    return f"{arm:<9}n/a (no runs)"
+
+
 def _quality_rows(stats, arms):
-    rows = [f"{'arm':<9}{'runs':>5}{'success':>9}{'rate':>6}{'95% interval':>16}{'finished':>10}   stop reasons"]
+    rows = [f"{'arm':<9}{'runs':>5}{'success':>10}{'rate':>6}{'95% interval':>16}{'finished':>10}   stop reasons"]
     for arm in arms:
         row = stats[arm]
+        if not row["runs"]:
+            rows.append(_no_runs(arm))
+            continue
         low, high = row["interval"]
         interval = f"[{low * 100:.0f}%, {high * 100:.0f}%]"
-        rows.append(f"{arm:<9}{row['runs']:>5}{row['success']:>6}/{row['runs']:<3}{row['success_rate'] * 100:>5.0f}%"
-                    f"{interval:>16}{row['finished']:>6}/{row['runs']:<3}   {row['stop_reasons']}")
+        won, done = f"{row['success']}/{row['runs']}", f"{row['finished']}/{row['runs']}"
+        rows.append(f"{arm:<9}{row['runs']:>5}{won:>10}{row['success_rate'] * 100:>5.0f}%{interval:>16}{done:>10}   {row['stop_reasons']}")
     return rows
 
 
@@ -657,9 +717,13 @@ def _pair_line(pair, first, second, lead="paired by task and repeat"):
             f"over {pair['only_' + first] + pair['only_' + second]} discordant pair(s); this treats the repeats of a task as independent, so it is optimistic")
 
 
+def _tasks(count):
+    return f"{count} task{'' if count == 1 else 's'}"
+
+
 def _task_line(by_task, first, second):
     differing = by_task["more_" + first] + by_task["more_" + second]
-    return (f"by task ({by_task['tasks']} tasks): {first} passed more of the repeats on {by_task['more_' + first]} tasks, {second} on "
+    return (f"by task ({_tasks(by_task['tasks'])}): {first} passed more of the repeats on {_tasks(by_task['more_' + first])}, {second} on "
             f"{by_task['more_' + second]}, the same on {by_task['same']}; exact sign test over the {differing} differing task(s) p = {by_task['p']:.3f} "
             "(the task is the unit here, not the repeat)")
 
@@ -702,14 +766,24 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
         lines.append("WARNING: the arms were served by different models (see INSTRUMENT). The comparison is not like for like.")
 
     lines += ["", "INSTRUMENT   what the per-call records say about how each arm was measured",
-              f"{'arm':<9}{'calls':>7}{'recorded':>10}{'retried':>9}{'retry wait':>12}{'errors':>8}{'total != p+c':>14}{'cached':>8}{'reasoning':>11}   served by"]
+              f"{'arm':<9}{'calls':>7}{'recorded':>10}{'retried':>9}{'wait of retried':>17}{'errors':>8}{'total != p+c':>14}{'cached':>8}{'reasoning':>11}   served by"]
     for arm in arms:
         row = data["instrument"][arm]
+        if not row["runs"]:
+            lines.append(_no_runs(arm))
+            continue
         recorded = f"{row['recorded']}/{row['runs']}"
-        lines.append(f"{arm:<9}{row['calls']:>7}{recorded:>10}{row['retried']:>9}{row['retry_wait']:>11.1f}s{row['errors']:>8}"
+        lines.append(f"{arm:<9}{row['calls']:>7}{recorded:>10}{row['retried']:>9}{row['retry_wait']:>16.1f}s{row['errors']:>8}"
                      f"{row['unexplained_tokens']:>14}{row['cached_tokens']:>8}{row['reasoning_tokens']:>11}   {', '.join(row['served']) or 'not recorded'}")
-    lines.append("total != p+c = tokens a provider total counts beyond prompt plus completion (hidden thinking, for one); cached = prompt tokens "
-                 "served from a cache. Neither is in the token numbers below, so a real bill could differ.")
+    for arm in arms:
+        row = data["instrument"][arm]
+        if row["unexplained_abs"] != abs(row["unexplained_tokens"]):         # gaps of both signs cancel in the column above
+            lines.append(f"{arm}: the provider's totals differ from prompt + completion in both directions (net {row['unexplained_tokens']:+d}, "
+                         f"{row['unexplained_abs']} in absolute value), so the column above nets them")
+    lines.append("total != p+c = tokens a provider's own total counts beyond prompt plus completion (hidden thinking, for one): those are NOT in the token numbers "
+                 "below, so a real bill could differ. wait of retried = seconds of rate-limit pauses and back-off in calls that needed more than one attempt "
+                 "(not only the back-off). cached = the part of the prompt served from a cache: those tokens ARE inside the prompt counts below, and a provider "
+                 "may bill them at a lower rate.")
 
     lines += ["", "QUALITY   success = the run finished AND passed the rule checks"] + _quality_rows(stats, arms)
     lines.append("the 95% interval treats every run as an independent trial, but the repeats of a task are correlated, so it is optimistic")
@@ -725,10 +799,21 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
         lines += [_pair_line(data["calibration"]["paired"], AGENT, NOISE,
                              f"calibration, {AGENT} against {NOISE} (the same design twice{', but ' + noise_late if noise_late else ''}), paired by task and repeat"),
                   _task_line(data["calibration"]["by_task"], AGENT, NOISE)]
+    any_limit = "any agent's limit"
+    lines += ["", "STOPS     runs that ended on a limit themselves, runs in which any agent hit a limit (a specialist's cap the manager worked around counts "
+                  "here), and runs with provider trouble: the SENSITIVITY section below drops the units that have either",
+              f"{'arm':<9}{'own limit':>11}{any_limit:>20}{'provider trouble':>18}"]
+    for arm in arms:
+        row = stats[arm]
+        lines.append(_no_runs(arm) if not row["runs"] else f"{arm:<9}{row['own_limit_stops']:>11}{row['limit_stops']:>20}{row['provider_trouble']:>18}")
+
     lines += ["", "SPEED     per run. Model seconds are time inside model calls. Wall seconds include queueing behind the previous run's calls in the shared rate limiter",
               f"{'arm':<9}{'calls':>7}{'max':>5}{'>8':>4}{'>12':>5}{'model s mean':>14}{'median':>8}{'max':>7}{'wall s mean':>13}{'median':>8}{'max':>7}{'waiting':>9}{'limiter s':>11}"]
     for arm in arms:
         row = stats[arm]
+        if not row["runs"]:
+            lines.append(_no_runs(arm))
+            continue
         limiter = ratio(row["calls_mean"] * 60, meta["llm_rpm"]) if meta.get("llm_rpm") else None
         lines.append(f"{arm:<9}{row['calls_mean']:>7.1f}{row['calls_max']:>5}{row['calls_over_8']:>4}{row['calls_over_12']:>5}"
                      f"{row['model_seconds_mean']:>14.1f}{row['model_seconds_median']:>8.1f}{row['model_seconds_max']:>7.1f}"
@@ -740,6 +825,9 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
               f"{'arm':<9}{'prompt':>8}{'completion':>12}{'total':>8}{'median':>8}{'max':>8}{'opening':>9}{'later':>8}{'per pass':>10}"]
     for arm in arms:
         row = stats[arm]
+        if not row["runs"]:
+            lines.append(_no_runs(arm))
+            continue
         lines.append(f"{arm:<9}{row['prompt_mean']:>8.0f}{row['completion_mean']:>12.0f}{row['tokens_mean']:>8.0f}{row['tokens_median']:>8.0f}"
                      f"{row['tokens_max']:>8.0f}{row['opening_mean']:>9.0f}{row['later_mean']:>8.0f}{_num(row['tokens_per_success'], 10)}")
     lines.append("opening = the first call of every conversation (a team opens one per hand-off). later = every other call's prompt: the conversation "
@@ -751,32 +839,43 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
                      f"({ratio(crew['forwarded_floor_mean'], crew['prompt_mean']) or 0:.0%} to {ratio(crew['forwarded_extra_mean'], crew['prompt_mean']) or 0:.0%} "
                      f"on top of its {crew['prompt_mean']:.0f}): an estimate between a floor (the manager's history only) and a ceiling (its whole prompt, "
                      "tool list included, which forwarding would not carry), not a lower bound; the measured team hands over only the sub-question")
-        lines.append(f"derived: the manager re-reads the specialists' answers on its later calls, about {crew['reread_mean']:.0f} prompt tokens per run")
+        lines.append(f"derived: the manager re-reads the specialists' answers on its later calls, at most about {crew['reread_mean']:.0f} prompt tokens per run "
+                     "(memory shortens older tool results, which this does not subtract)")
+    for arm in arms:
+        if stats[arm]["no_step_runs"]:
+            lines.append(f"derived: {arm}: {stats[arm]['no_step_tokens']} tokens over {stats[arm]['no_step_runs']} run(s) were billed in model calls that left "
+                         "no step record (a provider reply with no choices), so the opening and later columns above leave them out")
 
-    lines += ["", "COST      relative units: an input token is 1 unit, an output token is r units. No price is assumed; real price lists put r near 4 to 8",
-              f"{'arm':<9}" + "".join(f"{f'r={r} per run':>14}" for r in PRICE_RATIOS)]
+    lines += ["", "COST      relative units: an input token is 1 unit, an output token is r units. No price is assumed: read the column whose r is nearest "
+                  "the ratio of the output price to the input price you state",
+              f"{'arm':<9}" + "".join(f"{f'r={r} per run':>{UNIT_WIDTH}}" for r in PRICE_RATIOS)]
     for arm in arms:
-        lines.append(f"{arm:<9}" + "".join(_num(stats[arm]["units_mean"][r], 12) for r in PRICE_RATIOS))
-    lines.append(f"{'per pass':<9}" + "".join(f"{f'r={r}':>12}" for r in PRICE_RATIOS))
+        lines.append(_no_runs(arm) if not stats[arm]["runs"] else f"{arm:<9}" + "".join(_num(stats[arm]["units_mean"][r], UNIT_WIDTH) for r in PRICE_RATIOS))
+    lines.append(f"{'per pass':<9}" + "".join(f"{f'r={r}':>{UNIT_WIDTH}}" for r in PRICE_RATIOS))
     for arm in arms:
-        lines.append(f"{arm:<9}" + "".join(_num(stats[arm]["units_per_success"][r], 12) for r in PRICE_RATIOS))
+        lines.append(_no_runs(arm) if not stats[arm]["runs"] else f"{arm:<9}" + "".join(_num(stats[arm]["units_per_success"][r], UNIT_WIDTH) for r in PRICE_RATIOS))
     bounds = data.get("cost_ratio_bounds")
     if bounds:
         ratios = data["team_over_agent"]
         lines.append(f"{TEAM} / {AGENT} in cost units: " + ", ".join(f"r={r} {_x(ratios['units'][r])}" for r in PRICE_RATIOS)
                      + f". Whatever the prices, between {_x(bounds[0])} and {_x(bounds[1])} "
-                     f"(input tokens {_x(ratios['prompt'])}, output tokens {_x(ratios['completion'])})")
-    lines.append("free-tier cost (requests are what a free key is spent in): " + "; ".join(
-        f"{arm} {row['calls_mean']:.1f} requests a run, {_num(row['runs_per_day'], 0).strip()} runs in a {DAILY_REQUESTS}-request day"
+                     f"(input tokens {_x(ratios['prompt'])}, output tokens {_x(ratios['completion'])}) for one input price and one output price; "
+                     "a cheaper price for cached input is a third price, which this bound does not cover")
+    requested = models.get(AGENT) or models.get(TEAM) or "?"
+    lines.append("free-tier cost (derived; requests are what a free key is spent in): " + "; ".join(
+        f"{arm} n/a (no runs)" if not row["runs"] else
+        f"{arm} {row['requests_mean']:.1f} requests a run, {_num(row['runs_per_day'], 0).strip()} runs in a {DAILY_REQUESTS}-request day"
         for arm, row in stats.items()))
+    lines.append("a request is every attempt in the per-call records when they are kept (retries and failed calls included), else the successful calls only. "
+                 f"The {DAILY_REQUESTS}-request day is the lite-model figure measured in Week 8 (docs/week8); the model raced here, {requested}, may allow another number.")
     lines.append(f"DOLLARS   prices: {data['prices']}" + (f"; source: {price_source}" if price_source and data["priced"] else ""))
     if data["priced"]:
         lines.append(f"{'arm':<9}{'per run':>12}{'per 1,000 runs':>17}{'per passing run':>18}")
         for arm in arms:
             row = stats[arm]
             per_thousand = None if row["cost_mean"] is None else row["cost_mean"] * 1000
-            lines.append(f"{arm:<9}{_money(row['cost_mean']):>12}{'n/a' if per_thousand is None else f'${per_thousand:.2f}':>17}"
-                         f"{_money(row['cost_per_success']):>18}")
+            lines.append(_no_runs(arm) if not row["runs"] else
+                         f"{arm:<9}{_money(row['cost_mean']):>12}{'n/a' if per_thousand is None else f'${per_thousand:.2f}':>17}{_money(row['cost_per_success']):>18}")
     if "team_over_agent" in data:
         ratios = data["team_over_agent"]
         lines += ["", f"{TEAM} / {AGENT}:  calls {_x(ratios['calls'])}, tokens {_x(ratios['tokens'])}, model seconds {_x(ratios['model_seconds'])}, "
@@ -793,9 +892,11 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
             lines.append(f"{agent:<12}{row['calls']:>7}{row['prompt_tokens']:>9}{row['completion_tokens']:>12}{row['tokens']:>9}"
                          f"{row['token_share'] * 100:>6.0f}%{row['api_seconds']:>9.1f}{row['handoffs']:>11}{_num(row['calls_per_handoff'], 12, 1)}")
         lines.append(f"hand-offs by how they ended: {crew['handoff_states'] or 'none'}")
-        saving = stats[TEAM]["overlap_saving_mean"]
-        lines.append(f"derived: hand-offs the manager asked for in the same step could have overlapped; had they, a run would have been "
-                     f"{saving:.1f} model seconds shorter on average" + (" (the manager asked for one at a time)" if not saving else ""))
+        lines.append(f"hand-offs by stop reason (agent:state:stop reason): {crew['handoff_stops'] or 'none'}")
+        saving, together, team_runs = stats[TEAM]["overlap_saving_mean"], stats[TEAM]["side_by_side_runs"], stats[TEAM]["runs"]
+        lines.append("derived: hand-offs the manager asked for in the same step could have overlapped; had they, a run would have taken "
+                     f"{saving:.1f} seconds less elapsed time on average (model seconds would not change, and the free tier's rate limiter would serialise the calls anyway)"
+                     + (" (the manager asked for one at a time)" if not together else f" ({together} of {team_runs} runs asked for two or more at once)"))
         lines += ["", "THE TEAM, BY TASK   mean hand-offs and model calls per run",
                   f"{'task':<24}{'shape':<13}{'researcher':>11}{'calculator':>11}{'calls: mgr':>12}{'res':>6}{'calc':>6}"]
         for task, cell in data["team_by_task"].items():
@@ -816,12 +917,18 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
               f"{'arm':<9}{'answer chars':>14}{'documents cited':>17}{'refused':>9}{'refused, no search':>20}{'answered, no hand-off':>23}{'duplicate searches':>20}"]
     for arm in arms:
         row = stats[arm]
+        if not row["runs"]:
+            lines.append(_no_runs(arm))
+            continue
         lines.append(f"{arm:<9}{row['answer_chars_mean']:>14.0f}{row['documents_mean']:>17.1f}{row['refused']:>9}{row['refused_without_searching']:>20}"
                      f"{_num(row['answered_without_hand_off'], 23)}{row['duplicate_searches_mean']:>20.2f}")
     lines += ["", "PATH   (exploratory) Week 8's path grader, offline, with the manager's hand-off calls dropped. It was written for ONE agent, so a mode can be a side effect of the split",
               f"{'arm':<9}{'runs':>5}{'right, right path':>19}{'right, wrong path':>19}{'wrong, right path':>19}{'wrong, wrong path':>19}   modes (runs showing each)"]
     for arm in arms:
         row = data["path"][arm]
+        if not stats[arm]["runs"]:
+            lines.append(_no_runs(arm))
+            continue
         gap = row["gap"]
         lines.append(f"{arm:<9}{row['runs']:>5}{gap['right-answer-right-path']:>19}{gap['right-answer-wrong-path']:>19}{gap['wrong-answer-right-path']:>19}"
                      f"{gap['wrong-answer-wrong-path']:>19}   {row['modes'] or 'none'}")
@@ -838,8 +945,8 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
     for failed in data["failed"]:
         lines.append(f"  {failed['task']:<24}{failed['arm']:<9}repeat {failed['repeat']}  stopped: {failed['stop_reason']}")
         if failed["failed_checks"]:
-            lines.append(f"      failed checks: {'; '.join(failed['failed_checks'])}")
+            lines.append(f"      failed checks: {_ascii('; '.join(failed['failed_checks']))}")
         if failed["answer"]:
-            lines.append(f"      answer: {' '.join(failed['answer'].split())}")
-    lines += ["", closing_text(meta)]
+            lines.append(f"      answer: {_ascii(' '.join(failed['answer'].split()))}")
+    lines += ["", closing_text(meta, stats)]
     return lines
