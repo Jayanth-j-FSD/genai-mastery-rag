@@ -46,7 +46,12 @@ def main(argv=None):
             print(f"'{label}' was made WITH the defences on, so its observations are already screened: nothing to replay.")
             code = 1
             continue
-        print("\n".join(replay.format_replay(label, replay.replay_runs(saved["runs"], tasks, trusted))) + "\n")
+        rows = replay.replay_runs(saved.get("runs", []), tasks, trusted)
+        if not rows:
+            print(f"Error: '{label}' holds no saved agent run of a known task (is it a trajectory or race file?)")
+            code = 1
+            continue
+        print("\n".join(replay.format_replay(label, rows)) + "\n")
     return code
 
 

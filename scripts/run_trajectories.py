@@ -17,6 +17,7 @@ Run:
 import argparse
 import os
 import sys
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -36,6 +37,15 @@ def grade_and_save(tasks, records, meta, label):
     return results, runner.save_results(results, runner.results_path("trajectories-" + label))
 
 
+def print_refused(graded):
+    """Every call a defence or the call budget refused before it ran, by name: a legitimate call refused is a cost of the defence."""
+    refused = [(row["task_id"], call) for row in graded for call in row.get("refused_calls", [])]
+    if refused:
+        print("\ncalls refused before they ran:")
+        for task_id, call in refused:
+            print(f"  {task_id:<26} step {call['step']}  {call['tool']} ({call['kind']}): {call['text']}")
+
+
 def print_modes(graded):
     """The runs that showed a failure mode, with the evidence for each."""
     shown = [row for row in graded if row["modes"]]
@@ -44,6 +54,7 @@ def print_modes(graded):
         for row in shown:
             print(f"  {row['task_id']:<26} outcome {'right' if row['outcome_ok'] else 'WRONG'}  " +
                   "; ".join(f"{d['mode']} ({d['detail']})" for d in row["details"]))
+    print_refused(graded)
 
 
 def parse_arm(text):
@@ -54,39 +65,67 @@ def parse_arm(text):
     return label.strip(), runner.parse_overrides([part for part in changes.split(",") if part])
 
 
-def run_interleaved(arms, tasks, repeats, common, options):
+def refuse_to_overwrite(labels, force):
+    """Saved runs are evidence: a label that already exists is refused unless --force says to replace it."""
+    if force:
+        return
+    for label in labels:
+        path = runner.results_path("trajectories-" + label)
+        if os.path.exists(path):
+            raise ValueError(f"'{label}' is already saved ({display_path(path, BASE_DIR)}): pick another label, or pass --force to replace it")
+
+
+def run_interleaved(arms, tasks, repeats, common, options, on_progress=None):
     """Run every arm on every task, one run of each arm before the next task, repeat by repeat.
 
     Running arm A to the end and then arm B means a daily quota that runs out leaves B empty, and
     the provider may be slower or faster for B than it was for A. Interleaving gives each arm the same conditions
     and, if the quota ends part-way, almost the same number of runs. The arm order rotates so no arm always goes
-    first. Returns [(label, records, meta)], one per arm.
+    first. It stops, keeping what finished, when a quota runs out or when MAX_ERRORS_IN_A_ROW runs in a row (counted
+    across all the arms) end on a provider error, as a plain race does. `on_progress(results)` is called after every
+    task, so a caller can save as it goes. Returns [(label, records, meta)], one per arm.
     """
-    records, base_meta, stopped = {label: [] for label, _ in arms}, None, None
+    labels = [label for label, _ in arms]
+    records, in_force = {label: [] for label in labels}, {}
+    started, base_meta, stopped, errors_in_a_row = datetime.now().isoformat(timespec="seconds"), None, None, 0
+
+    def results():
+        finished = datetime.now().isoformat(timespec="seconds")
+        return [(label, records[label],
+                 dict(base_meta or {}, label=label, repeats=repeats, tasks=[t["id"] for t in tasks], overrides=dict(common, **changes),
+                      agent_max_calls_per_tool=in_force.get(label), defense=bool(options), started=started, finished=finished,
+                      complete=stopped is None, stopped_because=stopped,
+                      interleaved_with=[other for other in labels if other != label]))
+                for label, changes in arms]
+
     for repeat in range(1, repeats + 1):
         for index, task in enumerate(tasks):
             turn = (repeat + index) % len(arms)
             for label, changes in arms[turn:] + arms[:turn]:
                 with runner.overridden(dict(common, **changes)):
+                    in_force[label] = settings.agent_max_calls_per_tool
                     run = race.run_race([task], approaches=("agent",), repeats=1, label=label, **options,
                                         say=lambda text, label=label, repeat=repeat: print(
                                             f"  {label:<16}{text.replace('run 1/1', f'repeat {repeat}/{repeats}')}"))
                 base_meta = base_meta or run["meta"]
                 for record in run["runs"]:
                     records[label].append(dict(record, repeat=repeat))
+                    errors_in_a_row = errors_in_a_row + 1 if record["stop_reason"] == "error" else 0
                 if not run["meta"]["complete"]:
                     stopped = run["meta"]["stopped_because"]
+                elif errors_in_a_row >= race.MAX_ERRORS_IN_A_ROW:        # one provider error is a run; a string of them is an outage
+                    last = (run["runs"][-1].get("steps") or [{}])[-1].get("content") if run["runs"] else None
+                    stopped = f"{errors_in_a_row} runs in a row ended on a provider error (the last: {last or 'no detail recorded'})"
+                if stopped:
+                    print(f"\nSTOPPED: {stopped}\nSaved what finished.")
                     break
             if stopped:
                 break
+            if on_progress:
+                on_progress(results())
         if stopped:
             break
-    labels = [label for label, _ in arms]
-    return [(label, records[label],
-             dict(base_meta or {}, label=label, repeats=repeats, tasks=[t["id"] for t in tasks], overrides=dict(common, **changes),
-                  defense=bool(options), complete=stopped is None, stopped_because=stopped,
-                  interleaved_with=[other for other in labels if other != label]))
-            for label, changes in arms]
+    return results()
 
 
 def main(argv=None):
@@ -97,6 +136,8 @@ def main(argv=None):
     parser.add_argument("--set", dest="overrides", action="append", metavar="NAME=VALUE", help="change one setting for this run")
     parser.add_argument("--defense", action="store_true", help="run with the three defence layers on")
     parser.add_argument("--grade", metavar="LABEL_OR_PATH", help="re-grade a saved race or trajectory file instead of running")
+    parser.add_argument("--force", action="store_true", help="replace a saved run that has the same label (it is refused otherwise, "
+                                                              "so saved evidence is never overwritten by accident)")
     parser.add_argument("--interleave", nargs="+", metavar="LABEL[:NAME=VALUE,..]",
                         help="run several arms side by side, one run of each arm per task and repeat, each saved under its own label "
                              "(for example: before after:agent_max_calls_per_tool=3 before-2)")
@@ -142,6 +183,7 @@ def main(argv=None):
                 raise ValueError("--interleave needs two or more arms with different labels")
             if args.repeats < 1:
                 raise ValueError(f"--repeats must be 1 or greater, got {args.repeats}")
+            refuse_to_overwrite([label for label, _ in arms], args.force)
             common, tasks = runner.parse_overrides(args.overrides), get_tasks(args.only, include_probes=True)
             pipeline.require_index()
             options = {"defense": Defense(trusted_contacts=injection.trusted_contacts(), system_prompt=loop.SYSTEM_PROMPT)} if args.defense else {}
@@ -150,13 +192,22 @@ def main(argv=None):
             return 1
         print(f"Interleaving {len(arms)} arms ({', '.join(label for label, _ in arms)}) over {len(tasks)} task(s) x {args.repeats} "
               f"on {settings.llm_model}, defences {'ON' if args.defense else 'off'}\n")
+        def save_progress(arm_results):
+            """Keep what has finished after every task: an interrupted job leaves partial files, never nothing."""
+            for label, records, meta in arm_results:
+                if records:
+                    grade_and_save(tasks, records, dict(meta, complete=False, stopped_because="interrupted: saved while the run was going"), label)
+
         saved_all = True
-        for label, records, meta in run_interleaved(arms, tasks, args.repeats, common, options):
+        for label, records, meta in run_interleaved(arms, tasks, args.repeats, common, options, on_progress=save_progress):
             saved_all = saved_all and meta["complete"]
             if not records:
                 print(f"\n'{label}': no run finished, nothing saved")
                 continue
             results, path = grade_and_save(tasks, records, meta, label)
+            leftover = path[:-len(".json")] + ".incomplete.json"
+            if meta["complete"] and os.path.exists(leftover):         # a progress save that --force redirected beside an older complete file
+                os.remove(leftover)
             print()
             print("\n".join(trajectory.format_report(results["summary"], label)))
             print_modes(results["graded"])
@@ -167,19 +218,22 @@ def main(argv=None):
         overrides = runner.parse_overrides(args.overrides)
         tasks = get_tasks(args.only, include_probes=True)
         if args.grade:
+            refuse_to_overwrite([args.label], args.force)
             saved = runner.load_results(args.grade)
             records = [r for r in saved["runs"] if r.get("approach", "agent") == "agent"]
             meta = {"label": args.label, "regraded_from": args.grade, "complete": True}
         else:
             if args.repeats < 1:
                 raise ValueError(f"--repeats must be 1 or greater, got {args.repeats}")
+            refuse_to_overwrite([args.label], args.force)
             pipeline.require_index()
             options = {"defense": Defense(trusted_contacts=injection.trusted_contacts(), system_prompt=loop.SYSTEM_PROMPT)} if args.defense else {}
             print(f"Running {len(tasks)} task(s) x {args.repeats} on {settings.llm_model}, settings changed: {overrides or 'none'}, "
                   f"defences {'ON' if args.defense else 'off'}\n")
             with runner.overridden(overrides):
+                cap = settings.agent_max_calls_per_tool
                 run = race.run_race(tasks, approaches=("agent",), repeats=args.repeats, label=args.label, **options)
-            records, meta = run["runs"], dict(run["meta"], overrides=overrides, defense=args.defense)
+            records, meta = run["runs"], dict(run["meta"], overrides=overrides, defense=args.defense, agent_max_calls_per_tool=cap)
     except (ValueError, FileNotFoundError, RuntimeError) as exc:
         print(f"Error: {exc}")
         return 1

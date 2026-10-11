@@ -36,7 +36,8 @@ def main(argv=None):
         return 1
     rows, failed, pairs = prediction.check_budget_prediction(before["runs"], after["runs"], get_tasks(None, include_probes=True),
                                                              None if noise is None else noise["runs"])
-    print("\n".join(prediction.format_prediction(rows, failed, pairs, args.before, args.after)))
+    warnings = prediction.check_setup(before["meta"], after["meta"], None if noise is None else noise["meta"])
+    print("\n".join(prediction.format_prediction(rows, failed, pairs, args.before, args.after, warnings)))
     return 1 if not rows else 0
 
 

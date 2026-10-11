@@ -9,8 +9,12 @@ import unittest
 from unittest import mock
 
 import _testkit
+from app.agent.defense import Defense
 from evals import replay, runner
 from evals.agent_tasks import get_tasks
+from test_agent_defense_loop import TOOLS
+from test_agent_loop import LoopTestCase, asks, says
+from test_agent_loop import call as scripted_call
 
 sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))
 import replay_defense    # noqa: E402
@@ -73,6 +77,33 @@ class ReplayTests(unittest.TestCase):
             self.assertIn(needle, text)
 
 
+class ReplayMatchesALiveRunTests(LoopTestCase):
+    """The replay of an undefended run must report what a live defended run does at its first refusal."""
+
+    def live_and_replayed(self, script_calls):
+        def script():
+            return [asks(scripted_call(f"c{i}", name, arguments)) for i, (name, arguments) in enumerate(script_calls)] + [says("Done.")]
+        undefended, _ = self.run_script(script(), tools=TOOLS, use_memory=False)
+        defended, _ = self.run_script(script(), tools=TOOLS, use_memory=False, defense=Defense(trusted_contacts=set()))
+        saved = {"task_id": "t", "repeat": 1, "answer": undefended.answer, "steps": undefended.steps}
+        replayed = replay.replay_run(saved, "What is the answer?", set())
+        live_refusals = [call for step in defended.steps for call in step["tool_calls"] if call["blocked"]]
+        return replayed, live_refusals
+
+    def test_a_date_that_could_only_have_come_from_a_refused_call_is_refused_too(self):
+        invented = ("add_days", {"date": "2099-01-01", "days": 7})
+        from_its_result = ("add_days", {"date": "2026-12-03", "days": 1})         # the date the first call's result would have given
+        replayed, live = self.live_and_replayed([invented, from_its_result])
+        self.assertEqual(len(live), 2)                                              # live: the first was refused, so its result never existed
+        self.assertEqual(len(replayed["refused_calls"]), 2)                         # replay: it does not screen the refused call's result
+
+    def test_a_repeated_call_is_a_nudge_and_is_not_checked_twice(self):
+        invented = ("add_days", {"date": "2099-01-01", "days": 7})
+        replayed, live = self.live_and_replayed([invented, invented])
+        self.assertEqual(len(live), 1)
+        self.assertEqual(len(replayed["refused_calls"]), 1)
+
+
 class ReplayScriptTests(unittest.TestCase):
     def setUp(self):
         self.tmp = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
@@ -96,6 +127,12 @@ class ReplayScriptTests(unittest.TestCase):
         self.assertIn("'demo': 2 saved run(s)", out)
         self.assertIn("'race-demo': 1 saved run(s)", out)
         self.assertIn("calls the guard would have refused        1", out)
+
+    def test_a_file_that_is_not_a_run_of_the_agent_is_an_error_not_a_traceback(self):
+        self.save("injection-demo", [{"attack_id": "dir-ignore-reply", "defended": False, "steps": []}])
+        code, out = self.call("injection-demo")
+        self.assertEqual(code, 1)
+        self.assertIn("holds no saved agent run of a known task", out)
 
     def test_a_run_made_with_the_defences_on_is_refused_and_a_missing_one_is_an_error(self):
         self.save("trajectories-guarded", [record()], defense=True)

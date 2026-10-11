@@ -135,14 +135,20 @@ class InterleaveTests(unittest.TestCase):
         self.enterContext(mock.patch.object(run_trajectories.pipeline, "require_index"))
         self.calls = []
 
-    def fake_run(self, stop_on_call=None):
+    def fake_run(self, stop_on_call=None, errors=False, errors_on=(), interrupt_on_call=None):
         """A stand-in for race.run_race: one agent run per call, noting which arm ran and the cap in force."""
         def run(tasks, approaches=("agent",), repeats=1, label="x", say=print, **options):
             self.calls.append((label, settings.agent_max_calls_per_tool))
             say("[ok  ] some-task               agent     run 1/1  2 call(s)")
+            if interrupt_on_call == len(self.calls):
+                raise KeyboardInterrupt
             if stop_on_call == len(self.calls):
                 return {"meta": {"label": label, "complete": False, "stopped_because": "the free daily quota for this model is used up"}, "runs": []}
-            return {"meta": {"label": label, "complete": True, "stopped_because": None}, "runs": [agent_run(1)]}
+            record = agent_run(1)
+            if errors or len(self.calls) in errors_on:
+                record = dict(record, stop_reason="error", success=False,
+                              steps=[{"n": 1, "kind": "error", "content": "RateLimitError: slow down", "tool_calls": []}])
+            return {"meta": {"label": label, "complete": True, "stopped_because": None}, "runs": [record]}
         return mock.patch.object(run_trajectories.race, "run_race", side_effect=run)
 
     def call(self, *args):
@@ -183,6 +189,57 @@ class InterleaveTests(unittest.TestCase):
             self.assertIn("daily quota", saved["meta"]["stopped_because"])
         self.assertIn("'a': no run finished, nothing saved", out)
         self.assertFalse(os.path.exists(runner.results_path("trajectories-a")))
+
+    def test_a_provider_outage_stops_the_whole_interleaved_job_and_the_files_are_partial_not_complete(self):
+        with self.fake_run(errors=True):
+            code, out = self.call("--interleave", "a", "b", "--only", TASK_ID, "--repeats", "5")
+        self.assertEqual(code, 1)
+        self.assertEqual(len(self.calls), run_trajectories.race.MAX_ERRORS_IN_A_ROW)           # not all 10 slots
+        self.assertIn("runs in a row ended on a provider error", out)
+        for label in "ab":
+            saved = runner.load_results("trajectories-" + label)
+            self.assertFalse(saved["meta"]["complete"])
+            self.assertIn("provider error", saved["meta"]["stopped_because"])
+
+    def test_one_error_between_good_runs_is_not_an_outage(self):
+        with self.fake_run(errors_on={2}):
+            code, _ = self.call("--interleave", "a", "b", "--only", TASK_ID, "--repeats", "2")
+        self.assertEqual((code, len(self.calls)), (0, 4))
+
+    def test_what_has_finished_is_saved_after_every_task_so_an_interruption_loses_nothing(self):
+        with self.fake_run(interrupt_on_call=5), self.assertRaises(KeyboardInterrupt):
+            self.call("--interleave", "a", "b", "--only", TASK_ID, "--repeats", "3")
+        for label in "ab":
+            saved = runner.load_results("trajectories-" + label)
+            self.assertEqual(len(saved["runs"]), 2)                                         # repeats 1 and 2 were finished and saved
+            self.assertFalse(saved["meta"]["complete"])
+            self.assertTrue(saved["meta"]["stopped_because"].startswith("interrupted"))
+
+    def test_each_arm_records_the_cap_that_was_really_in_force_and_when_the_job_ran(self):
+        with self.fake_run():
+            self.call("--interleave", "a", "b:agent_max_calls_per_tool=3", "--only", TASK_ID, "--repeats", "1")
+        a, b = (runner.load_results("trajectories-" + label)["meta"] for label in "ab")
+        self.assertEqual((a["agent_max_calls_per_tool"], b["agent_max_calls_per_tool"]), (0, 3))
+        self.assertLessEqual(a["started"], a["finished"])
+        self.assertEqual(a["started"], b["started"])
+
+    def test_a_saved_label_is_never_overwritten_unless_forced(self):
+        with self.fake_run():
+            self.assertEqual(self.call("--interleave", "a", "b", "--only", TASK_ID, "--repeats", "1")[0], 0)
+            code, out = self.call("--interleave", "a", "c", "--only", TASK_ID, "--repeats", "1")
+            self.assertEqual(code, 1)
+            self.assertIn("'a' is already saved", out)
+            self.assertFalse(os.path.exists(runner.results_path("trajectories-c")))          # nothing ran, not even the new arm
+            self.assertEqual(self.call("--interleave", "a", "c", "--only", TASK_ID, "--repeats", "1", "--force")[0], 0)
+
+    def test_a_plain_run_records_its_cap_and_also_refuses_to_replace_a_saved_label(self):
+        racing = mock.patch.object(run_trajectories.race, "run_race", return_value=saved_run("x", [agent_run(1)]))
+        with racing:
+            self.assertEqual(self.call("--label", "solo", "--only", TASK_ID, "--set", "agent_max_calls_per_tool=3")[0], 0)
+            self.assertEqual(runner.load_results("trajectories-solo")["meta"]["agent_max_calls_per_tool"], 3)
+            code, out = self.call("--label", "solo", "--only", TASK_ID)
+        self.assertEqual(code, 1)
+        self.assertIn("already saved", out)
 
     def test_bad_arms_are_explained_and_nothing_runs(self):
         for args, fragment in ((["--interleave", "only-one"], "two or more arms"), (["--interleave", "a", "a"], "different labels"),

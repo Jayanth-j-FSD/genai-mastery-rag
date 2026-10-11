@@ -10,20 +10,31 @@ from app.agent.defense import PROMPT_ADDITION, Defense
 
 
 def replay_run(record, question, trusted_contacts, system_prompt=None):
-    """What the three defences would have done to one saved agent run, in the order the loop applies them."""
+    """What the three defences would have done to one saved agent run, in the order the loop applies them.
+
+    It follows loop.run_agent: a call identical to an earlier one got a nudge and nothing else, a call the budget refused
+    never ran, and a call the guard refuses has no result to screen. It is a replay of the run AS IT WAS, so it shows the
+    first thing the defences would have done: a live model would have reacted to a refusal and the run would have
+    diverged from there.
+    """
     prompt = system_prompt or loop.SYSTEM_PROMPT + PROMPT_ADDITION
     defense = Defense(trusted_contacts=trusted_contacts, system_prompt=prompt)
     defense.begin(question, prompt)
-    refused = []
+    refused, seen = [], set()
     for step in record.get("steps", []):
         defense.step = step.get("n", 0)
         for call in step.get("tool_calls", []):
+            signature = loop._call_signature(call["name"], call.get("arguments"))
+            if signature in seen:                    # a repeat: the loop answered it with a nudge, nothing ran
+                continue
+            seen.add(signature)
             if call.get("blocked"):                  # a call something else already refused never ran
                 continue
             arguments, problem = loop._parse_arguments(call.get("arguments"))
             refusal = None if problem else defense.check_call(call["name"], arguments)
-            if refusal:
+            if refusal:                              # a refused call is not run, so there is no result to screen
                 refused.append({"step": step.get("n"), "tool": call["name"], "why": refusal})
+                continue
             defense.screen(call.get("observation", ""), call["name"])
     answer = record.get("answer")
     withheld = defense.validate(answer) if answer else None
@@ -36,7 +47,7 @@ def replay_runs(records, tasks, trusted_contacts):
     """Replay every agent run whose task is known."""
     questions = {task["id"]: task["question"] for task in tasks}
     return [replay_run(r, questions[r["task_id"]], trusted_contacts) for r in records
-            if r.get("approach", "agent") == "agent" and r["task_id"] in questions]
+            if r.get("approach", "agent") == "agent" and r.get("task_id") in questions]
 
 
 def summarize_replay(rows):
