@@ -5,6 +5,10 @@ __pycache__/
 .env
 data/chroma/
 data/traces/
+# Week 11: a synthetic request log for the support drill, and the per-arm logs of a cost measurement. Both hold question and answer
+# text, so neither is ever committed; what a reviewer can re-print lives in evals/results/ (rows of numbers, no text).
+data/drill/
+data/measure/
 evals/cache/
 evals/results/*.tmp
 
