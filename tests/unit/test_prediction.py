@@ -1,4 +1,4 @@
-"""The pre-registered budget prediction as arithmetic over two saved runs (synthetic runs, no model)."""
+"""The pre-registered budget prediction as arithmetic over saved runs (synthetic runs, no model)."""
 import contextlib
 import io
 import json
@@ -26,27 +26,45 @@ def run(repeat, searches=1, tokens=1000, success=True, stop="final", answer=GOOD
             "prompt_tokens": tokens, "completion_tokens": 0, "llm_calls": searches + 1, "api_seconds": 1.0}
 
 
-def check(before, after):
-    rows, failed, pairs = prediction.check_budget_prediction(before, after, TASKS)
+def check(before, after, noise=None):
+    rows, failed, pairs = prediction.check_budget_prediction(before, after, TASKS, noise)
     return {row["number"]: row["held"] for row in rows}, failed, pairs
 
 
+def tokens_line(before, after, noise=None):
+    rows, _, _ = prediction.check_budget_prediction(before, after, TASKS, noise)
+    return next(row["measured"] for row in rows if row["number"] == 3)
+
+
 class PredictionTests(unittest.TestCase):
-    def test_a_fix_that_does_what_was_predicted_holds_on_every_row_and_does_not_fail(self):
+    def test_a_fix_that_does_what_was_predicted_holds_on_every_judged_row_and_does_not_fail(self):
         before = [run(n, searches=4, tokens=2000) for n in (1, 2, 3)]                  # over-calling, expensive
         after = [run(n, searches=3, tokens=1900) for n in (1, 2, 3)]                   # capped, 5% cheaper
         held, failed, pairs = check(before, after)
-        self.assertEqual((held, failed, pairs), ({1: True, 2: True, 3: True, 4: True, 5: True}, False, 3))
+        self.assertEqual((held, failed, pairs), ({1: True, 2: True, 3: None, 4: True, 5: True, 6: None}, False, 3))
 
-    def test_too_small_a_token_saving_fails_the_fix(self):
-        held, failed, _ = check([run(n, 4, 2000) for n in (1, 2)], [run(n, 3, 1990) for n in (1, 2)])
-        self.assertFalse(held[3])
-        self.assertTrue(failed)
+    def test_a_change_in_tokens_is_reported_and_never_passes_or_fails_the_fix(self):
+        before = [run(n, 4, 2000) for n in (1, 2)]
+        for tokens in (1990, 1000, 2500):                                              # a tiny saving, a huge one, a rise
+            with self.subTest(tokens=tokens):
+                held, failed, _ = check(before, [run(n, 3, tokens) for n in (1, 2)])
+                self.assertIsNone(held[3])
+                self.assertFalse(failed)
 
-    def test_a_saving_beyond_the_predicted_range_is_not_a_failure(self):
-        held, failed, _ = check([run(n, 4, 2000) for n in (1, 2)], [run(n, 3, 1500) for n in (1, 2)])      # 25% cheaper
-        self.assertFalse(held[3])                                                                          # outside the range predicted
-        self.assertFalse(failed)                                                                           # but not a failure rule
+    def test_the_token_change_is_read_against_the_noise_floor_of_two_identical_runs(self):
+        before = [run(n, 4, 2000) for n in (1, 2)]
+        noisy = [run(n, 4, 2200) for n in (1, 2)]                                      # an identical run that came out 10% dearer
+        inside = tokens_line(before, [run(n, 3, 1900) for n in (1, 2)], noisy)           # a 5% saving
+        self.assertIn("not distinguishable from noise", inside)
+        self.assertIn("differ by 10.0%", inside)
+        self.assertIn("larger than the noise floor", tokens_line(before, [run(n, 3, 1000) for n in (1, 2)], noisy))
+        self.assertIn("larger than the noise floor", tokens_line(before, [run(n, 3, 1990) for n in (1, 2)], before))    # zero noise
+        self.assertIn("no A/A run given", tokens_line(before, [run(n, 3, 1900) for n in (1, 2)]))
+
+    def test_the_noise_floor_uses_only_the_pairs_the_identical_runs_both_completed(self):
+        before = [run(1, 4, 2000), run(2, 4, 4000)]
+        partial_noise = [run(1, 4, 2000)]                                              # the second repeat never ran
+        self.assertIn("differ by 0.0%", tokens_line(before, [run(n, 3, 1900) for n in (1, 2)], partial_noise))
 
     def test_more_than_two_fewer_right_answers_fails_the_fix(self):
         before = [run(n, success=True) for n in (1, 2, 3, 4)]
@@ -84,11 +102,12 @@ class PredictionTests(unittest.TestCase):
         self.assertIn("cannot be checked", prediction.format_prediction(rows, failed, pairs)[0])
 
     def test_the_report_names_each_prediction_and_the_verdict(self):
-        rows, failed, pairs = prediction.check_budget_prediction([run(n, 4, 2000) for n in (1, 2)],
-                                                                 [run(n, 3, 1990) for n in (1, 2)], TASKS)
+        before = [run(n, 4, 2000) for n in (1, 2, 3, 4)]
+        after = [run(1, 3, 1990)] + [run(n, 3, 1990, success=False) for n in (2, 3, 4)]       # three right answers lost
+        rows, failed, pairs = prediction.check_budget_prediction(before, after, TASKS, before)
         text = "\n".join(prediction.format_prediction(rows, failed, pairs, "before-final", "after-final"))
-        for needle in ("2 (task, repeat) pairs", "'before-final'", "'after-final'", "over-calling goes to 0", "HELD",
-                       "DID NOT HOLD", "THE FIX FAILED."):
+        for needle in ("4 (task, repeat) pairs", "'before-final'", "'after-final'", "over-calling goes to 0", "HELD", "DID NOT HOLD",
+                       "REPORTED, NOT JUDGED", "noise floor", "withdrawn", "THE FIX FAILED."):
             self.assertIn(needle, text)
 
 
@@ -101,17 +120,23 @@ class CheckPredictionScriptTests(unittest.TestCase):
             code = check_prediction.main(list(args))
         return code, out.getvalue()
 
-    def test_two_saved_runs_are_checked_and_a_missing_one_is_an_error(self):
+    def test_saved_runs_are_checked_with_an_optional_noise_run_and_a_missing_one_is_an_error(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, mock.patch.object(runner, "RESULTS_DIR", tmp):
-            for label, runs in (("a", [run(n, 4, 2000) for n in (1, 2)]), ("b", [run(n, 3, 1900) for n in (1, 2)])):
+            for label, runs in (("a", [run(n, 4, 2000) for n in (1, 2)]), ("b", [run(n, 3, 1900) for n in (1, 2)]),
+                                ("c", [run(n, 4, 2100) for n in (1, 2)])):
                 runner.save_results({"meta": {"label": label, "complete": True}, "runs": runs}, runner.results_path("trajectories-" + label))
             code, out = self.call("a", "b")
             self.assertEqual(code, 0)
             self.assertIn("Pre-registered prediction for the call budget", out)
             self.assertIn("the fix did not fail", out)
-            code, out = self.call("a", "missing")
-            self.assertEqual(code, 1)
-            self.assertIn("Error", out)
+            self.assertIn("no A/A run given", out)
+            code, out = self.call("a", "b", "--noise", "c")
+            self.assertEqual(code, 0)
+            self.assertIn("not distinguishable from noise", out)
+            for args in (("a", "missing"), ("a", "b", "--noise", "missing")):
+                code, out = self.call(*args)
+                self.assertEqual(code, 1)
+                self.assertIn("Error", out)
 
 
 if __name__ == "__main__":

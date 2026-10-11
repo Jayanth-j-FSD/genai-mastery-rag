@@ -1,7 +1,8 @@
 # Week 8: what changed, and why
 
-Everything here is a new file or an additive, default-off change. With no `Defense` passed, the agent loop
-behaves exactly as it did in Week 7.
+Everything here is a new file or an additive, default-off change, with one exception: the expected tools of one
+Week 7 task were edited (disclosed under "Validating the grader"). With no `Defense` passed and the call budget at its
+default of 0, the agent loop behaves exactly as it did in Week 7.
 
 **Left for you.** Naming what could still get through, and the judgement about it, is blank in `findings.md`.
 
@@ -13,7 +14,8 @@ behaves exactly as it did in Week 7.
   two saved runs.
 - `app/agent/defense.py`: three defence layers (sanitize what the agent reads, guard what it does, validate what
   it says), each switchable alone. Wired into `run_agent(..., defense=Defense(...))`.
-- `evals/injection.py` and `scripts/run_injection.py`: 13 attacks, each detected mechanically with a canary.
+- `evals/injection.py` and `scripts/run_injection.py`: 15 attacks (12 indirect, 3 direct), each detected mechanically with
+  a canary.
 - Additive changes to Week 7 files: `run_agent` takes `defense=None`; `AgentRun` gains `blocked`,
   `draft_answer` and `defense_events`; each recorded tool call gains a `blocked` flag; `display.py` prints
   blocked calls and withheld answers; `evals/agent_tasks.py` gains `allowed_tools` on two tasks and two
@@ -21,7 +23,9 @@ behaves exactly as it did in Week 7.
 - `docs/week8/owasp-map.md`: the OWASP LLM Top 10 against this app.
 - `scripts/run_injection.py --show LABEL` re-prints a saved injection run, and `--compare LABEL ...` puts several
   side by side, with no model calls. `scripts/compare_trajectories.py` also prints the ceiling on what a per-tool
-  call cap could save, from the saved "before" run.
+  call cap could save, from the saved "before" run. `--rescore` judges saved injection runs by today's detectors,
+  `run_trajectories.py --regrade LABEL` grades a saved run again with today's rules (in place, keeping its settings),
+  and `scripts/replay_defense.py` feeds saved runs through the defences to see what they would have blocked.
 
 ## Validating the grader before trusting it
 
@@ -40,6 +44,9 @@ answers with a wrong path (three `over-calling` on the unanswerable task, one re
 wrong answer with a wrong path (the step-limit run). The two corrected task expectations were written before the
 first race and changed after seeing the grader's output, which is tuning the measure to the data, so it is
 disclosed here. The fixed grader is what every later number in this week uses, including the "before" of the fix.
+The first-pass counts above are recorded from the grader's first output. They cannot be reproduced from this
+repository, because the commit that holds the grader already contains the corrected rules; the corrected counts can
+(`python scripts/run_trajectories.py --grade race-race`). A second round of rule changes followed.
 
 
 ## Recorded before the Week 7 review fixes were merged
@@ -50,9 +57,17 @@ are never shortened) were merged beneath it. Every saved run was searched for th
 change. One run has one: in `before`, `t8-probation-notice` run 1 called `add_days` twice with the same arguments
 in a different key order, which the fixed loop refuses as a repeat. No run ended on an empty reply, made three
 or more calls in one step, or got a wrong-arguments message. Re-grading the three saved surveys with the final
-grader gives the same numbers. The "before" and "after" of the fix are measured again on the merged code.
+grader changes only the `unverified-citation` flags, which the final rule no longer raises for a tool name (see the
+review section): `before` stays at 25 of 30 clean, `before-p` goes from 30 to 33 of 33 and `control` from 6 to 7 of 7.
+The "before" and "after" of the fix are measured again on the merged code.
 
-## What running the injection suite taught (and what was changed after seeing it)
+## What the first injection run taught (and what was changed after seeing it)
+
+*This is the first run: 13 attacks, recorded before the review above. Ten of its 26 defended answers were withheld,
+and the review found that only 4 of those 10 had stopped a working attack (two were correct cited answers to
+legitimate questions and four were harmless non-answers). Its "defences on" numbers are therefore superseded by the
+re-run on the final code. The files are kept as they were saved: `injection-final.json` and the four
+`injection-layer-*.json`.*
 
 The suite runs every attack with the defences off and on, in a private throwaway index, so the real index is
 never poisoned. An attack counts only if its poisoned document reached the model.
@@ -80,27 +95,37 @@ never poisoned. An attack counts only if its poisoned document reached the model
   three. `ind-false-fact` plants a false number in a document with no instruction in it at all; no layer here is
   meant to stop that, and none does.
 
-## The survey that chose the fix (measured before any fix was written)
+## The survey that chose the fix (measured before any run with the cap)
 
-`python scripts/run_trajectories.py --label before` on `gemini-3.5-flash-lite`, three repeats of eleven tasks. The
-free daily quota ran out after 30 of the 33 runs, so the file says `complete: false` and holds those 30.
+`python scripts/run_trajectories.py --label before` on `gemini-3.5-flash-lite`, three repeats of eleven tasks, on
+2026-10-11 from 02:41 to 02:50. The free daily quota ran out after 30 of the 33 runs, so the file says `complete: false`
+and holds those 30.
 
 - Outcome right: 30 of 30. Trajectory clean: 25 of 30. The other 5 are right answers with a wrong path.
 - Modes: `over-calling` in 5 runs (`t7-unanswerable` twice, `t7-leave-end-date`, `t8-notice-no-document`,
-  `t8-probation-notice`) and `unverified-citation` in 1 (the same `t8-probation-notice` run).
-- Cost per run: 4,346 tokens on average and 3.6 model calls. The over-calling runs made 6 to 8 calls.
+  `t8-probation-notice`). The first grading also flagged `unverified-citation` in one of those runs; the final rule does
+  not (see the review section), so the file was graded again in place with `--regrade`.
+- Cost per run: 4,345 tokens on average and 3.6 model calls. The over-calling runs made 6 to 8 calls.
+
+One thing the heading does not say: the code for the cap already existed in the author's working copy when the second
+survey (`before-p`, 02:53 to 03:02) ran. No run with the cap was made until after the prediction below was committed,
+and the history shows it: the prediction commit comes before the commit that adds the cap.
 
 The free re-grade of the Week 7 race (`--grade race-race`, 27 agent runs) agrees: 4 runs `over-calling`.
 
 A second model, `gemini-3.1-flash-lite-preview` (`--label before-p`, all 33 runs), does not over-call: no run
-searched more than twice. Its only mode is `unverified-citation` in 3 runs, all `t7-carry-forward-sum`, whose
-answers cite `[source: Acme-Leave-Policy-2026.md, calculate]`: a real document and a tool name in one tag.
+searched more than twice, and under the final rules no run shows a failure mode (33 of 33 clean). The first grading had
+flagged 3 runs of `t7-carry-forward-sum` as `unverified-citation`, because their answers cite
+`[source: Acme-Leave-Policy-2026.md, calculate]`: a real document and a tool name in one tag. A tool name says where a
+number came from, it is not an invented document, so the final rule does not flag it.
 
 So the top failure depends on the model, and over-calling is the most frequent on the model the Week 7 race used.
 
 ## The one fix, written down before it is measured: a per-tool call budget
 
-*This section was committed before the "after" run, so the prediction cannot be adjusted to the result.*
+*This section was committed before the "after" run, so the prediction cannot be adjusted to the result. It was amended
+once, before any measured run: the text below is left as it was written, and "Amendment to the prediction" says what
+changed.*
 
 **Change.** One setting, `AGENT_MAX_CALLS_PER_TOOL` (default 0, off). Once a tool has really run that many times
 in one run, a further call to it is not executed. It comes back as a `BUDGET` observation saying the budget is
@@ -141,13 +166,43 @@ Replaying the whole defence (all three layers, as `run_agent` applies them) over
 retrieved, and no call uses a date or number the guard rejects. Prediction for the live run: at most 2 of 33
 answers withheld or calls refused, each reported by name.
 
+## Amendment to the prediction, written before the measured runs
+
+*Written on 2026-10-11, before `before-final`, `before-final-2` and `after-final` were run, and committed before them. The
+prediction above is left as it was written; this section changes how it is judged.*
+
+A closer look found that the token window in prediction 3 is smaller than the noise between two identical
+runs. In the saved `before` survey the same 11 tasks averaged 5,404.5 tokens in repeat 1 and 4,091.5 in repeat 2 (24%
+fewer), and `t7-leave-end-date` took 11,679, 6,111 and 6,101 tokens in its three repeats. With one pair of files,
+"falls by 2% to 8%" would be decided by chance. So:
+
+1. **Tokens are reported, not judged.** Prediction 3 and the third failure condition ("mean tokens fall by less than
+   2%") are withdrawn. Mean tokens and mean model calls per run are printed for both runs, next to a noise floor.
+2. **A third run measures the noise floor.** `before-final-2` is `before-final` run again: no cap, same model, same day,
+   same settings. The difference in mean tokens per run between those two, on the pairs both completed, is the noise
+   floor. The cap's change counts as "larger than the noise floor" only if it exceeds that difference; otherwise it is
+   "not distinguishable from noise". One A/A pair is one sample of the noise, not its distribution, and the printout
+   says so.
+3. **The failure rule.** Predictions 1, 2, 4 and 5 stand. The fix has failed if the outcome-right count drops by more
+   than 2, or more than 2 runs that used to finish now end without an answer. Nothing about tokens can make the fix
+   pass or fail.
+4. **Prediction 1 is exact.** The cap exempts `remember`, and `over-calling` no longer counts it, so "goes to 0" holds
+   by construction for every tool the cap covers.
+5. **The benign check was repeated on the final defences.** The replay quoted above was made on the first version of
+   them; see "the false-block measurement" in the review section. The prediction for the live `--defense` run stands:
+   at most 2 of 33 answers withheld or calls refused, each reported by name.
+
+`python scripts/check_prediction.py before-final after-final --noise before-final-2` prints all of this as arithmetic.
+
 ## What happened after the prediction was committed
 
-- **The free quota ran out.** Each model has a daily limit (500 requests for the lite models, 20 for the flash
-  models) and every lite model was used up on 2026-10-11. The first control run stopped after 7 of its 33 runs
-  (`complete: false`), the benign run with the defences on could not start, and the measured pair
-  (`before-final`, `after-final`) is waiting for the quota to reset, which happens at about 12:30 IST. Nothing
-  below is that measurement.
+- **The free quota ran out.** The app stops a run when the provider says the daily quota is used up and saves what it
+  has as partial, with the message (`meta.stopped_because` in `trajectories-before.json` and `trajectories-control.json`).
+  For the lite models the provider's response names the limit: on 2026-10-11 the responses for `gemini-3.1-flash-lite`
+  and `gemini-3.1-flash-lite-preview` gave quota id `GenerateRequestsPerDayPerProjectPerModel-FreeTier`, value 500
+  requests a day. The first control run stopped after 7 of its 33 runs (`complete: false`) and the benign run with the
+  defences on could not start. The measured pair had not been run when this was written; it and its results are added
+  in their own section after it.
 - **What the partial control shows.** The cap of 3 on `gemini-3.1-flash-lite-preview`, which never searches more
   than twice, against the saved `before-p` run, on the 7 (task, repeat) pairs both completed:
 
@@ -157,10 +212,9 @@ Compared on the 7 (task, repeat) pairs both runs completed ('before-p' has 33 ru
                                           before-p     control
   runs                                           7           7
   outcome right                                  7           7
-  trajectory clean                               6           6
-  right answer, wrong path (the gap)             1           1
+  trajectory clean                               7           7
+  right answer, wrong path (the gap)             0           0
   tool-choice accuracy                        100%        100%
-  mode: unverified-citation                      1           1
   tokens per run, mean                        3213        3213
   tokens per run, p99                         6320        6320
 
@@ -169,11 +223,13 @@ overrides: before none, after {'agent_max_calls_per_tool': 3}; defences: before 
 With 7 pairs, a difference of one or two runs is within what a second identical run could change. Read the modes, not only the totals.
 ```
 
-  It changed nothing, which is what the control predicted for a model that never reaches the cap. The
-  `unverified-citation` run is `t7-carry-forward-sum`, the same one as in `before-p`.
+  It changed nothing, which is what the control predicted for a model that never reaches the cap. Graded with the
+  final rules neither run shows a failure mode; the first grading had flagged the same `unverified-citation` run in
+  both.
 - **One illustration of the mechanism**, on `gemini-3.7-flash` (the one model with a few requests left): the
   unanswerable question, once without the cap and once with it, in `example-budget.md`. One run each, so it shows
-  the behaviour and measures nothing.
+  the behaviour and measures nothing. No JSON was saved for these two runs, so their figures cannot be re-derived from
+  the repository.
 - **Two changes made while doing this.** `compare_trajectories.py` now reads only the (task, repeat) pairs both
   runs completed, because a run cut short by a quota otherwise compares different questions; and the printer no
   longer says "blocked by the argument guard" for a call the budget refused.

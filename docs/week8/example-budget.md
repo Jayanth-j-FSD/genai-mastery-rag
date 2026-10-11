@@ -5,8 +5,10 @@ question, on one model**, so it shows how the budget behaves and proves nothing 
 measured comparison is described in `CHANGES.md` and has its own numbers.
 
 The question is the unanswerable one (`t7-unanswerable`: no document mentions a manager's bonus limit). The model
-is `gemini-3.7-flash`, not the model the measured comparison uses: the free daily quota of every lite model was
-used up on 2026-10-11 when this was recorded, and this model had a few requests left.
+is `gemini-3.7-flash`, not the model the measured comparison uses: the lite models the earlier runs used had stopped
+answering when this was recorded (see `CHANGES.md`), and this model had a few requests left. The two runs were copied
+from the terminal and no JSON was saved, so their figures cannot be re-derived from the repository. The evidence is
+the saved pair of runs described in `CHANGES.md`, not this page.
 
 ## Before: no budget
 
