@@ -95,6 +95,8 @@ def main(argv=None):
 
     print("\n".join(context_savings.format_report(table, header)))
     first = next(iter(table))
+    print("\n" + first + ", by kind of question:")
+    print("\n".join(context_savings.kind_lines(table[first])))
     if args.per_case:
         print("\n" + first + ", question by question:")
         print("\n".join(per_case_lines(table[first])))

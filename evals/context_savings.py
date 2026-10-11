@@ -92,6 +92,17 @@ def summarize(rows):
             "lost_facts": {row["id"]: row["lost_facts"] for row in rows if row["lost_facts"]}}
 
 
+def kind_lines(rows):
+    """One line per kind of question for one idea (the eval questions, and the bank's stand-in traffic when it was drawn)."""
+    lines = []
+    for kind, wanted in (("eval questions", True), ("bank questions", False)):
+        group = [row for row in rows if (row["problem_type"] != "bank") == wanted]
+        if group:
+            lines.append(f"  {kind:<16}{len(group):>3}   mean saved {statistics.mean(r['saved_share'] for r in group):.1%}, "
+                         f"mean prompt {statistics.mean(r['chars_before'] for r in group):.0f} to {statistics.mean(r['chars_after'] for r in group):.0f} characters")
+    return lines
+
+
 def format_report(table, header_lines=()):
     """Printable lines for {candidate: rows}. A candidate that loses a document or a fact string on any case is marked FAILS."""
     lines = list(header_lines)
