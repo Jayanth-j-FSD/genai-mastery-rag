@@ -79,7 +79,7 @@ class DocumentTests(unittest.TestCase):
     def test_the_document_says_it_was_written_before_the_first_request_and_who_decides_to_ship(self):
         self.assertIn("before any request was sent to the model", self.document)
         self.assertIn("which is your decision", self.document)
-        self.assertNotIn("—", self.document)
+        self.assertNotIn(chr(0x2014), self.document)               # no em dash in the document
 
 
 class BandTests(unittest.TestCase):
