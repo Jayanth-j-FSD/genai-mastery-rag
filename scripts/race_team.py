@@ -9,9 +9,11 @@ The runs are interleaved: repeat by repeat, task by task, one run of every arm b
 rotating. If a free-tier quota ends the race part-way, every arm has almost the same runs, and the provider's mood at any
 hour is shared by all of them. `--noise` adds a second, identical single-agent arm (`agent-2`) that calibrates the method.
 
-Before a race counts it is frozen: the code and prompts are committed (a race refuses an uncommitted tree; only a pilot,
-whose label starts with `pilot-`, may run on one), every result records the git commit and a hash of the code, prompts,
-checks, tasks and corpus it ran with, and a race cannot be resumed after any of them changed.
+Before a race counts it is frozen: the code, the prompts and the prediction (docs/week10/prediction.md) are committed (a race refuses
+an uncommitted tree, an uncommitted prediction and a git it cannot read; only a pilot, whose label starts with `pilot-`, may run on
+one; the files a race writes under evals/results and evals/cache are not code). Every result records the git commit, a hash of every
+.py file under app and evals and of the two race scripts, the corpus and the settings it ran with, and a race cannot be resumed
+after any of them changed. A resume keeps the stamp the race began on and adds the commit it carried on at to meta.code_history.
 
 Run:
     python scripts/race_team.py --plan                                              # requests a race would take: no model calls
@@ -44,15 +46,21 @@ from app.agent import loop, team, tools as agent_tools, workflow     # noqa: E40
 from app.agent.tools import default_tools                    # noqa: E402
 from app.config import BASE_DIR, settings                    # noqa: E402
 from app.console import display_path, make_output_safe       # noqa: E402
-from app.rag import pipeline                                 # noqa: E402
+from app.rag import loader, pipeline, store                  # noqa: E402
 from evals import race, runner, team_report                  # noqa: E402
 from evals.agent_tasks import get_tasks                      # noqa: E402
 
 BASE = {"agent": "agent", "team": "team", "agent-2": "agent", "workflow": "workflow"}      # what each arm label runs
 STAMPED_FILES = ("app/agent/team.py", "app/agent/loop.py", "app/llm.py", "evals/checks.py", "evals/agent_tasks.py", "evals/race.py",
-                 "evals/team_prediction.py")                                              # hashed into every result
+                 "evals/team_prediction.py")                                              # hashed into every result, each under its own name
+CODE_ROOTS = ("app", "evals")                                  # every .py file under these decides what a run does, so every one is hashed
+CODE_SCRIPTS = ("scripts/race_team.py", "scripts/pilot_team.py")       # and these two scripts, which build the runs and the plan
+GENERATED = ("evals/results", "evals/cache")                   # what a race writes: output, never code, so it never counts as uncommitted code
+PREDICTION_DOC = "docs/week10/prediction.md"                   # committed before the race, so that git shows the order
+SETTING_NAMES = ("llm_max_retries", "llm_timeout_seconds", "dense_search", "hybrid_candidates", "rrf_k", "bm25_k1", "bm25_b", "embed_provider")
 DEFAULT_TIMEOUT = 300.0        # seconds a run may take: wider than the 120 s default because the free tier's rate-limit pauses count, for BOTH arms
 CODE_KEYS = tuple(os.path.basename(path) for path in STAMPED_FILES)
+GIT_PROBLEM = {"text": ""}     # why the latest git command failed, so a refusal can say what went wrong and not only that git was unreadable
 
 
 def sha(text):
@@ -69,31 +77,89 @@ def file_sha(relative_path):
 
 
 def git(*args):
-    """The output of one git command in the project, or None when git is missing or the command fails."""
+    """The output of one git command in the project, or None when git is missing or the command fails (GIT_PROBLEM keeps why)."""
     try:
-        out = subprocess.run(["git", *args], cwd=BASE_DIR, capture_output=True, text=True, timeout=20)
-    except (OSError, subprocess.SubprocessError):
+        out = subprocess.run(["git", *args], cwd=BASE_DIR, capture_output=True, encoding="utf-8", errors="replace", timeout=20)
+    except (OSError, subprocess.SubprocessError) as exc:
+        GIT_PROBLEM["text"] = f"{type(exc).__name__}: {exc}"
         return None
-    return out.stdout.strip() if out.returncode == 0 else None
+    if out.returncode != 0:
+        reason = (out.stderr or "").strip().splitlines()
+        GIT_PROBLEM["text"] = reason[0] if reason else f"git {args[0]} exited with {out.returncode}"
+        return None
+    return out.stdout.strip()
 
 
-def code_stamp():
-    """Which code ran: the git commit, whether code under app, evals or scripts had uncommitted changes, and a hash of each file that matters."""
-    status = git("status", "--porcelain", "--", "app", "evals", "scripts")
-    stamp = {"git": git("rev-parse", "--short", "HEAD") or "unknown", "dirty": None if status is None else bool(status)}
-    stamp.update({os.path.basename(path): file_sha(path) for path in STAMPED_FILES})
+def uncommitted_code():
+    """The paths under app, evals and scripts that git says are changed or new, or None when git cannot be read. A race's own result and
+    cache files are what it writes, not the code it ran, so they are left out: they would otherwise forbid every resume."""
+    status = git("status", "--porcelain", "--", "app", "evals", "scripts", *[f":(exclude){path}" for path in GENERATED])
+    return None if status is None else [line.strip().split(None, 1)[-1] for line in status.splitlines() if line.strip()]
+
+
+def code_files():
+    """{path: hash} of every .py file under app and evals (a race's own results and cache aside) and of the two race scripts: everything
+    that decides what a run does, the memory and the search tool included, not only the files a reader would think of first."""
+    found = set(CODE_SCRIPTS) | set(STAMPED_FILES)
+    for root in CODE_ROOTS:
+        for folder, dirs, names in os.walk(os.path.join(BASE_DIR, root)):
+            here = os.path.relpath(folder, BASE_DIR).replace("\\", "/")
+            dirs[:] = [d for d in dirs if f"{here}/{d}" not in GENERATED and d != "__pycache__"]
+            found.update(f"{here}/{name}" for name in names if name.endswith(".py"))
+    return {path: file_sha(path) for path in sorted(found)}
+
+
+def code_stamp(files=None):
+    """Which code ran: the git commit, whether code under app, evals or scripts had uncommitted changes (and which), a hash of each
+    stamped file under its own name, and a fingerprint of every code file (the per-file hashes are `code_files`)."""
+    files = code_files() if files is None else files
+    paths = uncommitted_code()
+    stamp = {"git": git("rev-parse", "--short", "HEAD") or "unknown", "dirty": None if paths is None else bool(paths)}
+    if stamp["git"] == "unknown" or paths is None:
+        stamp["git_problem"] = GIT_PROBLEM["text"] or "no reason given"        # why git could not be read: a refusal and a pilot's record both say it
+    if paths:
+        stamp["dirty_paths"] = ", ".join(paths)
+    stamp.update({os.path.basename(path): files.get(path) for path in STAMPED_FILES})
+    stamp["tree"] = sha(repr(sorted(files.items())))
     return stamp
 
 
+def prediction_doc_state():
+    """(blob, problem) for the prediction document: the git hash of the file as committed, or None and a sentence saying what is wrong
+    (not committed, changed since, or git unreadable). The prediction is committed before the race so that git shows the order."""
+    blob = git("rev-parse", f"HEAD:{PREDICTION_DOC}")
+    if blob is None:
+        return None, f"{PREDICTION_DOC} is not committed (git said: {GIT_PROBLEM['text']})"
+    changed = git("status", "--porcelain", "--", PREDICTION_DOC)
+    if changed is None:
+        return None, f"git could not check {PREDICTION_DOC} ({GIT_PROBLEM['text']})"
+    if changed:
+        return None, f"{PREDICTION_DOC} has uncommitted changes"
+    return blob, None
+
+
+def settings_snapshot():
+    """The settings, beyond the limits meta already holds, that change what a run does or sees, and the size of the index it searched."""
+    snapshot = {name: getattr(settings, name) for name in SETTING_NAMES}
+    snapshot["chunk_count"] = store.count_chunks()
+    return snapshot
+
+
 def corpus_fingerprint():
-    """Every document the index is built from, with a hash of its bytes: the evidence that both arms read the same corpus."""
+    """Every document the index is built from (the loader's rules: sub-folders too, .txt .md .pdf), with a hash of its text. Line endings
+    are normalised for text, as for code, so the same commit gives the same fingerprint on any checkout."""
     files = {}
-    for name in sorted(os.listdir(settings.corpus_dir)) if os.path.isdir(settings.corpus_dir) else []:
-        path = os.path.join(settings.corpus_dir, name)
-        if os.path.isfile(path) and not name.startswith("."):
+    for folder, _dirs, names in os.walk(settings.corpus_dir):
+        for name in sorted(names):
+            if os.path.splitext(name)[1].lower() not in loader.SUPPORTED:
+                continue
+            path = os.path.join(folder, name)
             with open(path, "rb") as handle:
-                files[name] = hashlib.sha256(handle.read()).hexdigest()[:12]
-    return files
+                data = handle.read()
+            if not name.lower().endswith(".pdf"):
+                data = data.replace(b"\r\n", b"\n")
+            files[os.path.relpath(path, settings.corpus_dir).replace("\\", "/")] = hashlib.sha256(data).hexdigest()[:12]
+    return dict(sorted(files.items()))
 
 
 def scrub_text(text, limit=300):
@@ -170,6 +236,7 @@ def caps_table(arms, timeout=DEFAULT_TIMEOUT):
 
 
 def make_meta(label, tasks, repeats, arms, model, started, timeout=DEFAULT_TIMEOUT):
+    files = code_files()                                  # read once, so the stamp's fingerprint and the saved per-file hashes cannot disagree
     return {"label": label, "started": started, "complete": False, "stopped_because": None, "repeats": repeats,
             "approaches": list(arms), "arms": list(arms), "tasks": [task["id"] for task in tasks], "interleaved": True,
             "models": {arm: model for arm in arms}, "noise_arm": team_report.NOISE if team_report.NOISE in arms else None,
@@ -179,7 +246,8 @@ def make_meta(label, tasks, repeats, arms, model, started, timeout=DEFAULT_TIMEO
             "search": {"top_k default": inspect.signature(agent_tools.search_policies).parameters["top_k"].default,
                        "passage chars": agent_tools._MAX_PASSAGE_CHARS, "retrieval mode": settings.retrieval_mode},
             "config": {arm: arm_config(arm, timeout) for arm in arms}, "caps": caps_table(arms, timeout),
-            "code": code_stamp(), "corpus": corpus_fingerprint(), "resumed": []}
+            "code": code_stamp(files), "code_files": files, "code_history": [], "settings": settings_snapshot(),
+            "prediction_doc": prediction_doc_state()[0], "corpus": corpus_fingerprint(), "resumed": []}
 
 
 def provider_trouble(record):
@@ -370,10 +438,22 @@ def changed_since(saved_meta, meta):
             differences.append(key)
     saved_code, code = saved_meta.get("code") or {}, meta["code"]
     differences += [key for key in CODE_KEYS if saved_code.get(key) != code.get(key)]
+    if saved_meta.get("code_files") is not None and meta.get("code_files") is not None:          # a race saved before every file was hashed has only the stamped ones
+        differences += [path for path in changed_files(saved_meta["code_files"], meta["code_files"]) if os.path.basename(path) not in differences]
     for arm, setting in (saved_meta.get("config") or {}).items():
         if meta["config"].get(arm) != setting:
             differences.append(f"config of {arm}")
+    for name, value in (saved_meta.get("settings") or {}).items():                              # only what the saved race recorded can be compared
+        if (meta.get("settings") or {}).get(name) != value:
+            differences.append(f"setting {name}")
+    if saved_meta.get("prediction_doc") and saved_meta["prediction_doc"] != meta.get("prediction_doc"):
+        differences.append("prediction_doc")                      # the prediction was edited after the race began: it is no longer the one registered first
     return differences
+
+
+def changed_files(saved, now):
+    """The paths whose hash differs between two {path: hash} dicts, a file that appeared or went away included."""
+    return sorted(path for path in set(saved) | set(now) if saved.get(path) != now.get(path))
 
 
 def read_meta(path):
@@ -523,14 +603,23 @@ def main(argv=None):
     source = newer_progress(path, leftover) if args.resume else path               # progress saved beside a complete race may be newer
     started = datetime.now().astimezone().isoformat(timespec="seconds")
     meta = make_meta(args.label, tasks, args.repeats, arms, args.model, started, args.timeout)
-    if meta["code"]["dirty"] is None:
+    code, is_pilot = meta["code"], args.label.startswith("pilot-")
+    if code["dirty"] is None or code["git"] == "unknown":
+        if not is_pilot:                                # a race that cannot say which commit it ran on is not frozen: refuse it, as for dirty code
+            print(f"Error: git could not be read ({code.get('git_problem', 'no reason given')}), so a race could not say which commit it ran on. "
+                  "Make git work in this folder, or run a pilot (a label that starts with pilot-).")
+            return 1
         print("WARNING: git could not be read, so this race will not say which commit it ran on.")
-    if meta["code"]["dirty"] and not args.allow_dirty:
-        print("Error: code under app, evals or scripts has uncommitted changes, so a race could not say which code ran. Commit first "
-              "(the order is: the code and prompts, then the prediction, then the race), or run a pilot with --allow-dirty and a pilot- label.")
+    if code["dirty"] and not args.allow_dirty:
+        print(f"Error: code under app, evals or scripts has uncommitted changes ({code.get('dirty_paths', 'see git status')}), so a race could not "
+              "say which code ran. Commit first (the order is: the code and prompts, then the prediction, then the race), or run a pilot with "
+              "--allow-dirty and a pilot- label.")
         return 1
-    if args.allow_dirty and not args.label.startswith("pilot-"):
+    if args.allow_dirty and not is_pilot:
         print("Error: --allow-dirty is for pilots: give the label a pilot- prefix so the result cannot pass for the race.")
+        return 1
+    if not is_pilot and meta["prediction_doc"] is None:
+        print(f"Error: {prediction_doc_state()[1]}. Commit the prediction before the race, so that git shows it came first.")
         return 1
 
     if os.path.exists(path) and not (args.resume or args.force):
@@ -549,12 +638,17 @@ def main(argv=None):
                   + "). Race again under a new label; the old file stays as evidence.")
             return 1
         saved_meta = results["meta"]
-        saved_meta["arms"] = saved_meta["approaches"] = list(dict.fromkeys(list(saved_meta["arms"]) + arms))
+        merged = list(dict.fromkeys(list(saved_meta["arms"]) + arms))
+        have = {(r["repeat"], r["task_id"], r["approach"]) for r in results["runs"]}
+        if saved_meta.get("complete") and source == path and all((repeat, task["id"], arm) in have for repeat, task, arm in build_plan(tasks, args.repeats, merged)):
+            print(f"Nothing to resume: the race saved as {display_path(path, BASE_DIR)} is complete and has every run. Nothing was changed.")
+            return 0                                    # a resume that runs nothing must not rewrite the file or its provenance
+        saved_meta["arms"] = saved_meta["approaches"] = merged
         saved_meta["models"] = {arm: args.model for arm in saved_meta["arms"]}
         saved_meta["noise_arm"] = team_report.NOISE if team_report.NOISE in saved_meta["arms"] else None
         saved_meta["config"] = {arm: arm_config(arm, args.timeout) for arm in saved_meta["arms"]}
         saved_meta["caps"] = caps_table(saved_meta["arms"], args.timeout)
-        saved_meta["code"] = meta["code"]                                    # the commit it carried on at; the file hashes were just checked equal
+        saved_meta["code_history"] = list(saved_meta.get("code_history") or []) + [{"at": started, "code": meta["code"]}]    # meta.code stays the stamp the race BEGAN on
         saved_meta["resumed"] = list(saved_meta.get("resumed") or []) + [started]
         saved_meta.update(complete=False, stopped_because=None)
         arms = saved_meta["arms"]

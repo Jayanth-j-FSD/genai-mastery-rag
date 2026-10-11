@@ -10,7 +10,7 @@ from unittest import mock
 import _testkit
 from app import llm
 from evals import runner
-from test_race_team import CLEAN, MODEL, TWO, Racer, captured
+from test_race_team import BLOB, CLEAN, MODEL, TWO, Racer, captured, setUpModule      # noqa: F401  (setUpModule keeps the real index closed)
 
 sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))
 import race_team           # noqa: E402
@@ -41,6 +41,7 @@ class SavedRaceCase(unittest.TestCase):
         self.enterContext(mock.patch.object(race_team, "datetime", FakeClock))
         self.stamp = dict(CLEAN)
         self.enterContext(mock.patch.object(race_team, "code_stamp", side_effect=lambda *args: dict(self.stamp)))
+        self.enterContext(mock.patch.object(race_team, "prediction_doc_state", return_value=(BLOB, None)))
         self.enterContext(mock.patch.object(race_team.pipeline, "require_index"))
         self.racer = Racer()
         self.enterContext(mock.patch.object(race_team.race, "run_one", self.racer))

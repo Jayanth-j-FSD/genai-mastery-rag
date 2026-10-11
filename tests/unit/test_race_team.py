@@ -20,7 +20,15 @@ import race_team           # noqa: E402
 
 TWO = ["t7-single-lookup", "t7-conflict"]
 CLEAN = {"git": "abc1234", "dirty": False, **{key: "0123456789ab" for key in race_team.CODE_KEYS}}
+BLOB = "0123456789abcdef0123456789abcdef01234567"          # what git would say the committed prediction document hashes to
 MODEL = "model-x"
+
+
+def setUpModule():
+    """make_meta records the size of the index: no test here may open the real one (that would create data/chroma)."""
+    patcher = mock.patch("app.rag.store.count_chunks", return_value=434)
+    patcher.start()
+    unittest.addModuleCleanup(patcher.stop)
 
 
 def captured(function, *args):
@@ -232,6 +240,24 @@ class FrozenCodeTests(unittest.TestCase):
         self.assertEqual(sorted(fingerprint), ["a.md", "b.md"])
         self.assertNotEqual(fingerprint["a.md"], fingerprint["b.md"])
 
+    def fingerprint_of(self, files):
+        folder = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
+        for name, data in files.items():
+            path = os.path.join(folder, *name.split("/"))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as handle:
+                handle.write(data)
+        with mock.patch.object(race_team.settings, "corpus_dir", folder):
+            return race_team.corpus_fingerprint()
+
+    def test_the_corpus_fingerprint_is_the_same_whatever_line_endings_a_checkout_chose_for_a_text_document(self):
+        self.assertEqual(self.fingerprint_of({"a.md": b"one\ntwo\n"}), self.fingerprint_of({"a.md": b"one\r\ntwo\r\n"}))
+        self.assertNotEqual(self.fingerprint_of({"a.pdf": b"%PDF one\ntwo\n"}), self.fingerprint_of({"a.pdf": b"%PDF one\r\ntwo\r\n"}))   # a PDF is bytes: no edit
+
+    def test_the_corpus_fingerprint_reaches_sub_folders_and_names_a_document_as_a_citation_would(self):
+        fingerprint = self.fingerprint_of({"top.md": b"x", "nested/deeper/b.txt": b"y", "nested/skipped.json": b"{}", "nested/skipped.png": b"\x00"})
+        self.assertEqual(list(fingerprint), ["nested/deeper/b.txt", "top.md"])               # the loader reads .txt .md .pdf, in sub-folders too, and sorted
+
     def test_every_arm_records_what_it_was_run_with_so_the_differences_are_visible(self):
         meta = race_team.make_meta("t", get_tasks(TWO), 3, ["agent", "team", "agent-2"], "m", "now", 300.0)
         self.assertEqual(meta["arms"], meta["approaches"])
@@ -281,6 +307,7 @@ class ScrubTests(unittest.TestCase):
         folder = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
         self.enterContext(mock.patch.object(runner, "RESULTS_DIR", folder))
         self.enterContext(mock.patch.object(race_team, "code_stamp", return_value=CLEAN))
+        self.enterContext(mock.patch.object(race_team, "prediction_doc_state", return_value=(BLOB, None)))
         self.enterContext(mock.patch.object(race_team.pipeline, "require_index"))
         self.enterContext(mock.patch.object(race_team.settings, "openai_api_key", "sentinel-key-123456"))
         racer = Racer(lambda n: RuntimeError(f"index at {race_team.BASE_DIR} with key sentinel-key-123456"))
@@ -300,7 +327,8 @@ class MainTests(unittest.TestCase):
         self.enterContext(mock.patch.object(runner, "RESULTS_DIR", self.folder))
         self.enterContext(mock.patch.object(race_team, "BASE_DIR", self.folder))              # --save must not touch the real docs
         self.stamp = dict(CLEAN)
-        self.enterContext(mock.patch.object(race_team, "code_stamp", side_effect=lambda: dict(self.stamp)))
+        self.enterContext(mock.patch.object(race_team, "code_stamp", side_effect=lambda *args: dict(self.stamp)))
+        self.enterContext(mock.patch.object(race_team, "prediction_doc_state", return_value=(BLOB, None)))
         self.enterContext(mock.patch.object(race_team.pipeline, "require_index"))
         self.racer = Racer()
         self.enterContext(mock.patch.object(race_team.race, "run_one", self.racer))
@@ -347,11 +375,17 @@ class MainTests(unittest.TestCase):
         self.assertIn("UNCOMMITTED changes: a pilot", text)
         self.assertTrue(self.saved("pilot-1")["meta"]["code"]["dirty"])
 
-    def test_an_unreadable_git_is_a_warning_not_a_silent_clean_stamp(self):
-        self.stamp["dirty"] = None
+    def test_an_unreadable_git_refuses_a_race_and_is_only_a_warning_for_a_pilot(self):
+        self.stamp.update(dirty=None, git_problem="fatal: detected dubious ownership in repository")
         code, text = self.race()
+        self.assertEqual((code, "git could not be read" in text, "dubious ownership" in text), (1, True, True))
+        self.assertEqual(self.racer.calls, [])
+        code, text = self.race(label="pilot-1")
         self.assertEqual(code, 0)
-        self.assertIn("git could not be read", text)
+        self.assertIn("WARNING: git could not be read", text)
+        self.stamp.update(dirty=False, git="unknown")                                              # a repository with no commit cannot name one either
+        code, text = self.race(label="u")
+        self.assertEqual((code, "git could not be read" in text), (1, True))
 
     def test_a_saved_label_is_refused_unless_resume_or_force_says_what_to_do(self):
         self.race()
@@ -438,7 +472,9 @@ class MainTests(unittest.TestCase):
         self.racer.outcome, self.racer.calls = None, []
         code, _text = self.race("--resume")
         self.assertEqual(code, 0)
-        self.assertEqual(self.saved()["meta"]["code"]["git"], "def5678")
+        meta = self.saved()["meta"]
+        self.assertEqual(meta["code"]["git"], "abc1234")                                           # the commit the race began on stays the stamp
+        self.assertEqual([entry["code"]["git"] for entry in meta["code_history"]], ["def5678"])    # and the one it carried on at is recorded
 
     def test_resume_refuses_a_different_set_of_tasks_or_repeats_and_a_missing_race(self):
         self.race()
