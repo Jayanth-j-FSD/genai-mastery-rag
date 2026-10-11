@@ -90,7 +90,7 @@ def main(argv=None):
     if args.static:
         print("Does the sanitizer alone remove something from each poisoned document? (no model involved)\n")
         for attack_id, removed in injection.sanitizer_table(attacks).items():
-            print(f"  {attack_id:<22}{'removed' if removed else 'LEFT IN: gets past this layer'}")
+            print(f"  {attack_id:<24}{'removed' if removed else 'LEFT IN: gets past this layer'}")
         return 0
 
     try:

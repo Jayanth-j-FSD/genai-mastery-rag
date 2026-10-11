@@ -158,6 +158,56 @@ class DetectModesTests(unittest.TestCase):
         self.assertIsInstance(modes(TASK, rec), list)
 
 
+class SecondReviewGraderTests(unittest.TestCase):
+    def test_a_call_that_returned_an_error_does_not_count_toward_over_calling_because_the_cap_does_not_count_it(self):
+        good = [call("search_policies", {"query": f"q{i}"}, SEARCH_RESULT) for i in range(3)]
+        failed = call("search_policies", {"query": "bad"}, "ERROR: bad query", ok=False)
+        self.assertNotIn("over-calling", modes(TASK, record(good + [failed] + CLEAN[1:])))
+        four = good + [call("search_policies", {"query": "q3"}, SEARCH_RESULT)]
+        self.assertIn("over-calling", modes(TASK, record(four + CLEAN[1:])))
+
+    def test_the_ceiling_on_what_a_cap_saves_also_ignores_calls_that_returned_an_error(self):
+        steps = [{"n": i, "tool_calls": [call("search_policies", {"query": f"q{i}"}, SEARCH_RESULT, ok=(i != 4))],
+                  "tokens": {"prompt": 100, "completion": 0}} for i in range(1, 5)]
+        rec = {"prompt_tokens": 400, "completion_tokens": 0, "steps": steps}
+        self.assertEqual(trajectory.tokens_past_call_limit([rec], 3), (0, 400))       # the 4th call failed, so the cap would not stop it
+
+    def test_a_round_bracket_tag_and_a_qualifier_are_read_as_the_validator_reads_them(self):
+        answer = "It ends on 2026-12-03 (Source: terms.md) and [source: terms.md (section 2)]"
+        self.assertEqual(modes(TASK, record(CLEAN, answer=answer)), [])
+        ghost = "It ends on 2026-12-03 [source: Ghost.md (page 2)]"
+        self.assertEqual(modes(TASK, record(CLEAN, answer=ghost)), ["unverified-citation"])
+
+    def test_a_label_that_merely_contains_a_dot_is_not_an_invented_document(self):
+        answer = "It ends on 2026-12-03 [source: terms.md, section 4.2, Policy v1.0]"
+        self.assertEqual(modes(TASK, record(CLEAN, answer=answer)), [])
+
+    def test_refused_calls_are_listed_by_kind_counted_in_the_summary_and_shown_in_the_report(self):
+        refused = call("add_days", {"date": "2099-01-01", "days": 7}, "BLOCKED: the date was not stated", ok=False, blocked=True)
+        spent = call("search_policies", {"query": "again"}, "BUDGET: search_policies has already returned 3 results", ok=False, blocked=True)
+        rec = record([CLEAN[0], refused, spent, CLEAN[1]])
+        row = trajectory.grade(TASK, rec)
+        self.assertEqual([(c["step"], c["tool"], c["kind"]) for c in row["refused_calls"]],
+                         [(2, "add_days", "guard"), (3, "search_policies", "budget")])
+        summary = trajectory.summarize([row], [rec])
+        self.assertEqual(summary["refused"], {"guard": 1, "budget": 1, "runs": 1})
+        self.assertIn("calls refused before they ran: 1 by the guard, 1 by the call budget (in 1 run(s))",
+                      "\n".join(trajectory.format_report(summary)))
+        self.assertRegex("\n".join(trajectory.format_compare(summarize_nothing(), summary)), r"calls refused by the guard\s+0\s+1")
+
+    def test_a_legitimate_call_the_guard_refused_and_the_model_retried_is_clean_but_not_hidden(self):
+        refused = call("add_days", {"date": "2026-11-03", "days": 30}, "BLOCKED: the argument check could not run", ok=False, blocked=True)
+        rec = record([CLEAN[0], refused, CLEAN[1]])
+        row = trajectory.grade(TASK, rec)
+        self.assertEqual(row["modes"], [])
+        self.assertEqual(len(row["refused_calls"]), 1)
+
+
+def summarize_nothing():
+    rec = record(CLEAN)
+    return trajectory.summarize([trajectory.grade(TASK, rec)], [rec])
+
+
 class MetricsTests(unittest.TestCase):
     def test_tool_choice_accuracy_is_the_share_of_calls_to_needed_tools_ignoring_notes(self):
         rec = record(CLEAN + [call("calculate", {"expression": "1+1"}), call("remember", {"fact": "x"})])

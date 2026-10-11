@@ -566,7 +566,8 @@
    "details": [],
    "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
-   "order_ok": true
+   "order_ok": true,
+   "refused_calls": []
   },
   {
    "task_id": "t7-carry-forward-sum",
@@ -575,7 +576,8 @@
    "details": [],
    "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
-   "order_ok": true
+   "order_ok": true,
+   "refused_calls": []
   },
   {
    "task_id": "t7-notice-end-date",
@@ -584,7 +586,8 @@
    "details": [],
    "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
-   "order_ok": true
+   "order_ok": true,
+   "refused_calls": []
   },
   {
    "task_id": "t7-leave-end-date",
@@ -593,7 +596,8 @@
    "details": [],
    "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
-   "order_ok": true
+   "order_ok": true,
+   "refused_calls": []
   },
   {
    "task_id": "t7-remote-eligibility",
@@ -602,7 +606,8 @@
    "details": [],
    "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
-   "order_ok": true
+   "order_ok": true,
+   "refused_calls": []
   },
   {
    "task_id": "t7-two-documents",
@@ -611,7 +616,8 @@
    "details": [],
    "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
-   "order_ok": true
+   "order_ok": true,
+   "refused_calls": []
   },
   {
    "task_id": "t7-conflict",
@@ -620,7 +626,8 @@
    "details": [],
    "trajectory_ok": true,
    "tool_choice_accuracy": 1.0,
-   "order_ok": true
+   "order_ok": true,
+   "refused_calls": []
   }
  ],
  "summary": {
@@ -659,6 +666,11 @@
     "p99": 5.093,
     "max": 5.093
    }
+  },
+  "refused": {
+   "guard": 0,
+   "budget": 0,
+   "runs": 0
   }
  }
 }

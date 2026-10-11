@@ -33,7 +33,7 @@ import re
 from collections import Counter
 from types import SimpleNamespace
 
-from app.agent.defense import date_is_known, dates_in
+from app.agent.defense import date_is_known, dates_in, looks_like_a_document_name, source_names, unseen_names
 from evals import race
 
 MODES = {
@@ -80,26 +80,23 @@ def _is_refusal(answer):
     return (answer or "").lower().replace("\u2019", "'").startswith("i don't know")
 
 
-_CITATION_RE = re.compile(r"\[source:\s*([^\]]+)\]", re.IGNORECASE)
-_FILE_NAME_RE = re.compile(r"\.[A-Za-z0-9]{1,5}$")
-_SOURCE_PREFIX_RE = re.compile(r"^\s*source:\s*", re.IGNORECASE)
-
-
 def cited_documents(answer):
-    """Every document name the answer cites. One tag may list several, "[source: A.md, B.md]" or
-    "[source: A.md; source: B.md]", so each is split and any repeated "source:" prefix is dropped."""
-    names = []
-    for group in _CITATION_RE.findall(answer or ""):
-        for part in re.split(r"[;,]", group):
-            name = _SOURCE_PREFIX_RE.sub("", part).strip()
-            if name:
-                names.append(name)
-    return names
+    """Every document name the answer cites, read exactly as the defence validator reads them (one tag may list several,
+    "(Source: A.md)" counts, a qualifier such as "A.md (section 3)" stays attached)."""
+    return source_names(answer)
 
 
-def _looks_like_a_file(name):
-    """A document name ends in an extension (.md, .txt, .pdf); a label such as "calculate" or "user prompt" does not."""
-    return bool(_FILE_NAME_RE.search(name.strip()))
+def refused_calls(record):
+    """The calls a defence layer or the call budget refused in this run, before the tool ran:
+    [{"step", "tool", "kind": "guard" | "budget", "text"}]."""
+    found = []
+    for step in record.get("steps", []):
+        for call in step.get("tool_calls", []):
+            if call.get("blocked"):
+                text = str(call.get("observation", ""))
+                found.append({"step": step.get("n"), "tool": call["name"], "kind": "budget" if text.startswith("BUDGET:") else "guard",
+                              "text": text[:120]})
+    return found
 
 
 def tool_choice_accuracy(task, record):
@@ -132,7 +129,10 @@ def detect_modes(task, record):
     def add(mode, detail):
         found.append({"mode": mode, "detail": detail})
 
-    counted = Counter(name for name in names if name != "remember")       # notes are exempt from the call budget too
+    # the call budget counts calls that RETURNED a result, so over-calling counts the same calls: an error, a refusal and a
+    # nudge to stop repeating do not, and notes (`remember`) are exempt from the budget too
+    counted = Counter(call["name"] for call in calls if call.get("ok", True) and not call.get("blocked") and call not in nudged
+                      and call["name"] != "remember")
     most_used = max(counted.values(), default=0)
     if nudged or record.get("stop_reason") in ("max_steps", "repeated_call"):
         add("loop", f"{len(nudged)} repeated call(s), stop reason {record.get('stop_reason')!r}")
@@ -170,9 +170,7 @@ def detect_modes(task, record):
     if answer and not _is_refusal(answer):
         retrieved = race.retrieved_from_steps(SimpleNamespace(steps=record.get("steps", [])))
         known_sources = {chunk["source"] for chunk in retrieved}
-        unseen = [name for name in cited_documents(answer) if _looks_like_a_file(name)
-                  and not any(source.lower() == name.lower() or source.rsplit("/", 1)[-1].lower() == name.rsplit("/", 1)[-1].lower()
-                              for source in known_sources)]
+        unseen = [name for name in unseen_names(cited_documents(answer), known_sources) if looks_like_a_document_name(name)]
         if unseen:
             add("unverified-citation", f"cited {unseen}, which the agent never retrieved")
 
@@ -191,7 +189,7 @@ def grade(task, record):
     modes = [item["mode"] for item in details]
     return {"task_id": task["id"], "outcome_ok": bool(record.get("success")), "modes": modes, "details": details,
             "trajectory_ok": not modes, "tool_choice_accuracy": round(tool_choice_accuracy(task, record), 3),
-            "order_ok": order_ok(task, record)}
+            "order_ok": order_ok(task, record), "refused_calls": refused_calls(record)}
 
 
 def grade_all(records, tasks):
@@ -265,13 +263,20 @@ def tokens_past_call_limit(records, limit=3):
         for step in record.get("steps", []):
             beyond = False
             for call in step.get("tool_calls", []):
-                if call.get("blocked") or call["name"] == "remember":
+                if call.get("blocked") or not call.get("ok", True) or call["name"] == "remember":
                     continue
                 counts[call["name"]] = counts.get(call["name"], 0) + 1
                 beyond = beyond or counts[call["name"]] > limit
             if beyond:
                 past_limit += step["tokens"]["prompt"] + step["tokens"]["completion"]
     return past_limit, total
+
+
+def refused_summary(graded):
+    """How many calls were refused before they ran, by the guard and by the call budget, and in how many runs."""
+    calls = [call for row in graded for call in row.get("refused_calls", [])]
+    return {"guard": sum(1 for call in calls if call["kind"] == "guard"), "budget": sum(1 for call in calls if call["kind"] == "budget"),
+            "runs": sum(1 for row in graded if row.get("refused_calls"))}
 
 
 def summarize(graded, records):
@@ -281,7 +286,7 @@ def summarize(graded, records):
             "order_ok": sum(row["order_ok"] for row in graded),
             "tool_choice_accuracy": round(sum(row["tool_choice_accuracy"] for row in graded) / n, 3) if n else 0.0,
             "gap": gap_table(graded), "modes": mode_counts(graded), "ranked": rank_modes(graded),
-            "cost": cost_summary(records)}
+            "cost": cost_summary(records), "refused": refused_summary(graded)}
 
 
 def format_report(summary, label="agent"):
@@ -297,6 +302,10 @@ def format_report(summary, label="agent"):
     lines += ["", "failure modes (runs showing each, and how many of those also got the answer wrong):"]
     lines += [f"  {item['mode']:<22}{item['runs']:>4}   {item['also_wrong_answer']} wrong answer(s)   {MODES[item['mode']]}"
               for item in summary["ranked"]] or ["  (none)"]
+    refused = summary.get("refused")
+    if refused is not None:
+        lines += ["", f"calls refused before they ran: {refused['guard']} by the guard, {refused['budget']} by the call budget "
+                      f"(in {refused['runs']} run(s))"]
     lines += ["", f"{'cost per run':<14}{'mean':>9}{'p50':>9}{'p95':>9}{'p99':>9}{'max':>9}"]
     for name, label_text in (("tokens", "tokens"), ("calls", "model calls"), ("api_seconds", "model s")):
         stat = cost[name]
@@ -317,6 +326,7 @@ def format_compare(before, after, label_before="before", label_after="after"):
              row("tool-choice accuracy", before["tool_choice_accuracy"], after["tool_choice_accuracy"], "{:.0%}")]
     for mode in sorted(set(before["modes"]) | set(after["modes"])):
         lines.append(row(f"mode: {mode}", before["modes"].get(mode, 0), after["modes"].get(mode, 0)))
+    lines.append(row("calls refused by the guard", before.get("refused", {}).get("guard", 0), after.get("refused", {}).get("guard", 0)))
     lines.append(row("tokens per run, mean", before["cost"]["tokens"]["mean"], after["cost"]["tokens"]["mean"], "{:.0f}"))
     lines.append(row("tokens per run, p99", before["cost"]["tokens"]["p99"], after["cost"]["tokens"]["p99"], "{:.0f}"))
     return lines

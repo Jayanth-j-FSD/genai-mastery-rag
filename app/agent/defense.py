@@ -50,8 +50,11 @@ _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 _INVISIBLE_RE = re.compile("[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]")    # soft hyphen, zero-width and direction marks can hide or split a keyword
 _PASSAGE_PREFIX_RE = re.compile(r"^(\s*\[\d+\]\s*\[source:[^\]]*\]\s*)")
 _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
-_SOURCE_TAG_RE = re.compile(r"[\[(]\s*source:\s*([^\])]+?)\s*[\])]", re.I)    # [source: A.md] or (Source: A.md)
+_SOURCE_TAG_RE = re.compile(r"\[\s*source:\s*([^\]]+?)\s*\]|\(\s*source:\s*([^)]+?)\s*\)", re.I)    # [source: A.md] or (Source: A.md)
+_PREFIX_NAME_RE = re.compile(r"\[source:\s*([^\]]*?)\s*\]", re.I)       # the whole name in a passage heading, up to its closing bracket
 _SOURCE_PREFIX_RE = re.compile(r"^\s*source:\s*", re.I)
+_QUALIFIER_RE = re.compile(r"(?:\s*#|\s+\(|\s+-\s|:\s).*$")           # what may follow a name: "A.md#2", "A.md (section 3)", "A.md - intro"
+DOCUMENT_EXTENSIONS = ("md", "txt", "pdf", "docx", "html", "csv", "json")
 _TOOL_OUTPUT_TAG_RE = re.compile(r"<\s*(/?)\s*tool_output", re.I)
 REMOVED = "[removed: instruction-like text]"
 REMOVED_NAME = "name-removed-instruction-like"
@@ -67,8 +70,8 @@ _MONTHS = {name: number for number, name in enumerate(
 _MONTHS.update({"jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12})
 _MONTH_NAMES = "|".join(sorted(_MONTHS, key=len, reverse=True))
 _ISO_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
-_DMY_RE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?\s+(" + _MONTH_NAMES + r")\b\.?,?(?:\s+(\d{4})\b)?", re.I)
-_MDY_RE = re.compile(r"\b(" + _MONTH_NAMES + r")\b\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s+(\d{4})\b)?", re.I)
+_DMY_RE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?\s+(" + _MONTH_NAMES + r")\b\.?,?(?:\s+(\d{4})\b)?", re.I | re.A)
+_MDY_RE = re.compile(r"\b(" + _MONTH_NAMES + r")\b\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s+(\d{4})\b)?", re.I | re.A)   # ASCII only: "ſep" is not "sep"
 _NUMERIC_DATE_RE = re.compile(r"\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b")
 
 LEAK_WINDOW = 60               # an answer sharing this many characters in a row with the system prompt is a leak
@@ -112,10 +115,10 @@ def sanitize(text):
         prefix_match = _PASSAGE_PREFIX_RE.match(line)
         prefix = prefix_match.group(1) if prefix_match else ""         # keep "[2] [source: x.md]" so citations still work
         body = line[len(prefix):]
-        tag = _SOURCE_TAG_RE.search(prefix) if prefix else None
-        if tag and _looks_like_an_instruction(tag.group(1)):           # the document NAME is text an attacker can choose too
-            findings.append(f"instruction-like document name: {tag.group(1).strip()[:80]!r}")
-            prefix = prefix.replace(tag.group(1), REMOVED_NAME)
+        name = _PREFIX_NAME_RE.search(prefix) if prefix else None
+        if name and _looks_like_an_instruction(name.group(1)):         # the document NAME is text an attacker can choose too
+            findings.append(f"instruction-like document name: {name.group(1).strip()[:80]!r}")
+            prefix = prefix.replace(name.group(1), REMOVED_NAME)
         kept = []
         for sentence in _SENTENCE_RE.split(body):
             if sentence and _looks_like_an_instruction(sentence):
@@ -147,9 +150,11 @@ def dates_in(text):
     text = text or ""
     found = set(f"{y}-{m}-{d}" for y, m, d in _ISO_RE.findall(text))
     for day, month, year in _DMY_RE.findall(text):
-        found.add(_date_key(year, _MONTHS[month.lower()], int(day)))
+        if month.lower() in _MONTHS:
+            found.add(_date_key(year, _MONTHS[month.lower()], int(day)))
     for month, day, year in _MDY_RE.findall(text):
-        found.add(_date_key(year, _MONTHS[month.lower()], int(day)))
+        if month.lower() in _MONTHS:
+            found.add(_date_key(year, _MONTHS[month.lower()], int(day)))
     for first, second, year in _NUMERIC_DATE_RE.findall(text):
         for day, month in ((int(first), int(second)), (int(second), int(first))):
             if 1 <= month <= 12 and 1 <= day <= 31:
@@ -167,28 +172,46 @@ def contact_details(text):
     return {match.lower().rstrip(".,;:") for match in _CONTACT_RE.findall(text or "")}
 
 
-def sources_in(text):
-    """The document names in [source: name] tags. One tag may name several: "A.md; B.md" or "A.md, source: B.md"."""
-    names = set()
-    for group in _SOURCE_TAG_RE.findall(text or ""):
-        for part in re.split(r"[;,]", group):
+def source_names(text):
+    """The document names in [source: name] tags, in order, each once. One tag may name several: "A.md; B.md" or
+    "A.md, source: B.md". The grader (evals/trajectory.py) and the validator both read citations through this."""
+    names = []
+    for square, round_ in _SOURCE_TAG_RE.findall(text or ""):
+        for part in re.split(r"[;,]", square or round_):
             name = _SOURCE_PREFIX_RE.sub("", part).strip()
-            if name:
-                names.add(name)
+            if name and name not in names:
+                names.append(name)
     return names
 
 
+def sources_in(text):
+    return set(source_names(text))
+
+
 def _stem(name):
-    """A document name for comparison: no folder, lower case, no .md/.txt/.pdf extension."""
-    base = name.strip().replace(chr(92), "/").rsplit("/", 1)[-1].lower()
+    """A document name for comparison: no qualifier, no folder, lower case, no extension such as .md or .pdf."""
+    base = _QUALIFIER_RE.sub("", name.strip()).replace(chr(92), "/").rsplit("/", 1)[-1].strip().lower()
     stem, dot, extension = base.rpartition(".")
-    return stem if dot and extension in ("md", "txt", "pdf") else base
+    return stem if dot and extension in DOCUMENT_EXTENSIONS else base
+
+
+def looks_like_a_document_name(name):
+    """A name that ends in a document extension. A label such as "calculate" or "user prompt" is not one, and neither
+    is "section 4.2"."""
+    base = _QUALIFIER_RE.sub("", name.strip())
+    return "." in base and base.rpartition(".")[2].lower() in DOCUMENT_EXTENSIONS
+
+
+def unseen_names(cited, seen):
+    """The cited names that match no retrieved document (case, folder, extension and a trailing qualifier do not matter)."""
+    seen_stems = {_stem(name) for name in seen}
+    return [name for name in cited if _stem(name) not in seen_stems]
 
 
 def cites_a_seen_source(cited, seen):
-    """True if any cited name is a document the agent retrieved (case, folder and extension do not matter)."""
-    seen_stems = {_stem(name) for name in seen}
-    return any(_stem(name) in seen_stems for name in cited)
+    """True if any cited name is a document the agent retrieved."""
+    cited = list(cited)
+    return len(unseen_names(cited, seen)) < len(cited)
 
 
 def trusted_contacts_from(corpus_dir):
@@ -228,7 +251,10 @@ class Defense:
         if system_prompt is not None:
             self.system_prompt = system_prompt
         self.question = question or ""
-        self.known_dates = dates_in(self.question)
+        try:
+            self.known_dates = dates_in(self.question)
+        except Exception:                          # a date that cannot be read: a call that uses it is refused, which is safe
+            self.known_dates = set()
         self.sources_seen = set()
         self.trusted_text = self.question
         self.events = []
