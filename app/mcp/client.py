@@ -109,17 +109,28 @@ def _seconds(count):
     return f"{count:.0f} second" + ("" if round(count) == 1 else "s")
 
 
+def _hidden(char):
+    """A character a server could use to act on the terminal or to hide text: a control other than a line break or tab, a tag
+    character, a bidirectional override or isolate, a zero-width space or a word joiner. Joiners, direction marks and the
+    like that ordinary text needs (emoji, Arabic, Persian) are not in this set."""
+    code = ord(char)
+    return ((unicodedata.category(char) == "Cc" and char not in "\n\t") or 0xE0000 <= code <= 0xE007F
+            or 0x202A <= code <= 0x202E or 0x2066 <= code <= 0x2069 or code in (0x200B, 0x2060))
+
+
 def _printable(text):
-    """A tool result with control and invisible characters shown as text (a server cannot clear the screen or retitle the
-    window through a result). Line breaks and tabs stay."""
+    """Server text with the hidden characters shown as text, so a server cannot clear the screen or retitle the window
+    through a result or an error message. A CR or CRLF line break becomes LF."""
     shown = []
-    for char in text:
-        if char in "\n\t" or unicodedata.category(char) not in ("Cc", "Cf"):
+    for char in text.replace(chr(13) + chr(10), chr(10)).replace(chr(13), chr(10)):
+        if not _hidden(char):
             shown.append(char)
         elif ord(char) < 256:
             shown.append(chr(92) + "x" + format(ord(char), "02x"))
-        else:
+        elif ord(char) <= 0xFFFF:
             shown.append(chr(92) + "u" + format(ord(char), "04x"))
+        else:
+            shown.append(chr(92) + "U" + format(ord(char), "08x"))
     return "".join(shown)
 
 
@@ -132,16 +143,17 @@ def _text_of(result):
     else:
         structured = getattr(result, "structured_content", None)
         text = json.dumps(structured, ensure_ascii=False) if structured is not None else ""
+    text = _printable(text)                  # escaped first, so the cut below is a cut of what the model will actually receive
     if len(text) > MAX_RESULT_CHARS:
         text = text[:MAX_RESULT_CHARS] + f"... [cut: the result was {len(text)} characters long]"
-    return _printable(text)
+    return text
 
 
 def _why(exc):
     """A short reason for a failure: the first real exception inside any exception group, with its type."""
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
         exc = exc.exceptions[0]
-    return f"{type(exc).__name__}: {str(exc).strip() or 'no message'}"[:200]
+    return _printable(f"{type(exc).__name__}: {str(exc).strip() or 'no message'}")[:200]
 
 
 class MCPToolProvider:

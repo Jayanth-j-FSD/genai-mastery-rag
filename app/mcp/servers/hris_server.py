@@ -1,9 +1,8 @@
 """A small HRIS (HR information system) as an MCP server, with SYNTHETIC data (Week 9, track C).
 
-This is a separate program that offers a few read-only "tools" over MCP. It knows nothing
-about our agent or about any AI. It waits on standard input for a request such as "list your tools" or
-"call get_leave_balance with employee E1001" and answers on standard output. The agent (the "host") decides
-when to ask; this server only answers. The AI model never runs here.
+This is a separate program that offers a few read-only "tools" over MCP. It waits on
+standard input for a request such as "list your tools" or "call get_leave_balance with employee E1001" and
+answers on standard output. The host decides when to ask; this server only answers.
 
 Safety by design, so the agent can be "bolted on" without trusting it with everything:
   * Read-only: no tool changes any data.

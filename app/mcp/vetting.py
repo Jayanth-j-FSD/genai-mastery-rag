@@ -19,10 +19,11 @@ The checks, each a plain rule a reviewer can disagree with:
                 reserves for itself ("remember")
   text          present, not enormous, free of control, zero-width, private-use and unassigned characters, free
                 of words that mix Latin with Cyrillic, Greek or Armenian letters (a Latin word with one Cyrillic
-                letter; words of up to three letters are not judged, so units such as "kΩ" pass), and free of
-                instruction-like text, read across line breaks and with look-alike letters made plain (Week 8's
-                sanitizer patterns, so there is one definition of "instruction-like", plus a few patterns for the
-                shapes a tool-poisoning payload takes)
+                letter; a word of up to three letters, digits not counted, is not judged, so units such as "100µs"
+                and "kΩ" pass), and free of instruction-like text, read across line breaks and with look-alike
+                letters made plain (Week 8's sanitizer patterns, so there is one definition of "instruction-like"),
+                and of the combination of two or more signals a tool-poisoning payload is made of (a tag such as
+                <important>, an order to hide it from the user, an order to act first, a path to a secret)
   schema        an object with a modest number of well-named parameters and a modest total size
   read-only     optionally, only tools the server itself declares read-only (readOnlyHint)
 
@@ -45,21 +46,27 @@ MAX_PARAMETERS = 12
 RESERVED_NAMES = frozenset({"remember"})                        # the agent loop adds its memory tool under this name
 _OTHER_ALPHABETS = ("CYRILLIC", "GREEK", "ARMENIAN", "CHEROKEE", "COPTIC")
 
-# Latin look-alikes that Unicode compatibility folding does not make plain: a script g, a dotless i, the small capitals.
+# Look-alikes that Unicode compatibility folding does not make plain: Latin letters such as a script g, a dotless i and the
+# small capitals, the Cyrillic, Greek and Armenian letters that are drawn like Latin ones, and typographic apostrophes.
 # Used only to read a COPY of the text for matching; the text itself is never changed.
-_CONFUSABLES = str.maketrans({
-    0x0261: "g", 0x0251: "a", 0x0131: "i", 0x026A: "i", 0x1D00: "a", 0x0299: "b", 0x1D04: "c", 0x1D05: "d", 0x1D07: "e",
-    0xA730: "f", 0x0262: "g", 0x029C: "h", 0x1D0A: "j", 0x1D0B: "k", 0x029F: "l", 0x1D0D: "m", 0x0274: "n", 0x1D0F: "o",
-    0x1D18: "p", 0x0280: "r", 0xA731: "s", 0x1D1B: "t", 0x1D1C: "u", 0x1D20: "v", 0x1D21: "w", 0x028F: "y", 0x1D22: "z"})
+_CONFUSABLE_LETTERS = {
+    "g": "\u0261\u0262", "a": "\u0251\u1D00\u0430\u03B1", "i": "\u0131\u026A\u0456\u03B9", "b": "\u0299", "c": "\u1D04\u0441", "d": "\u1D05\u0501",
+    "e": "\u1D07\u0435\u03B5", "f": "\uA730", "h": "\u029C\u04BB", "j": "\u1D0A\u0458", "k": "\u1D0B\u03BA", "l": "\u029F", "m": "\u1D0D",
+    "n": "\u0274", "o": "\u1D0F\u043E\u03BF\u0585", "p": "\u1D18\u0440\u03C1", "q": "\u051B", "r": "\u0280", "s": "\uA731\u0455",
+    "t": "\u1D1B\u03C4", "u": "\u1D1C\u03C5\u057D", "v": "\u1D20\u03BD", "w": "\u1D21\u051D", "x": "\u0445\u03C7", "y": "\u028F\u0443",
+    "z": "\u1D22", "A": "\u0410\u0391", "B": "\u0412\u0392", "E": "\u0415\u0395", "H": "\u041D\u0397", "I": "\u0406\u0399", "J": "\u0408",
+    "K": "\u041A\u039A", "M": "\u041C\u039C", "N": "\u039D", "O": "\u041E\u039F", "P": "\u0420\u03A1", "S": "\u0405", "T": "\u0422\u03A4",
+    "X": "\u0425\u03A7", "Y": "\u03A5", "Z": "\u0396", "'": "\u2018\u2019\u02BC"}
+_CONFUSABLES = {ord(look_alike): plain_letter for plain_letter, look_alikes in _CONFUSABLE_LETTERS.items() for look_alike in look_alikes}
 
-# The shapes a tool-poisoning payload takes in a tool definition, beyond the Week 8 sanitizer's phrases.
-_POISON_PATTERNS = [
-    re.compile(r"<\s*/?\s*(important|system|instructions?|secret|admin)\b", re.I),
-    re.compile(r"\b(do not|don't|never)\s+(tell|mention|reveal|inform|disclose|let)\b.{0,40}\b(user|human|anyone)\b", re.I),
-    re.compile(r"\b(before|prior to)\s+(using|calling|you use|you call)\s+this tool\b", re.I),
-    re.compile(r"\b(call|use)\s+this tool\s+(first|before)\b|\balways\s+call\s+this\s+tool\b", re.I),
-    re.compile(r"~/|\.ssh\b|\bid_rsa\b|/etc/passwd|\.env\b|%userprofile%", re.I),
-]
+# The signals a tool-poisoning payload is made of, beyond the Week 8 sanitizer's phrases. Each is common alone ("Before using
+# this tool, call list_projects"; "Reads a .env file"), so ONE does not refuse a tool: it takes two together.
+_POISON_SIGNALS = {
+    "a tag such as <important>": re.compile(r"<\s*/?\s*(important|system|secret|admin)\b", re.I),
+    "an order to hide it from the user": re.compile(r"\b(do not|don't|never)\s+(tell|mention|reveal|inform|disclose|let)\b.{0,40}\b(user|human|anyone)\b", re.I),
+    "an order to act before or first": re.compile(r"\b(before|prior to)\s+(using|calling|you use|you call)\s+this tool\b|\b(call|use)\s+this tool\s+(first|before)\b|\balways\s+call\s+this\s+tool\b", re.I),
+    "a path to a secret": re.compile(r"~/|\.ssh\b|\bid_rsa\b|/etc/passwd|\.env\b|%userprofile%", re.I),
+}
 
 
 def _fold(text):
@@ -93,15 +100,15 @@ def _mixed_alphabet_word(text):
     """A word that mixes Latin letters with Cyrillic, Greek or Armenian: the look-alike trick ("ignоre" with a Cyrillic
     o). A word of up to three letters is not judged, because units and symbols mix alphabets innocently ("µs", "kΩ")."""
     for word in re.findall(r"\w+", unicodedata.normalize("NFKC", text)):
-        if len(word) <= 3:
+        letters = [char for char in word if char.isalpha()]
+        if len(letters) <= 3:                                  # digits do not count: "100µs" is a unit, "ignоre" is a word
             continue
         scripts = set()
-        for char in word:
-            if char.isalpha():
-                try:
-                    scripts.add(unicodedata.name(char).split()[0])
-                except ValueError:
-                    scripts.add("UNKNOWN")
+        for char in letters:
+            try:
+                scripts.add(unicodedata.name(char).split()[0])
+            except ValueError:
+                scripts.add("UNKNOWN")
         if "LATIN" in scripts and scripts & set(_OTHER_ALPHABETS):
             return word
     return None
@@ -138,10 +145,9 @@ def _text_problem(text):
     findings = sanitize(folded)[1]
     if findings:
         return f"instruction-like text (possible tool poisoning): {plain(findings[0], 120)}"
-    for pattern in _POISON_PATTERNS:
-        match = pattern.search(folded)
-        if match:
-            return f"text that reads like a tool-poisoning payload ({plain(match.group(0), 40)})"
+    signals = [name for name, pattern in _POISON_SIGNALS.items() if pattern.search(folded)]
+    if len(signals) >= 2:
+        return f"text that reads like a tool-poisoning payload ({', '.join(signals)})"
     return None
 
 
