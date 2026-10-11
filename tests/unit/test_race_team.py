@@ -591,6 +591,12 @@ class MainTests(unittest.TestCase):
         self.assertEqual(code, 0, text[-300:])
         self.assertEqual({run["answer"] for run in self.saved()["runs"]}, {"bad ? end"})
 
+    def test_a_finished_race_does_not_warn_when_only_some_runs_of_an_arm_ended_on_provider_trouble(self):
+        self.racer.outcome = lambda n: {"success": False, "stop": "error"} if n == 2 else None            # one error run among eight
+        code, text = self.race()
+        self.assertEqual(code, 0)
+        self.assertNotIn("WARNING: every run of", text)
+
     def test_a_finished_race_with_healthy_arms_prints_no_such_warning(self):
         code, text = self.race()
         self.assertEqual(code, 0)
