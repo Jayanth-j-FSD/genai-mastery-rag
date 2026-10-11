@@ -66,6 +66,11 @@ def _contains(answer, phrase, whole_words):
     return re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", answer) is not None
 
 
+def contains_phrase(text, phrase, whole_words=False):
+    """Is the phrase in the text, tidied exactly as the checks tidy an answer? For screens that read passages, not answers."""
+    return _contains(_clean(text), phrase, whole_words)
+
+
 def fact_check(case, result):
     """Does the answer contain the facts it must? Any one of expect_contains, and all of expect_all.
 

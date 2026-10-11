@@ -85,6 +85,7 @@ def ingest():
     store.add_chunks(chunks, embeddings)
     keyword.invalidate()                           # the keyword index is now stale (Week 4)
     _INDEX_ID.clear()                              # and so is the id a request log names the index by (Week 11)
+    generator.forget_repeated_lines()              # and the lines counted as repeated in each document (Week 11)
 
     # Count chunks per file so callers can SHOW how each document was split (check #4).
     per_source: dict[str, int] = {}
