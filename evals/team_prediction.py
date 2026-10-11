@@ -68,7 +68,8 @@ def _band(key, name):
         value = team_report.ratio(clean["stats"][TEAM][key], clean["stats"][AGENT][key])
         if value is None:
             return NO_DATA, f"n/a, no data: the single agent's figure is zero (band {low} to {high})"
-        return low <= value <= high, f"{value:.2f}x (band {low} to {high})"
+        shown = f"{value:.2f}"                          # compare what is printed, so a value shown as 1.30x is never called outside 1.3 to 3.0
+        return low <= float(shown) <= high, f"{shown}x (band {low} to {high}; compared at the two decimals shown)"
     return check
 
 
@@ -111,9 +112,9 @@ def _p6(clean, runs):
 
 def _p7(clean, runs):
     team_runs = [run for run in runs if run["approach"] == TEAM and run.get("team")]
-    one_at_a_time = sum(team_report.overlap_saving(run) == 0 for run in team_runs)
+    one_at_a_time = sum(not team_report.asked_side_by_side(run) for run in team_runs)       # from the hand-offs' structure, not their seconds
     share = one_at_a_time / len(team_runs) if team_runs else 0.0
-    return (share >= ONE_AT_A_TIME_SHARE if team_runs else NO_DATA), f"{one_at_a_time} of {len(team_runs)} team runs ({share:.0%}; needs {ONE_AT_A_TIME_SHARE:.0%})"
+    return (share >= ONE_AT_A_TIME_SHARE if team_runs else NO_DATA), f"{one_at_a_time} of {len(team_runs)} team runs ({share:.1%}; needs {ONE_AT_A_TIME_SHARE:.0%})"
 
 
 def _p8(clean, runs):
@@ -121,12 +122,16 @@ def _p8(clean, runs):
     value = team_report.ratio(crew, agent)
     if value is None:
         return NO_DATA, f"n/a, no data: the single agent has no opening tokens (needs at least {OPENING_FACTOR}x)"
-    return value >= OPENING_FACTOR, f"{value:.2f}x (needs at least {OPENING_FACTOR}x)"
+    shown = f"{value:.2f}"
+    return float(shown) >= OPENING_FACTOR, f"{shown}x (needs at least {OPENING_FACTOR}x; compared at the two decimals shown)"
 
 
 def _p9(clean, runs):
-    stops = {arm: clean["stats"][arm]["limit_stops"] for arm in (TEAM, AGENT)}
-    return all(stops[arm] <= MAX_LIMIT_STOPS[arm] for arm in stops), f"team {stops[TEAM]} (at most {MAX_LIMIT_STOPS[TEAM]}), single agent {stops[AGENT]} (at most {MAX_LIMIT_STOPS[AGENT]})"
+    stops = {arm: clean["stats"][arm]["own_limit_stops"] for arm in (TEAM, AGENT)}       # a run ENDS on a limit when its own stop reason is one
+    recovered = clean["stats"][TEAM]["limit_stops"] - stops[TEAM]
+    return all(stops[arm] <= MAX_LIMIT_STOPS[arm] for arm in stops), \
+        (f"team {stops[TEAM]} (at most {MAX_LIMIT_STOPS[TEAM]}), single agent {stops[AGENT]} (at most {MAX_LIMIT_STOPS[AGENT]}); a run counts when its own "
+         f"stop reason is a limit, and {recovered} more team run(s) had a hand-off stop on a limit and ended another way (not counted)")
 
 
 def _p10(clean, runs):

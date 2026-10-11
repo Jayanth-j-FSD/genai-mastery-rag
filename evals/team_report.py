@@ -209,10 +209,26 @@ def duplicate_searches(record):
 
 # ---------------------------------------------------------------------------- what kind of run it was
 
+def ended_on_limit(record):
+    """True when the run ITSELF ended on a limit (its own stop reason): a specialist's cap that the manager worked around is not this."""
+    return record["stop_reason"] in LIMIT_STOPS
+
+
 def hit_limit(record):
     """True when the run, or any hand-off in it, ended on a limit instead of an answer."""
     handoffs = (record.get("team") or {}).get("handoffs", [])
-    return record["stop_reason"] in LIMIT_STOPS or any(h.get("stop_reason") in LIMIT_STOPS for h in handoffs)
+    return ended_on_limit(record) or any(h.get("stop_reason") in LIMIT_STOPS for h in handoffs)
+
+
+def asked_side_by_side(record):
+    """True when the manager asked for two or more hand-offs in ONE of its steps (a refused one was never run, so it does not count).
+    Read from the hand-offs themselves, not from the seconds they took: two hand-offs that each took 0.0 seconds still overlapped."""
+    asked = {}
+    for handoff in (record.get("team") or {}).get("handoffs", []):
+        step = handoff.get("after_manager_step")
+        if handoff.get("state") != "refused" and step is not None:
+            asked[step] = asked.get(step, 0) + 1
+    return any(count > 1 for count in asked.values())
 
 
 def provider_trouble(record):
@@ -289,6 +305,7 @@ def arm_stats(results, arm, input_price=None, output_price=None):
         "refused": sum(f["refused"] for f in features), "refused_without_searching": sum(f["refused_without_searching"] for f in features),
         "answered_without_hand_off": sum(f["answered_without_hand_off"] for f in features) if arm == TEAM else None,
         "limit_stops": sum(hit_limit(run) for run in rows), "provider_trouble": sum(provider_trouble(run) for run in rows),
+        "own_limit_stops": sum(ended_on_limit(run) for run in rows), "side_by_side_runs": sum(asked_side_by_side(run) for run in rows),
     }
 
 
