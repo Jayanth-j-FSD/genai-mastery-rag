@@ -43,6 +43,7 @@ over the agent, and builds defences that are measured, not assumed.
 .\.venv\Scripts\python.exe scripts\run_injection.py --compare layer-sanitize layer-guard-fixed layer-validate final   # free
 .\.venv\Scripts\python.exe scripts\check_prediction.py before-final after-final --noise before-final-2   # free: the prediction, read against the noise floor
 .\.venv\Scripts\python.exe scripts\run_trajectories.py --regrade before            # free: grade a saved run again with today's rules, in place
+.\.venv\Scripts\python.exe scripts\run_trajectories.py --interleave before-final after-final:agent_max_calls_per_tool=3 before-final-2 --repeats 3   # model calls: the measured pair and its noise run, side by side
 .\.venv\Scripts\python.exe scripts\run_injection.py --show final --rescore         # free: a saved run judged by today's detectors
 .\.venv\Scripts\python.exe scripts\replay_defense.py before before-p control race-race   # free: what the defences would do to saved legitimate runs
 ```

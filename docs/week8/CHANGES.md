@@ -191,6 +191,11 @@ fewer), and `t7-leave-end-date` took 11,679, 6,111 and 6,101 tokens in its three
 5. **The benign check was repeated on the final defences.** The replay quoted above was made on the first version of
    them; see "the false-block measurement" in the review section. The prediction for the live `--defense` run stands:
    at most 2 of 33 answers withheld or calls refused, each reported by name.
+6. **The three runs are interleaved.** `before-final`, `after-final` and `before-final-2` are run side by side with
+   `run_trajectories.py --interleave`: for every task and repeat, one run of each, the order rotating, instead of one
+   file after the other. A daily quota that ends part-way then leaves the three files with nearly the same runs, and
+   the three meet the same provider conditions. Each is still saved under its own label, so the comparison commands
+   below are unchanged.
 
 `python scripts/check_prediction.py before-final after-final --noise before-final-2` prints all of this as arithmetic.
 

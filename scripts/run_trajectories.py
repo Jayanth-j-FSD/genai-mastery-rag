@@ -8,6 +8,7 @@ path is the gap this week is about. It also reports what a run costs: mean and 9
 Run:
     python scripts/run_trajectories.py --label before                # runs the agent (model calls)
     python scripts/run_trajectories.py --label after --set agent_max_calls_per_tool=3
+    python scripts/run_trajectories.py --interleave before after:agent_max_calls_per_tool=3 before-2 --repeats 3
     python scripts/run_trajectories.py --grade race-race             # re-grade a saved Week 7 race: free
     python scripts/run_trajectories.py --regrade before              # re-grade a saved run in place, keeping its settings: free
     python scripts/run_trajectories.py --show before                 # print the report of a saved run: free
@@ -45,6 +46,48 @@ def print_modes(graded):
                   "; ".join(f"{d['mode']} ({d['detail']})" for d in row["details"]))
 
 
+def parse_arm(text):
+    """'label' or 'label:NAME=VALUE,NAME=VALUE' into (label, settings that arm changes)."""
+    label, _, changes = text.partition(":")
+    if not label.strip():
+        raise ValueError(f"an arm needs a label, got {text!r}")
+    return label.strip(), runner.parse_overrides([part for part in changes.split(",") if part])
+
+
+def run_interleaved(arms, tasks, repeats, common, options):
+    """Run every arm on every task, one run of each arm before the next task, repeat by repeat.
+
+    Running arm A to the end and then arm B means a daily quota that runs out leaves B empty, and
+    the provider may be slower or faster for B than it was for A. Interleaving gives each arm the same conditions
+    and, if the quota ends part-way, almost the same number of runs. The arm order rotates so no arm always goes
+    first. Returns [(label, records, meta)], one per arm.
+    """
+    records, base_meta, stopped = {label: [] for label, _ in arms}, None, None
+    for repeat in range(1, repeats + 1):
+        for index, task in enumerate(tasks):
+            turn = (repeat + index) % len(arms)
+            for label, changes in arms[turn:] + arms[:turn]:
+                with runner.overridden(dict(common, **changes)):
+                    run = race.run_race([task], approaches=("agent",), repeats=1, label=label,
+                                        say=lambda text, label=label: print(f"  {label:<16}{text}"), **options)
+                base_meta = base_meta or run["meta"]
+                for record in run["runs"]:
+                    records[label].append(dict(record, repeat=repeat))
+                if not run["meta"]["complete"]:
+                    stopped = run["meta"]["stopped_because"]
+                    break
+            if stopped:
+                break
+        if stopped:
+            break
+    labels = [label for label, _ in arms]
+    return [(label, records[label],
+             dict(base_meta or {}, label=label, repeats=repeats, tasks=[t["id"] for t in tasks], overrides=dict(common, **changes),
+                  defense=bool(options), complete=stopped is None, stopped_because=stopped,
+                  interleaved_with=[other for other in labels if other != label]))
+            for label, changes in arms]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Run the agent on the tasks and grade each run's path.")
     parser.add_argument("--label", default="agent", help="name of this run (default: agent)")
@@ -53,6 +96,9 @@ def main(argv=None):
     parser.add_argument("--set", dest="overrides", action="append", metavar="NAME=VALUE", help="change one setting for this run")
     parser.add_argument("--defense", action="store_true", help="run with the three defence layers on")
     parser.add_argument("--grade", metavar="LABEL_OR_PATH", help="re-grade a saved race or trajectory file instead of running")
+    parser.add_argument("--interleave", nargs="+", metavar="LABEL[:NAME=VALUE,..]",
+                        help="run several arms side by side, one run of each arm per task and repeat, each saved under its own label "
+                             "(for example: before after:agent_max_calls_per_tool=3 before-2)")
     parser.add_argument("--show", metavar="LABEL", help="print the report of a saved trajectory run (no model calls, nothing saved)")
     parser.add_argument("--regrade", metavar="LABEL", help="grade a saved trajectory run again with today's rules, in place (no model calls; "
                                                            "its runs, settings and completeness are kept)")
@@ -87,6 +133,34 @@ def main(argv=None):
               f"outcome right {old.get('outcome_ok')} -> {new['outcome_ok']},  modes {old.get('modes')} -> {new['modes']}")
         print(f"saved: {display_path(path, BASE_DIR)}")
         return 0
+
+    if args.interleave:
+        try:
+            arms = [parse_arm(text) for text in args.interleave]
+            if len(arms) < 2 or len({label for label, _ in arms}) != len(arms):
+                raise ValueError("--interleave needs two or more arms with different labels")
+            if args.repeats < 1:
+                raise ValueError(f"--repeats must be 1 or greater, got {args.repeats}")
+            common, tasks = runner.parse_overrides(args.overrides), get_tasks(args.only, include_probes=True)
+            pipeline.require_index()
+            options = {"defense": Defense(trusted_contacts=injection.trusted_contacts(), system_prompt=loop.SYSTEM_PROMPT)} if args.defense else {}
+        except (ValueError, FileNotFoundError, RuntimeError) as exc:
+            print(f"Error: {exc}")
+            return 1
+        print(f"Interleaving {len(arms)} arms ({', '.join(label for label, _ in arms)}) over {len(tasks)} task(s) x {args.repeats} "
+              f"on {settings.llm_model}, defences {'ON' if args.defense else 'off'}\n")
+        saved_all = True
+        for label, records, meta in run_interleaved(arms, tasks, args.repeats, common, options):
+            saved_all = saved_all and meta["complete"]
+            if not records:
+                print(f"\n'{label}': no run finished, nothing saved")
+                continue
+            results, path = grade_and_save(tasks, records, meta, label)
+            print()
+            print("\n".join(trajectory.format_report(results["summary"], label)))
+            print_modes(results["graded"])
+            print(f"\nsaved: {display_path(path, BASE_DIR)}")
+        return 0 if saved_all else 1
 
     try:
         overrides = runner.parse_overrides(args.overrides)

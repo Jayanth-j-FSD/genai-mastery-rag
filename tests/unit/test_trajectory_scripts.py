@@ -10,6 +10,7 @@ from unittest import mock
 
 import _testkit
 from app.agent.defense import Defense
+from app.config import settings
 from evals import race, runner
 
 sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))
@@ -121,6 +122,71 @@ class RunTrajectoriesScriptTests(unittest.TestCase):
         for args, fragment in ((["--repeats", "0"], "--repeats must be 1 or greater"), (["--only", "t7-nope"], "unknown task id"),
                                (["--set", "no_such_setting=1"], "no_such_setting")):
             with self.subTest(args=args), mock.patch.object(run_trajectories.race, "run_race") as racing:
+                code, out = self.call(*args)
+            self.assertEqual(code, 1)
+            self.assertIn(fragment, out)
+            racing.assert_not_called()
+
+
+class InterleaveTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
+        self.enterContext(mock.patch.object(runner, "RESULTS_DIR", self.tmp))
+        self.enterContext(mock.patch.object(run_trajectories.pipeline, "require_index"))
+        self.calls = []
+
+    def fake_run(self, stop_on_call=None):
+        """A stand-in for race.run_race: one agent run per call, noting which arm ran and the cap in force."""
+        def run(tasks, approaches=("agent",), repeats=1, label="x", say=print, **options):
+            self.calls.append((label, settings.agent_max_calls_per_tool))
+            if stop_on_call == len(self.calls):
+                return {"meta": {"label": label, "complete": False, "stopped_because": "the free daily quota for this model is used up"}, "runs": []}
+            return {"meta": {"label": label, "complete": True, "stopped_because": None}, "runs": [agent_run(1)]}
+        return mock.patch.object(run_trajectories.race, "run_race", side_effect=run)
+
+    def call(self, *args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = run_trajectories.main(list(args))
+        return code, out.getvalue()
+
+    def test_an_arm_is_a_label_with_optional_settings(self):
+        self.assertEqual(run_trajectories.parse_arm("a"), ("a", {}))
+        self.assertEqual(run_trajectories.parse_arm("b:agent_max_calls_per_tool=3"), ("b", {"agent_max_calls_per_tool": 3}))
+        with self.assertRaises(ValueError):
+            run_trajectories.parse_arm(":agent_max_calls_per_tool=3")
+
+    def test_the_arms_take_turns_on_every_task_and_repeat_and_each_is_saved_under_its_own_label(self):
+        with self.fake_run():
+            code, out = self.call("--interleave", "a", "b:agent_max_calls_per_tool=3", "c", "--only", TASK_ID, "--repeats", "2")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.calls, [("b", 3), ("c", 0), ("a", 0), ("c", 0), ("a", 0), ("b", 3)])     # the first arm rotates
+        for label in "abc":
+            saved = runner.load_results("trajectories-" + label)
+            self.assertEqual(sorted(r["repeat"] for r in saved["runs"]), [1, 2])
+            self.assertEqual(saved["meta"]["interleaved_with"], [other for other in "abc" if other != label])
+            self.assertTrue(saved["meta"]["complete"])
+        self.assertEqual(runner.load_results("trajectories-b")["meta"]["overrides"], {"agent_max_calls_per_tool": 3})
+        self.assertEqual(runner.load_results("trajectories-a")["meta"]["overrides"], {})
+        self.assertIn("trajectories 'b': 2 run(s)", out)
+
+    def test_a_quota_that_ends_part_way_leaves_the_arms_balanced_and_the_files_partial(self):
+        with self.fake_run(stop_on_call=3):
+            code, out = self.call("--interleave", "a", "b", "c", "--only", TASK_ID, "--repeats", "2")
+        self.assertEqual(code, 1)
+        self.assertEqual(len(self.calls), 3)                                            # it stopped at once, not after the repeats
+        for label in "bc":                                                              # the two arms that ran before the cut-off
+            saved = runner.load_results("trajectories-" + label)
+            self.assertEqual((len(saved["runs"]), saved["meta"]["complete"]), (1, False))
+            self.assertIn("daily quota", saved["meta"]["stopped_because"])
+        self.assertIn("'a': no run finished, nothing saved", out)
+        self.assertFalse(os.path.exists(runner.results_path("trajectories-a")))
+
+    def test_bad_arms_are_explained_and_nothing_runs(self):
+        for args, fragment in ((["--interleave", "only-one"], "two or more arms"), (["--interleave", "a", "a"], "different labels"),
+                               (["--interleave", "a", "b", "--repeats", "0"], "--repeats must be 1 or greater"),
+                               (["--interleave", "a", "b:no_such_setting=1"], "no_such_setting")):
+            with self.subTest(args=args), self.fake_run() as racing:
                 code, out = self.call(*args)
             self.assertEqual(code, 1)
             self.assertIn(fragment, out)
