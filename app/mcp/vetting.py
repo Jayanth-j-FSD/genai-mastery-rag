@@ -73,10 +73,11 @@ _CONFUSABLES = {ord(look_alike): plain_letter for plain_letter, look_alikes in _
 # definition, so it counts as two and refuses alone.
 _POISON_SIGNALS = {
     "a tag such as <important>": re.compile(r"<\s*/?\s*(important|secret|admin)(?![\w-])", re.I),     # a bare tag: <admin-token> is a placeholder
-    "a tag such as <system>": re.compile(r"<\s*/?\s*(system|instructions?)\b", re.I),
+    "a tag such as <system>": re.compile(r"<\s*/?\s*(system\b|instructions?\b|(?:important|secret|admin)-)", re.I),     # <admin-token> is only a placeholder
     "an order to hide it from the user": re.compile(r"\b(do not|don't|never)\s+(tell|mention|reveal|inform|disclose|let)\b.{0,40}\b(user|human|anyone)\b", re.I),
     "an order to act before or first": re.compile(r"\b(before|prior to)\s+(using|calling|you use|you call)\s+this tool\b|\b(call|use)\s+this tool\s+(first|before)\b|\balways\s+call\s+this\s+tool\b", re.I),
-    "a path to a secret": re.compile(r"~/\.|\.ssh\b|\bid_rsa\b|/etc/passwd|\.env\b|%userprofile%", re.I),     # "~/." is a dot-directory in a home folder
+    "a path to a secret": re.compile(r"~/(?:\.(?:ssh|aws|gnupg|gpg|kube|docker|netrc|npmrc|pypirc|vault|git-credentials)\b|\S*(?:secret|passw|credential|token|keychain|private))"
+                                     r"|\.ssh\b|\bid_rsa\b|/etc/passwd|\.env\b|%userprofile%", re.I),
 }
 _STRONG_SIGNALS = frozenset({"a tag such as <important>"})
 

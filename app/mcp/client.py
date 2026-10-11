@@ -110,9 +110,9 @@ def _seconds(count):
 
 
 # Characters that draw nothing and that Week 8's sanitizer strips before it matches (a zero-width space, a word joiner, the
-# bidirectional embeddings, overrides and isolates). They are dropped from server text: written out as text they would hide a
+# invisible operators, the bidirectional embeddings, overrides and isolates). They are dropped from server text: written out as text they would hide a
 # keyword split with one of them from that sanitizer.
-_DROPPED = frozenset([0x200B, 0x2060] + list(range(0x202A, 0x202F)) + list(range(0x2066, 0x206A)))
+_DROPPED = frozenset([0x200B] + list(range(0x2060, 0x2065)) + list(range(0x202A, 0x202F)) + list(range(0x2066, 0x206A)))
 
 
 def _hidden(char):
