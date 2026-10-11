@@ -2,7 +2,7 @@
 
 This is the file the mentor reads. Every output below was printed by the command shown above it, so it can be run
 again. Section 7, where the AI runs and where it does not, is blank on purpose: the brief asks for your own
-explanation, and a diagram (in `README.md`) is a reference, not your answer.
+explanation, and nothing else in this folder answers it.
 
 ## 1. Discovery: the agent's tools come from the servers (check 1)
 
@@ -10,20 +10,22 @@ explanation, and a diagram (in `README.md`) is a reference, not your answer.
 
 ```
 discovered 6 tool(s) on 3 server(s); 6 accepted, 0 refused:
-    policy.search_policies        Search the company policy documents (leave, notice periods, remote wor
-    utils.calculate              Do exact arithmetic. Use it whenever the answer needs a sum, differenc
-    utils.add_days               Add calendar days to a date (negative days go backwards) and get the r
-    hris.get_leave_balance      Annual leave entitlement, days taken and days remaining, and sick days
-    hris.get_employee_summary   Name, department, manager, start date and employment status (probation
-    hris.list_direct_reports    The employee ids and names of the people who report directly to one ma
+    policy.search_policies        Search the company policy documents (leave, notice periods, remote ...
+    utils.calculate              Do exact arithmetic. Use it whenever the answer needs a sum, differ...
+    utils.add_days               Add calendar days to a date (negative days go backwards) and get th...
+    hris.get_leave_balance      Annual leave entitlement, days taken and days remaining, and sick d...
+    hris.get_employee_summary   Name, department, manager, start date and employment status (probat...
+    hris.list_direct_reports    The employee ids and names of the people who report directly to one...
 ```
 
-Nothing in the agent's code names any of these six tools. Week 9 changed no file of the agent, the retriever, the
-settings or the evals: `git diff --stat week-8-agent-failure-modes week-9-mcp -- app/agent app/rag app/config.py app/llm.py evals`
-prints nothing. A test, `test_the_agent_machinery_never_names_a_particular_server`, fails if the loop, the tools or
-the client ever mention a particular server, or if the loop imports `app.mcp`.
+The three tools wired into the agent in Week 7 (`search_policies`, `calculate`, `add_days`) keep the names the Week 7
+prompt and the Week 8 guard already use, so the policy and utils servers publish them under those names. The three HRIS
+tools are named nowhere in the agent. Week 9 changed no file of the agent, the retriever, the settings or the evals:
+`git diff --stat week-8-agent-failure-modes week-9-mcp -- app/agent app/rag app/config.py app/llm.py evals` prints nothing.
+A test, `test_the_agent_machinery_never_names_a_particular_server`, fails if any file of the agent, the client or the
+vetting gate mentions the demo HRIS server by name, or if the loop imports `app.mcp`.
 
-A live run with these tools, on `gemini-3-flash-preview`, 2026-10-11:
+A live run with these tools, on `gemini-3-flash-preview`, 2026-10-11, recorded before the review fixes to the client (the agent, the tools and the model are as now):
 
 `python scripts/run_agent_mcp.py --model gemini-3-flash-preview "Employee E1001 asks how many annual leave days they have left, and how many of those they could carry forward at year end"`
 
@@ -68,12 +70,9 @@ NO ANSWER: the run was stopped before a final answer.
 stopped because: max_steps | 8 step(s) | 8 model call(s), 18077 tokens
 ```
 
-What the run shows, read straight off the output: the first thing the agent did was call the discovered
-`get_leave_balance` tool with `E1001` and read back 14 days remaining, so a tool it was never wired to was
-discovered, chosen and used. Then it searched the policy documents seven more times with different wordings, reached
-the step limit and ended with no answer. That last part is the `over-calling` failure that Week 8 measured, not
-something MCP caused. A second run with the Week 8 call budget (`AGENT_MAX_CALLS_PER_TOOL=3`) could not be made: this
-model's free daily quota was used up. Its command and result are left open:
+Read straight off that output: the agent called `get_leave_balance` x 1, `search_policies` x 7. The run ended without an answer (stopped because `max_steps`, 8 steps, 18077 tokens). Four or more calls to one tool is what Week 8 calls `over-calling`; it is a property of the agent loop and the model, not of MCP.
+
+A second run with the Week 8 call budget could not be made: the model's free daily quota was used up. Its command and result are left open:
 
 `AGENT_MAX_CALLS_PER_TOOL=3 python scripts/run_agent_mcp.py --model <a model with quota left> "Employee E1001 asks how many annual leave days they have left, and how many of those they could carry forward at year end"`
 
@@ -85,13 +84,13 @@ Result: not run yet.
 
 ```
 discovered 3 tool(s) on 2 server(s); 3 accepted, 0 refused:
-    policy.search_policies        Search the company policy documents (leave, notice periods, remote wor
-    utils.calculate              Do exact arithmetic. Use it whenever the answer needs a sum, differenc
-    utils.add_days               Add calendar days to a date (negative days go backwards) and get the r
+    policy.search_policies        Search the company policy documents (leave, notice periods, remote ...
+    utils.calculate              Do exact arithmetic. Use it whenever the answer needs a sum, differ...
+    utils.add_days               Add calendar days to a date (negative days go backwards) and get th...
 ```
 
-The only difference between that run and the one in section 1 is the config file. `diff mcp_servers.json mcp_servers.no-hris.json`
-shows the HRIS entry as the only entry that is missing (the `utils` line differs only by its trailing comma).
+The only difference between that run and the one in section 1 is the config file: `diff mcp_servers.json mcp_servers.no-hris.json`
+shows the HRIS entry, and nothing else, being the line that is missing.
 
 ```
 4,6c4
@@ -143,6 +142,32 @@ called it, read the `policy://documents` resource and listed the server's one pr
 
 ```
 
+==============================================================================
+A. THE NEWER WAY (protocol 2026-07-28): no handshake; every request says which version it speaks
+==============================================================================
+
+--- DISCOVER THE SERVER: which protocol versions it speaks, what it offers, and its name
+HOST   -> SERVER  {"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": {"name": "raw-demo", "version": "0"}, "io.modelcontextprotocol/clientCapabilities": {}}}}
+SERVER -> HOST    {"jsonrpc":"2.0","id":1,"result":{"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"hris","version":"4.1.0"}},"ttlMs":0,"cacheScope":"private","supportedVersions":["2026-07-28"],"capabilities":{"logging":{},"prompts":{"listChanged":false},"resources":{"subscribe":false,"listChanged":false},"tools":{"listChanged":false},"extensions":{"io.modelcontextprotocol/ui":{}}},"instructions":"Read-only access to a SYNTHETIC HR information system: leave balances, an employee summary and direct reports. Employee ids look like E1001.","resultType":"complete"}}
+    -> supported versions ['2026-07-28']; the server calls itself 'hris'
+
+--- DISCOVERY: the host asks what tools exist. Nobody wired these in by hand
+HOST   -> SERVER  {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": {"name": "raw-demo", "version": "0"}, "io.modelcontextprotocol/clientCapabilities": {}}}}
+SERVER -> HOST    {"jsonrpc":"2.0","id":2,"result":{"cacheScope":"private","resultType":"complete","tools":[{"_meta":{"fastmcp":{"tags":[]}},"annotations":{"destructiveHint":false,"openWorldHint":false,"readOnlyHint":true},"description":"Annual leave entitlement, days taken and days remaining, and sick days taken, for one employee.\n\nUse it when a question is about THIS employee's own leave (how many days they have left). For what the\ncompany policy allows, search the policy documents instead. Employee ids look like E1001.","inputSchema":{"type":"object","additionalProperties":false,"properties":{"employee_id":{"type":"string"}},"required":["employee_id"]},"name":"get_leave_balance","outputSchema":{"additio ...
+    -> 3 tools discovered: ['get_leave_balance', 'get_employee_summary', 'list_direct_reports']
+
+--- A TOOL CALL: the host asks the server to run one tool, and the server answers
+HOST   -> SERVER  {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "get_leave_balance", "arguments": {"employee_id": "E1001"}, "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": {"name": "raw-demo", "version": "0"}, "io.modelcontextprotocol/clientCapabilities": {}}}}
+SERVER -> HOST    {"jsonrpc":"2.0","id":3,"result":{"content":[{"text":"{\"employee_id\":\"E1001\",\"as_of\":\"2026-10-01\",\"annual_entitlement_days\":18,\"annual_taken_days\":4,\"annual_remaining_days\":14,\"sick_taken_days\":2}","type":"text"}],"isError":false,"resultType":"complete","structuredContent":{"employee_id":"E1001","as_of":"2026-10-01","annual_entitlement_days":18,"annual_taken_days":4,"annual_remaining_days":14,"sick_taken_days":2},"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"hris","version":"4.1.0"}}}}
+
+--- A RECOVERABLE ERROR: a bad argument comes back as a result flagged isError, with advice
+HOST   -> SERVER  {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "get_leave_balance", "arguments": {"employee_id": "nobody"}, "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": {"name": "raw-demo", "version": "0"}, "io.modelcontextprotocol/clientCapabilities": {}}}}
+SERVER -> HOST    {"jsonrpc":"2.0","id":4,"result":{"content":[{"text":"employee_id must look like E1001 (the letter E and four digits).","type":"text"}],"isError":true,"resultType":"complete","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"hris","version":"4.1.0"}}}}
+
+==============================================================================
+B. THE OLDER WAY (protocol 2025-06-18): a handshake first
+==============================================================================
+
 --- 1. HANDSHAKE: the host says hello, names the protocol version it speaks and what it can do
 HOST   -> SERVER  {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "raw-demo", "version": "0"}}}
 SERVER -> HOST    {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"logging":{},"prompts":{"listChanged":true},"resources":{"subscribe":false,"listChanged":true},"tools":{"listChanged":true}},"serverInfo":{"name":"hris","version":"4.1.0"},"instructions":"Read-only access to a SYNTHETIC HR information system: leave balances, an employee summary and direct reports. Employee ids look like E1001."}}
@@ -151,20 +176,20 @@ SERVER -> HOST    {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-1
 --- 2. READY: a notification (it has no id, so no reply is expected) that the handshake is done
 HOST   -> SERVER  {"jsonrpc": "2.0", "method": "notifications/initialized"}
 
---- 3. DISCOVERY: the host asks what tools exist. Nobody wired these in by hand
+--- DISCOVERY: the host asks what tools exist. Nobody wired these in by hand
 HOST   -> SERVER  {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
 SERVER -> HOST    {"jsonrpc":"2.0","id":2,"result":{"tools":[{"_meta":{"fastmcp":{"tags":[]}},"annotations":{"destructiveHint":false,"openWorldHint":false,"readOnlyHint":true},"description":"Annual leave entitlement, days taken and days remaining, and sick days taken, for one employee.\n\nUse it when a question is about THIS employee's own leave (how many days they have left). For what the\ncompany policy allows, search the policy documents instead. Employee ids look like E1001.","inputSchema":{"properties":{"employee_id":{"type":"string"}},"required":["employee_id"],"type":"object","additionalProperties":false},"name":"get_leave_balance","outputSchema":{"type":"object","additionalProperties":true},"title":"G ...
     -> 3 tools discovered: ['get_leave_balance', 'get_employee_summary', 'list_direct_reports']
 
---- 4. A TOOL CALL: the host (not the server) decided to ask; the server only runs it and answers
+--- A TOOL CALL: the host asks the server to run one tool, and the server answers
 HOST   -> SERVER  {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "get_leave_balance", "arguments": {"employee_id": "E1001"}}}
 SERVER -> HOST    {"jsonrpc":"2.0","id":3,"result":{"content":[{"text":"{\"employee_id\":\"E1001\",\"as_of\":\"2026-10-01\",\"annual_entitlement_days\":18,\"annual_taken_days\":4,\"annual_remaining_days\":14,\"sick_taken_days\":2}","type":"text"}],"isError":false,"structuredContent":{"employee_id":"E1001","as_of":"2026-10-01","annual_entitlement_days":18,"annual_taken_days":4,"annual_remaining_days":14,"sick_taken_days":2}}}
 
---- 5. A RECOVERABLE ERROR: a bad argument comes back as a result flagged isError, with advice
+--- A RECOVERABLE ERROR: a bad argument comes back as a result flagged isError, with advice
 HOST   -> SERVER  {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "get_leave_balance", "arguments": {"employee_id": "nobody"}}}
 SERVER -> HOST    {"jsonrpc":"2.0","id":4,"result":{"content":[{"text":"employee_id must look like E1001 (the letter E and four digits).","type":"text"}],"isError":true}}
 
-The server never saw a question, a model or an agent: only these requests.
+Those were all the requests the server received.
 ```
 
 ## 5. Keeping it safe: what is built, and the test that shows it
@@ -188,10 +213,10 @@ after it has been vetted so that a later change is refused.
 
 ```
 == check_all ==
-[ok] compile     114 files
-[ok] imports     46 modules, 28 scripts
-[ok] --help      24 scripts
-[ok] unit tests  632 tests in 51.291s
+[ok] compile     122 files
+[ok] imports     48 modules, 30 scripts
+[ok] --help      26 scripts
+[ok] unit tests  777 tests in 74.661s
 
 All checks passed.
 ```
