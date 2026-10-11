@@ -476,6 +476,7 @@ class PlanCommandTests(unittest.TestCase):
     def setUp(self):
         self.folder = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
         self.enterContext(mock.patch.object(runner, "RESULTS_DIR", self.folder))
+        self.enterContext(mock.patch.object(race_team.settings, "llm_rpm", 12))        # the minutes line needs a limit, which only some .env files set
 
     def saved_week_7(self):
         runs = [{"approach": "agent", "llm_calls": 3, "tool_calls": ["search_policies", "calculate"], "task_id": "a", "repeat": 1},
@@ -494,8 +495,16 @@ class PlanCommandTests(unittest.TestCase):
         self.saved_week_7()
         code, text = captured(race_team.main, ["--plan", "--only", *TWO, "--repeats", "2", "--noise"])
         self.assertEqual(code, 0)
-        for needle in ("3 arm(s) (agent, team, agent-2)", "= 12 runs", "measured over 3 runs", "an ESTIMATE", "minutes at", "--max-calls"):
+        for needle in ("3 arm(s) (agent, team, agent-2)", "= 12 runs", "measured over 3 runs", "an ESTIMATE", "minutes at 12 calls a minute", "--max-calls"):
             self.assertIn(needle, text)
+
+    def test_with_no_rate_limit_the_plan_still_gives_the_calls_but_no_minutes(self):
+        self.saved_week_7()
+        with mock.patch.object(race_team.settings, "llm_rpm", 0):
+            code, text = captured(race_team.main, ["--plan", "--only", *TWO, "--repeats", "2", "--noise"])
+        self.assertEqual(code, 0)
+        self.assertRegex(text, r"about \d+ model calls in all\. ")                              # the sentence goes straight on: no minutes in between
+        self.assertNotIn("minutes at", text)
 
     def test_a_saved_pilot_replaces_the_estimate_with_calls_per_run_measured_on_questions_that_are_not_race_tasks(self):
         self.saved_week_7()
