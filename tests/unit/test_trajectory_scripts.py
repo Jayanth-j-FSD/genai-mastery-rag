@@ -68,6 +68,20 @@ class RunTrajectoriesScriptTests(unittest.TestCase):
         self.assertEqual(len(saved["graded"]), 2)
         self.assertEqual(racing.call_args.kwargs["repeats"], 1)
 
+    def test_a_forced_run_that_is_cut_short_says_the_old_complete_run_was_kept(self):
+        runner.save_results(saved_run("old", [agent_run(1), agent_run(2)]), runner.results_path("trajectories-old"))
+        with self.fake_race([agent_run(1)], complete=False):
+            code, out = self.call("--label", "old", "--only", TASK_ID, "--force")
+        self.assertEqual(code, 1)
+        self.assertIn("WARNING: 'old' already had a complete saved run, so it was kept", out)
+        self.assertEqual(len(runner.load_results("trajectories-old")["runs"]), 2)
+
+    def test_a_cut_short_run_with_no_older_run_to_keep_prints_no_warning(self):
+        with self.fake_race([agent_run(1)], complete=False):
+            code, out = self.call("--label", "fresh", "--only", TASK_ID)
+        self.assertEqual(code, 1)
+        self.assertNotIn("WARNING", out)
+
     def test_a_run_cut_short_exits_non_zero_but_is_still_saved(self):
         with self.fake_race([agent_run(1)], complete=False):
             code, _ = self.call("--label", "cut", "--only", TASK_ID)

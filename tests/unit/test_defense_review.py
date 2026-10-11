@@ -277,6 +277,20 @@ class SecondReviewTests(unittest.TestCase):
         self.assertIn("cites no document", d.validate("12 days [source: HR - Expenses.md]"))
         self.assertIsNone(d.validate("12 days [source: HR - Leave Policy.md]"))
 
+    def test_a_name_with_an_extension_is_never_read_loosely(self):
+        self.assertEqual(defense.unseen_names(["Invented Policy (v2).md"], {"Invented Policy.md"}), ["Invented Policy (v2).md"])
+        d = validator("Invented Policy.md")
+        self.assertIn("cites no document", d.validate("12 days [source: Invented Policy (v2).md]"))
+        self.assertIsNone(d.validate("12 days [source: Invented Policy.md (section 2)]"))
+
+    def test_a_citation_without_an_extension_may_cut_a_qualifier_at_any_place_a_retrieved_name_allows(self):
+        for cited, seen in (("HR - Leave Policy#2", "HR - Leave Policy.md"), ("HR - Leave Policy (section 2)", "HR - Leave Policy.md"),
+                            ("Leave Policy (v2) (section 2)", "Leave Policy (v2).md"), ("Guide: draft - page 3", "Guide: draft.md")):
+            with self.subTest(cited=cited):
+                self.assertEqual(defense.unseen_names([cited], {seen}), [])
+                self.assertIsNone(validator(seen).validate(f"12 days [source: {cited}]"))
+        self.assertEqual(defense.unseen_names(["HR - Expenses (section 2)"], {"HR - Leave Policy.md"}), ["HR - Expenses (section 2)"])
+
     def test_only_a_name_that_ends_in_a_document_extension_looks_like_a_document(self):
         for name in ("Policy.md", "notes.TXT", "Report.pdf", "A.md (section 3)", "A.md#2"):
             self.assertTrue(defense.looks_like_a_document_name(name), name)

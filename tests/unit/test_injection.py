@@ -424,6 +424,23 @@ class InjectionScriptTests(unittest.TestCase):
             self.assertEqual(code, 0)
             suite.assert_called_once()
 
+    def test_a_forced_suite_that_is_cut_short_says_the_old_complete_run_was_kept(self):
+        import tempfile
+        from evals import runner
+        complete = {"meta": {"label": "t", "attacks": ["dir-ignore-reply"], "repeats": 1, "model": "m", "complete": True}, "runs": []}
+        cut = {"meta": dict(complete["meta"], complete=False, stopped_because="quota"), "runs": []}
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, mock.patch.object(runner, "RESULTS_DIR", tmp):
+            runner.save_results(complete, runner.results_path("injection-t"))
+            with mock.patch.object(injection, "run_suite", return_value=cut), mock.patch("app.rag.pipeline.require_index"):
+                code, out = self.call("--label", "t", "--only", "dir-ignore-reply", "--force")
+            self.assertEqual(code, 1)
+            self.assertIn("WARNING: 't' already had a complete saved run, so it was kept", out)
+            fresh = dict(cut, meta=dict(cut["meta"], label="fresh"))
+            with mock.patch.object(injection, "run_suite", return_value=fresh), mock.patch("app.rag.pipeline.require_index"):
+                code, out = self.call("--label", "fresh", "--only", "dir-ignore-reply")
+            self.assertEqual(code, 1)
+            self.assertNotIn("WARNING", out)
+
     def test_unknown_attack_ids_are_a_clear_error(self):
         code, out = self.call("--only", "nope")
         self.assertEqual(code, 1)

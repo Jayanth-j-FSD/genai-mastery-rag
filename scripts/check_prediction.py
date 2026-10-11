@@ -34,10 +34,11 @@ def main(argv=None):
     except FileNotFoundError as exc:
         print(f"Error: {exc}")
         return 1
-    rows, failed, pairs = prediction.check_budget_prediction(before["runs"], after["runs"], get_tasks(None, include_probes=True),
-                                                             None if noise is None else noise["runs"])
+    tasks = get_tasks(None, include_probes=True)
+    rows, failed, pairs = prediction.check_budget_prediction(before["runs"], after["runs"], tasks, None if noise is None else noise["runs"])
     warnings = prediction.check_setup(before["meta"], after["meta"], None if noise is None else noise["meta"])
-    print("\n".join(prediction.format_prediction(rows, failed, pairs, args.before, args.after, warnings)))
+    left_out = prediction.left_out_pairs(before["runs"], after["runs"], tasks)
+    print("\n".join(prediction.format_prediction(rows, failed, pairs, args.before, args.after, warnings, left_out)))
     return 1 if not rows else 0
 
 

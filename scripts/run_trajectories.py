@@ -193,10 +193,14 @@ def main(argv=None):
         print(f"Interleaving {len(arms)} arms ({', '.join(label for label, _ in arms)}) over {len(tasks)} task(s) x {args.repeats} "
               f"on {settings.llm_model}, defences {'ON' if args.defense else 'off'}\n")
         def save_progress(arm_results):
-            """Keep what has finished after every task: an interrupted job leaves partial files, never nothing."""
+            """Keep what has finished after every task: an interrupted job leaves partial files, never nothing. A save that
+            fails (a file another program is holding) is said and skipped: the next save writes everything again."""
             for label, records, meta in arm_results:
                 if records:
-                    grade_and_save(tasks, records, dict(meta, complete=False, stopped_because="interrupted: saved while the run was going"), label)
+                    try:
+                        grade_and_save(tasks, records, dict(meta, complete=False, stopped_because="interrupted: saved while the run was going"), label)
+                    except OSError as exc:
+                        print(f"WARNING: could not save progress for '{label}' ({exc}); the job goes on")
 
         saved_all = True
         for label, records, meta in run_interleaved(arms, tasks, args.repeats, common, options, on_progress=save_progress):
@@ -208,7 +212,7 @@ def main(argv=None):
             leftover = path[:-len(".json")] + ".incomplete.json"
             if meta["complete"] and os.path.exists(leftover):         # a progress save that --force redirected beside an older complete file
                 os.remove(leftover)
-            if path.endswith(".incomplete.json"):                     # a forced run that was cut short must not look like it replaced the old one
+            if runner.kept_older_run(path):                     # a forced run that was cut short must not look like it replaced the old one
                 print(f"\nWARNING: '{label}' already had a complete saved run, so it was kept, and this partial run was saved "
                       f"beside it as {display_path(path, BASE_DIR)}")
             print()
@@ -242,6 +246,10 @@ def main(argv=None):
         return 1
 
     results, path = grade_and_save(tasks, records, meta, args.label)
+    if runner.kept_older_run(path):                               # a forced run that was cut short must not look like it replaced the old one
+        print()
+        print(f"WARNING: '{args.label}' already had a complete saved run, so it was kept, and this partial run was saved "
+              f"beside it as {display_path(path, BASE_DIR)}")
     print()
     print("\n".join(trajectory.format_report(results["summary"], args.label)))
     print_modes(results["graded"])

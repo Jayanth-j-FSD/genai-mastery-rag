@@ -108,6 +108,10 @@ def main(argv=None):
           f"defence layers when on: {args.layers}\n")
     results = injection.run_suite(attacks, repeats=args.repeats, modes=modes, label=args.label, layers=tuple(args.layers))
     path = runner.save_results(results, runner.results_path("injection-" + args.label))
+    if runner.kept_older_run(path):                               # a forced suite that was cut short must not look like it replaced the old one
+        print()
+        print(f"WARNING: '{args.label}' already had a complete saved run, so it was kept, and this partial run was saved "
+              f"beside it as {display_path(path, BASE_DIR)}")
     print()
     print("\n".join(injection.format_suite(results)))
     print(f"\nsaved: {display_path(path, BASE_DIR)}")

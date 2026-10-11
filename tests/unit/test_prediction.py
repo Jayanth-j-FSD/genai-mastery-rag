@@ -139,7 +139,8 @@ class SecondReviewPredictionTests(unittest.TestCase):
 
     def test_the_setup_check_says_when_the_runs_do_not_differ_only_in_the_cap(self):
         def meta(cap, model="m", **extra):
-            return dict({"models": {"agent": model}, "agent_max_calls_per_tool": cap, "complete": True}, **extra)
+            return dict({"models": {"agent": model}, "agent_max_calls_per_tool": cap, "complete": True, "retrieval_mode": "dense",
+                         "limits": {"max_steps": 8}, "tasks": ["a"], "top_k_workflow": 4}, **extra)      # the fields every real run records
         self.assertEqual(prediction.check_setup(meta(0), meta(3), meta(0)), [])
         self.assertIn("different models", "; ".join(prediction.check_setup(meta(0), meta(3, "other"), meta(0))))
         self.assertIn("tests nothing", "; ".join(prediction.check_setup(meta(0), meta(0), meta(0))))
@@ -171,7 +172,7 @@ class SecondReviewPredictionTests(unittest.TestCase):
     def test_the_setup_check_also_compares_the_other_settings_and_the_task_list(self):
         def meta(**extra):
             return dict({"models": {"agent": "m"}, "agent_max_calls_per_tool": 0, "complete": True, "retrieval_mode": "dense",
-                         "tasks": ["a", "b"], "overrides": {}}, **extra)
+                         "tasks": ["a", "b"], "limits": {"max_steps": 8}, "top_k_workflow": 4, "overrides": {}}, **extra)
         after = meta(agent_max_calls_per_tool=3)
         self.assertEqual(prediction.check_setup(meta(), after, meta()), [])
         self.assertIn("differ in retrieval_mode", "; ".join(prediction.check_setup(meta(), dict(after, retrieval_mode="hybrid"))))
@@ -186,6 +187,39 @@ class SecondReviewPredictionTests(unittest.TestCase):
         text = "\n".join(prediction.format_prediction(rows, failed, pairs, warnings=["the runs used different models"]))
         self.assertIn("SETUP WARNINGS", text)
         self.assertLess(text.index("SETUP WARNINGS"), text.index("1. over-calling goes to 0"))
+
+
+class ThirdCheckPredictionTests(unittest.TestCase):
+    def test_a_provider_error_in_the_noise_run_does_not_move_the_noise_floor(self):
+        before = [run(n, 4, 1000) for n in (1, 2, 3, 4)]
+        after = [run(n, 3, 800) for n in (1, 2, 3, 4)]                                                 # a 20% saving
+        noise = [run(1, 4, 0, success=False, stop="error")] + [run(n, 4, 1000) for n in (2, 3, 4)]     # one 503 in the A/A run
+        text = tokens_line(before, after, noise)
+        self.assertIn("differ by 0.0%", text)                      # the three pairs that completed are identical
+        self.assertIn("read on the 3 pair(s)", text)
+        self.assertIn("larger than the noise floor", text)
+
+    def test_when_every_pair_is_left_out_the_report_says_why_and_still_shows_the_setup_warnings(self):
+        before = [run(n) for n in (1, 2)]
+        after = [run(n, success=False, stop="error") for n in (1, 2)]
+        rows, failed, pairs = prediction.check_budget_prediction(before, after, TASKS)
+        self.assertEqual((rows, failed, pairs), ([], False, 0))
+        self.assertEqual(prediction.left_out_pairs(before, after, TASKS), 2)
+        text = "\n".join(prediction.format_prediction(rows, failed, pairs, warnings=["the 'after' run is partial (outage)"], left_out=2))
+        self.assertIn("cannot be checked", text)
+        self.assertIn("2 shared pair(s) were left out because a run ended on a provider error", text)
+        self.assertIn("partial (outage)", text)
+
+    def test_the_setup_check_compares_limits_and_the_workflow_top_k_and_names_a_field_a_run_did_not_record(self):
+        def meta(**extra):
+            return dict({"models": {"agent": "m"}, "agent_max_calls_per_tool": 0, "complete": True, "retrieval_mode": "dense",
+                         "tasks": ["a"], "limits": {"max_steps": 8}, "top_k_workflow": 4, "overrides": {}}, **extra)
+        after = meta(agent_max_calls_per_tool=3)
+        self.assertEqual(prediction.check_setup(meta(), after, meta()), [])
+        self.assertIn("differ in limits", "; ".join(prediction.check_setup(meta(), dict(after, limits={"max_steps": 4}))))
+        self.assertIn("differ in top_k_workflow", "; ".join(prediction.check_setup(meta(), dict(after, top_k_workflow=3))))
+        older = {key: value for key, value in after.items() if key != "limits"}
+        self.assertIn("limits was not recorded for the after run(s)", "; ".join(prediction.check_setup(meta(), older)))
 
 
 class CheckPredictionScriptTests(unittest.TestCase):

@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from datetime import datetime
 
 import openai
@@ -284,6 +285,24 @@ def run_cases(cases, label="latest", with_judge=True, use_cache=True, overrides=
     return results
 
 
+def _replace_with_retries(source, target, attempts=5):
+    """os.replace, tried again a few times: on Windows another program (a virus scanner, an editor) can hold the target
+    for a moment, and a refused rename must not end a run that may have hours of quota in it."""
+    for attempt in range(attempts):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(0.2 * (attempt + 1))
+
+
+def kept_older_run(path):
+    """True if save_results put a cut-short run beside an older complete one instead of replacing it."""
+    return path.endswith(".incomplete.json")
+
+
 def save_results(results, path=None):
     """Write a run to its file. A run that stopped early never replaces a complete run with the same label:
     it is written beside it as `<label>.incomplete.json`, so a quota that runs out cannot destroy a good result.
@@ -302,7 +321,14 @@ def save_results(results, path=None):
     try:
         with open(temporary, "w", encoding="utf-8") as handle:
             json.dump(results, handle, ensure_ascii=False, indent=1)
-        os.replace(temporary, path)                # a write cut short never leaves half a file where a good one was
+    except BaseException:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+        raise
+    try:
+        _replace_with_retries(temporary, path)     # a write cut short never leaves half a file where a good one was
+    except PermissionError as exc:                 # still refused after the retries: the finished run stays in the temporary file
+        raise PermissionError(f"{exc}; the finished run is kept in {temporary}") from exc
     except BaseException:
         if os.path.exists(temporary):
             os.remove(temporary)

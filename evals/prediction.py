@@ -17,8 +17,9 @@ The fix has FAILED if the right answers fall by more than 2, or more than 2 fini
 
 The noise floor is how much two IDENTICAL runs (no cap, same model, same day) differ in mean tokens per run. A change
 smaller than that cannot be told from chance, so it is reported as "not distinguishable from noise". The effect and the
-noise are read on the SAME pairs: the (task, repeat) pairs all three runs completed. A pair in which either run ended on a
-provider error is left out of everything (an outage is not evidence about the cap), and the number left out is printed.
+noise are read on the SAME pairs: the (task, repeat) pairs all three runs completed. A pair in which the before or the after
+run ended on a provider error is left out of everything (an outage is not evidence about the cap), and the number left out is
+printed; a noise-run record that ended on a provider error is left out of the noise floor and of the rows that read it.
 """
 import json
 
@@ -51,8 +52,9 @@ def _versus_noise(fall, noise, pairs):
 
 
 def check_setup(before_meta, after_meta, noise_meta=None):
-    """Warnings when the runs do not differ only in the call cap: another model, the cap not recorded or equal, a run
-    cut short, defences on in one. An empty list means nothing was found wrong; a missing field is said, not guessed."""
+    """Warnings when the runs do not differ only in the call cap: another model, the cap not recorded or equal, another
+    retrieval mode, limits, task list or workflow top_k, any other overridden setting, defences on in one, a run cut
+    short. A field a run did not record is said, not guessed. An empty list means nothing was found wrong."""
     runs = [("before", before_meta), ("after", after_meta)] + ([("noise", noise_meta)] if noise_meta is not None else [])
     warnings = []
     models = {name: (meta.get("models") or {}).get("agent") for name, meta in runs}
@@ -68,6 +70,9 @@ def check_setup(before_meta, after_meta, noise_meta=None):
             warnings.append(f"'after' has the same call cap as 'before' ({caps['after']}), so it tests nothing")
     for field in ("retrieval_mode", "limits", "tasks", "top_k_workflow"):
         values = {name: meta.get(field) for name, meta in runs if field in meta}
+        missing = [name for name, meta in runs if field not in meta]
+        if missing:
+            warnings.append(f"{field} was not recorded for the {' and '.join(missing)} run(s), so it cannot be compared")
         if len({json.dumps(value, sort_keys=True, default=str) for value in values.values()}) > 1:
             warnings.append(f"the runs differ in {field}: {values}")
     others = {name: {key: value for key, value in (meta.get("overrides") or {}).items() if key != "agent_max_calls_per_tool"}
@@ -82,6 +87,21 @@ def check_setup(before_meta, after_meta, noise_meta=None):
     return warnings
 
 
+def _usable_pairs(before_records, after_records, tasks):
+    """The (task, repeat) pairs both runs have, minus those in which either ended on a provider error, and how many of
+    the shared pairs that left out."""
+    known = {task["id"] for task in tasks}
+    before, after = trajectory.pair_records([r for r in before_records if r["task_id"] in known],
+                                            [r for r in after_records if r["task_id"] in known])
+    usable = [(x, y) for x, y in zip(before, after) if x.get("stop_reason") != "error" and y.get("stop_reason") != "error"]
+    return usable, len(before) - len(usable)
+
+
+def left_out_pairs(before_records, after_records, tasks):
+    """How many shared (task, repeat) pairs a provider error took out of the check."""
+    return _usable_pairs(before_records, after_records, tasks)[1]
+
+
 def check_budget_prediction(before_records, after_records, tasks, noise_records=None):
     """Rows of {number, claim, measured, held} for the predictions, plus whether the fix failed, and the pair count.
 
@@ -89,10 +109,7 @@ def check_budget_prediction(before_records, after_records, tasks, noise_records=
     noise_records: a second run of the same configuration as `before_records` (the A/A run), or None.
     """
     known = {task["id"] for task in tasks}
-    before_all = [r for r in before_records if r["task_id"] in known]
-    before, after = trajectory.pair_records(before_all, [r for r in after_records if r["task_id"] in known])
-    usable = [(x, y) for x, y in zip(before, after) if x.get("stop_reason") != "error" and y.get("stop_reason") != "error"]
-    left_out = len(before) - len(usable)
+    usable, left_out = _usable_pairs(before_records, after_records, tasks)
     before, after = [x for x, _ in usable], [y for _, y in usable]
     if not before:
         return [], False, 0
@@ -108,7 +125,7 @@ def check_budget_prediction(before_records, after_records, tasks, noise_records=
     if noise_records is None:
         cost_before, cost_after, cost_noise = before, after, None
     else:
-        noise_all = [r for r in noise_records if r["task_id"] in known]
+        noise_all = [r for r in noise_records if r["task_id"] in known and r.get("stop_reason") != "error"]
         keys = {_key(r) for r in before} & {_key(r) for r in noise_all}
         cost_before, cost_after = [r for r in before if _key(r) in keys], [r for r in after if _key(r) in keys]
         cost_noise = [r for r in noise_all if _key(r) in keys]
@@ -138,9 +155,14 @@ def check_budget_prediction(before_records, after_records, tasks, noise_records=
     return rows, failed, len(before)
 
 
-def format_prediction(rows, failed, pairs, label_before="before", label_after="after", warnings=()):
+def format_prediction(rows, failed, pairs, label_before="before", label_after="after", warnings=(), left_out=0):
     if not rows:
-        return ["The two runs have no (task, repeat) in common, so the prediction cannot be checked."]
+        lines = ["The two runs have no (task, repeat) pair that both completed without a provider error, so the prediction cannot be checked."]
+        if left_out:
+            lines.append(f"({left_out} shared pair(s) were left out because a run ended on a provider error.)")
+        if warnings:
+            lines += ["", "SETUP WARNINGS (the runs may not differ only in the call cap):"] + [f"  - {text}" for text in warnings]
+        return lines
     lines = [f"Pre-registered prediction for the call budget, checked on the {pairs} (task, repeat) pairs "
              f"both '{label_before}' and '{label_after}' completed:", ""]
     if warnings:
