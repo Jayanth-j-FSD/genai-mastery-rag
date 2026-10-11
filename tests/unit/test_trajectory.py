@@ -178,6 +178,11 @@ class SecondReviewGraderTests(unittest.TestCase):
         ghost = "It ends on 2026-12-03 [source: Ghost.md (page 2)]"
         self.assertEqual(modes(TASK, record(CLEAN, answer=ghost)), ["unverified-citation"])
 
+    def test_a_retrieved_name_with_a_comma_in_it_is_read_the_way_the_validator_reads_it(self):
+        search = call("search_policies", {"query": "notice period"}, "[1] [source: Handbook, 2026 edition.md] The notice period is 30 days.")
+        answer = "It ends on 2026-12-03 [source: Handbook, 2026 edition.md]"
+        self.assertEqual(modes(TASK, record([search, CLEAN[1]], answer=answer)), [])
+
     def test_a_label_that_merely_contains_a_dot_is_not_an_invented_document(self):
         answer = "It ends on 2026-12-03 [source: terms.md, section 4.2, Policy v1.0]"
         self.assertEqual(modes(TASK, record(CLEAN, answer=answer)), [])

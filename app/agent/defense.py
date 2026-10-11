@@ -53,8 +53,10 @@ _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 _SOURCE_TAG_RE = re.compile(r"\[\s*source:\s*([^\]]+?)\s*\]|\(\s*source:\s*([^)]+?)\s*\)", re.I)    # [source: A.md] or (Source: A.md)
 _PREFIX_NAME_RE = re.compile(r"\[source:\s*([^\]]*?)\s*\]", re.I)       # the whole name in a passage heading, up to its closing bracket
 _SOURCE_PREFIX_RE = re.compile(r"^\s*source:\s*", re.I)
-_QUALIFIER_RE = re.compile(r"(?:\s*#|\s+\(|\s+-\s|:\s).*$")           # what may follow a name: "A.md#2", "A.md (section 3)", "A.md - intro"
 DOCUMENT_EXTENSIONS = ("md", "txt", "pdf", "docx", "html", "csv", "json")
+_QUALIFIER = r"(?:\s*#|\s+\(|\s+-\s|:\s).*$"                         # what may follow a name: "A.md#2", "A.md (section 3)", "A.md - intro"
+_QUALIFIER_AFTER_EXTENSION_RE = re.compile(r"(\.(?:" + "|".join(DOCUMENT_EXTENSIONS) + r"))" + _QUALIFIER, re.I)
+_QUALIFIER_ANYWHERE_RE = re.compile(_QUALIFIER)
 _TOOL_OUTPUT_TAG_RE = re.compile(r"<\s*(/?)\s*tool_output", re.I)
 REMOVED = "[removed: instruction-like text]"
 REMOVED_NAME = "name-removed-instruction-like"
@@ -147,7 +149,7 @@ def dates_in(text):
 
     "04/01/2027" may be 4 January or 1 April, so both are kept. Use date_is_known to ask about a date.
     """
-    text = text or ""
+    text = " ".join((text or "").split())           # any Unicode space (a pasted no-break space) becomes a plain one first
     found = set(f"{y}-{m}-{d}" for y, m, d in _ISO_RE.findall(text))
     for day, month, year in _DMY_RE.findall(text):
         if month.lower() in _MONTHS:
@@ -188,24 +190,40 @@ def sources_in(text):
     return set(source_names(text))
 
 
-def _stem(name):
-    """A document name for comparison: no qualifier, no folder, lower case, no extension such as .md or .pdf."""
-    base = _QUALIFIER_RE.sub("", name.strip()).replace(chr(92), "/").rsplit("/", 1)[-1].strip().lower()
+def _strip_qualifier(name):
+    """Cut what follows a document extension ("A.md#2", "A.md (section 3)"), and only there: a bracket or a dash inside a
+    name ("HR - Leave Policy.md", "Guide (v2).md") is part of the name."""
+    return _QUALIFIER_AFTER_EXTENSION_RE.sub(r"\1", name.strip())
+
+
+def _stem_of(base):
+    base = base.replace(chr(92), "/").rsplit("/", 1)[-1].strip().lower()
     stem, dot, extension = base.rpartition(".")
     return stem if dot and extension in DOCUMENT_EXTENSIONS else base
+
+
+def _stem(name):
+    """A document name for comparison: no qualifier after the extension, no folder, lower case, no extension."""
+    return _stem_of(_strip_qualifier(name))
+
+
+def _loose_stem(name):
+    """The same, but a qualifier is cut wherever it starts. Used only to match a citation that has no extension
+    ("Leave-Policy (section 3)") EXACTLY to a retrieved name, never to widen what a name can be."""
+    return _stem_of(_QUALIFIER_ANYWHERE_RE.sub("", name.strip()))
 
 
 def looks_like_a_document_name(name):
     """A name that ends in a document extension. A label such as "calculate" or "user prompt" is not one, and neither
     is "section 4.2"."""
-    base = _QUALIFIER_RE.sub("", name.strip())
+    base = _strip_qualifier(name)
     return "." in base and base.rpartition(".")[2].lower() in DOCUMENT_EXTENSIONS
 
 
 def unseen_names(cited, seen):
-    """The cited names that match no retrieved document (case, folder, extension and a trailing qualifier do not matter)."""
+    """The cited names that match no retrieved document (case, folder, extension and a qualifier do not matter)."""
     seen_stems = {_stem(name) for name in seen}
-    return [name for name in cited if _stem(name) not in seen_stems]
+    return [name for name in cited if _stem(name) not in seen_stems and _loose_stem(name) not in seen_stems]
 
 
 def cites_a_seen_source(cited, seen):

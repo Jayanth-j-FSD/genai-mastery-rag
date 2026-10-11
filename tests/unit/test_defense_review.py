@@ -258,6 +258,25 @@ class SecondReviewTests(unittest.TestCase):
         from evals import trajectory
         self.assertEqual(trajectory.cited_documents("(Source: A.md) [source: B.md (page 2)]"), ["A.md", "B.md (page 2)"])
 
+    def test_a_pasted_no_break_space_does_not_hide_a_date_from_the_guard(self):
+        for space in (chr(0xA0), chr(0x202F), chr(0x2009)):
+            with self.subTest(space=hex(ord(space))):
+                question = "Notice was given on 3" + space + "November" + space + "2026."
+                self.assertEqual(defense.dates_in(question), {"2026-11-03"})
+                d = Defense()
+                d.begin(question)
+                self.assertIsNone(d.check_call("add_days", {"date": "2026-11-03", "days": 30}))
+
+    def test_a_qualifier_is_cut_only_after_an_extension_so_brackets_and_dashes_inside_a_name_stay_part_of_it(self):
+        for name in ("Invented Policy (v2).md", "Acme Leave Policy - 2027.md", "Guide: draft.md"):
+            self.assertTrue(defense.looks_like_a_document_name(name), name)
+        self.assertEqual(defense.unseen_names(["HR - Expenses.md"], {"HR - Leave Policy.md"}), ["HR - Expenses.md"])
+        self.assertEqual(defense.unseen_names(["HR - Leave Policy.md (section 2)"], {"HR - Leave Policy.md"}), [])
+        self.assertEqual(defense.unseen_names(["Acme-Leave-Policy-2026 (section 3)"], {"Acme-Leave-Policy-2026.md"}), [])   # no extension: exact match after the cut
+        d = validator("HR - Leave Policy.md")
+        self.assertIn("cites no document", d.validate("12 days [source: HR - Expenses.md]"))
+        self.assertIsNone(d.validate("12 days [source: HR - Leave Policy.md]"))
+
     def test_only_a_name_that_ends_in_a_document_extension_looks_like_a_document(self):
         for name in ("Policy.md", "notes.TXT", "Report.pdf", "A.md (section 3)", "A.md#2"):
             self.assertTrue(defense.looks_like_a_document_name(name), name)

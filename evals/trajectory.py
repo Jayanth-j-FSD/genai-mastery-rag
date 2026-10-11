@@ -169,7 +169,7 @@ def detect_modes(task, record):
     answer = record.get("answer") or ""
     if answer and not _is_refusal(answer):
         retrieved = race.retrieved_from_steps(SimpleNamespace(steps=record.get("steps", [])))
-        known_sources = {chunk["source"] for chunk in retrieved}
+        known_sources = set().union(*(source_names(f"[source: {chunk['source']}]") for chunk in retrieved))      # read as the validator reads them
         unseen = [name for name in unseen_names(cited_documents(answer), known_sources) if looks_like_a_document_name(name)]
         if unseen:
             add("unverified-citation", f"cited {unseen}, which the agent never retrieved")
