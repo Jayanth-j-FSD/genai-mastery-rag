@@ -28,7 +28,7 @@ keep this repository's plain-ASCII style.
 |---|---|---|
 | The team: a manager that hands one question at a time to a researcher (search only) or a calculator (arithmetic and dates only), each an ordinary agent loop; the agents' steps merged in time order and every agent's calls, tokens and seconds counted apart | `app/agent/team.py` | 1, 2 |
 | A record of every model call, kept per piece of work, so each arm is measured by the same instrument and the team's cost can be split by agent | `app/llm.py` (`call_scope`) | 2 |
-| Tokens to money with a price YOU state; no price table; a missing price is "not stated", never zero | `app/pricing.py`, `PRICE_*` settings | 2 |
+| Tokens to money with a price YOU state; no price table; a missing price is "not stated", never zero | `app/pricing.py` (its `PRICE_*` settings are read by no Week 10 command) | 2 |
 | The team as a third runner in the Week 7 race harness (the Week 7 race itself is unchanged) | `evals/race.py` | 1 |
 | The race: the same nine tasks, interleaved, saved after every run, resumable, frozen to a commit | `scripts/race_team.py` | 1 |
 | The report: quality, speed, tokens and cost per arm and per agent, with the numbers a reader needs to judge them | `evals/team_report.py` | 2, 3 |

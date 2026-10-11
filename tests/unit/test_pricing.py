@@ -94,6 +94,20 @@ class GuidanceTests(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(_testkit.ROOT, "scripts", "race_team.py")))
         self.assertNotIn("PRICE_", hint)
 
+    def test_no_code_but_the_pricing_module_and_the_settings_reads_the_price_settings_which_is_what_the_readme_says(self):
+        readers = []
+        for folder in ("app", "evals", "scripts"):
+            for directory, _dirs, names in os.walk(os.path.join(_testkit.ROOT, folder)):
+                for name in names:
+                    path = os.path.join(directory, name)
+                    if name.endswith(".py"):
+                        with open(path, encoding="utf-8") as handle:
+                            if re.search(r"price_(input|output)_per_million|current_prices", handle.read()):
+                                readers.append(os.path.relpath(path, _testkit.ROOT).replace(os.sep, "/"))
+        self.assertEqual(sorted(readers), ["app/config.py", "app/pricing.py"])
+        with open(os.path.join(_testkit.ROOT, "docs", "week10", "README.md"), encoding="utf-8") as handle:
+            self.assertIn("read by no Week 10 command", " ".join(handle.read().split()))
+
     def test_the_env_example_says_the_race_report_ignores_the_two_price_settings_and_names_the_real_options(self):
         paragraph = price_paragraph()
         self.assertIn("No Week 10 command reads", paragraph)
