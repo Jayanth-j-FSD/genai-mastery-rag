@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from _testkit import ROOT
+from _testkit import ROOT, isolated_index
 from app.config import settings
 from evals import cases, checks, runner, screen
 
@@ -343,7 +343,8 @@ class RetrievalGuardTests(unittest.TestCase):
                 continue
             normalized, _ = failure_to_test.normalized_case(fixture["case"], [])
             with self.subTest(fixture=os.path.basename(path)):
-                with runner.overridden({"embed_provider": "local", "retrieval_mode": "dense", "dense_search": "exact", "top_k": 4, "boilerplate_min_repeats": 0, "dedupe_chunks": False}):
+                # a temporary index folder, so the project's own data/chroma is never touched by a test
+                with isolated_index(embed_provider="local", dense_search="exact", retrieval_mode="dense", top_k=4, boilerplate_min_repeats=0, dedupe_chunks=False):
                     with runner.isolated_index():
                         chunks = retriever.retrieve_for_mode(normalized["question"], settings.top_k, settings.retrieval_mode)
                 self.assertIsNotNone(screen.first_useful_rank(chunks, normalized), "the passage with the answer is not among the top results again")
