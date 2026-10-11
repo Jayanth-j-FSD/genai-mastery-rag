@@ -68,6 +68,12 @@ class RunTrajectoriesScriptTests(unittest.TestCase):
         self.assertEqual(len(saved["graded"]), 2)
         self.assertEqual(racing.call_args.kwargs["repeats"], 1)
 
+    def test_a_plain_run_that_cannot_be_saved_says_so_in_one_line(self):
+        with self.fake_race([agent_run(1)]), mock.patch.object(run_trajectories, "grade_and_save", side_effect=OSError("disk full")):
+            code, out = self.call("--label", "full", "--only", TASK_ID)
+        self.assertEqual(code, 1)
+        self.assertIn("Error: could not save 'full': disk full", out)
+
     def test_a_forced_run_that_is_cut_short_says_the_old_complete_run_was_kept(self):
         runner.save_results(saved_run("old", [agent_run(1), agent_run(2)]), runner.results_path("trajectories-old"))
         with self.fake_race([agent_run(1)], complete=False):
@@ -253,6 +259,34 @@ class InterleaveTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(len(runner.load_results("trajectories-a")["runs"]), 1)               # the new job's single run replaced the old two
         self.assertFalse(os.path.exists(runner.results_path("trajectories-a")[:-5] + ".incomplete.json"))
+
+    def test_a_progress_save_that_fails_is_reported_and_the_job_goes_on(self):
+        real = run_trajectories.grade_and_save
+
+        def flaky(tasks, records, meta, label):
+            if str(meta.get("stopped_because", "")).startswith("interrupted"):
+                raise OSError("the file is held by another program")
+            return real(tasks, records, meta, label)
+
+        with self.fake_run(), mock.patch.object(run_trajectories, "grade_and_save", flaky):
+            code, out = self.call("--interleave", "a", "b", "--only", TASK_ID, "--repeats", "2")
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING: could not save progress", out)
+        self.assertEqual(len(runner.load_results("trajectories-a")["runs"]), 2)                 # the final saves wrote everything
+
+    def test_an_arm_that_cannot_be_saved_does_not_stop_the_other_arms_from_being_finished(self):
+        real = run_trajectories.grade_and_save
+
+        def holds_a(tasks, records, meta, label):
+            if label == "a" and meta.get("complete"):
+                raise PermissionError("held for good")
+            return real(tasks, records, meta, label)
+
+        with self.fake_run(), mock.patch.object(run_trajectories, "grade_and_save", holds_a):
+            code, out = self.call("--interleave", "a", "b", "--only", TASK_ID, "--repeats", "1")
+        self.assertEqual(code, 1)
+        self.assertIn("ERROR: could not save 'a'", out)
+        self.assertTrue(runner.load_results("trajectories-b")["meta"]["complete"])              # b was finished all the same
 
     def test_a_forced_job_that_is_cut_short_says_the_old_complete_run_was_kept(self):
         runner.save_results(dict(saved_run("a", [agent_run(1), agent_run(2)]), meta={"label": "a", "complete": True}),

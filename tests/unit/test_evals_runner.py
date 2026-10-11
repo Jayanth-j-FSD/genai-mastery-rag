@@ -275,10 +275,23 @@ class SaveAndFailureTests(RunnerCase):
                 raise PermissionError("another program has the file open")
             return real(source, target)
 
-        with mock.patch("os.replace", held_twice), mock.patch.object(runner, "time"):
+        with mock.patch("os.replace", held_twice), mock.patch.object(runner, "time") as fake_time:
             runner.save_results({"meta": {"label": "held", "complete": True}, "cases": [{"id": "a"}]}, path)
         self.assertEqual(len(calls), 3)
+        self.assertEqual(fake_time.sleep.call_count, 2)                      # it waited between the tries
         self.assertEqual(runner.load_results(path)["cases"], [{"id": "a"}])
+
+    def test_the_finished_run_is_kept_in_the_temporary_file_whatever_stops_the_rename(self):
+        for label, failure in (("a Ctrl-C", KeyboardInterrupt()), ("an error that is not a permission error", OSError("the volume went away"))):
+            with self.subTest(label):
+                path = self.label_path("kept" + str(len(label)))
+                with mock.patch("os.replace", side_effect=failure), mock.patch.object(runner, "time"):
+                    with self.assertRaises(type(failure)) as caught:
+                        runner.save_results({"meta": {"label": "kept", "complete": True}, "cases": [{"id": "a"}]}, path)
+                with open(path + ".tmp", encoding="utf-8") as handle:
+                    self.assertEqual(json.load(handle)["cases"], [{"id": "a"}])
+                if isinstance(failure, OSError):
+                    self.assertIn(path + ".tmp", str(caught.exception))
 
     def test_a_rename_that_stays_refused_keeps_the_finished_run_in_the_temporary_file_and_says_so(self):
         path = self.label_path("stuck")

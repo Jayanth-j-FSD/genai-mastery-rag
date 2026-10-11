@@ -291,6 +291,32 @@ class SecondReviewTests(unittest.TestCase):
                 self.assertIsNone(validator(seen).validate(f"12 days [source: {cited}]"))
         self.assertEqual(defense.unseen_names(["HR - Expenses (section 2)"], {"HR - Leave Policy.md"}), ["HR - Expenses (section 2)"])
 
+    def test_a_round_bracket_citation_may_hold_brackets_in_the_name_and_is_read_like_the_square_one(self):
+        self.assertEqual(defense.source_names("12 days (Source: Invented Policy (v2).md)"), ["Invented Policy (v2).md"])
+        d = validator("Invented Policy.md")
+        self.assertIn("cites no document", d.validate("12 days (Source: Invented Policy (v2).md)"))
+        self.assertIsNone(d.validate("12 days (Source: Invented Policy.md)"))
+        self.assertEqual(defense.source_names("(Source: A.md) and (Source: B.md)"), ["A.md", "B.md"])
+
+    def test_a_loose_reading_tries_a_bounded_number_of_cuts_and_any_of_them_may_match(self):
+        with mock.patch.object(defense, "_stem_of", wraps=defense._stem_of) as spy:
+            defense._loose_stems("Policy" + "#" * 30000)
+        self.assertLessEqual(spy.call_count, defense.MAX_CUTS)
+        self.assertEqual(defense.unseen_names(["Policy - v2 (draft)"], {"Policy.md"}), [])
+        self.assertEqual(defense.unseen_names(["docs/hr - LEAVE policy#2"], {"HR - Leave Policy.md"}), [])        # a folder and capitals do not matter either
+        self.assertEqual(defense.unseen_names(["Policy - v2 (draft)"], {"Other.md"}), ["Policy - v2 (draft)"])
+
+    def test_a_date_pasted_with_a_dash_variant_or_a_zero_width_character_is_read_as_written(self):
+        zwsp = chr(0x200B)
+        for text in ("Notice was given on 2026" + chr(0x2011) + "11" + chr(0x2011) + "03.", "Notice on 2026" + chr(0x2013) + "11" + chr(0x2013) + "03.",
+                     "Notice on 2026" + chr(0x2212) + "11" + chr(0x2212) + "03.", "Notice on 3 November" + zwsp + " 2026.",
+                     "Notice on 3" + zwsp + "November 2026."):
+            self.assertEqual(defense.dates_in(text), {"2026-11-03"}, text)
+        d = Defense()
+        d.begin("Notice on 3 November" + zwsp + " 2026.")
+        self.assertIsNone(d.check_call("add_days", {"date": "2026-11-03", "days": 30}))
+        self.assertIsNotNone(d.check_call("add_days", {"date": "2027-11-03", "days": 30}))       # the year was read, so another year is refused
+
     def test_only_a_name_that_ends_in_a_document_extension_looks_like_a_document(self):
         for name in ("Policy.md", "notes.TXT", "Report.pdf", "A.md (section 3)", "A.md#2"):
             self.assertTrue(defense.looks_like_a_document_name(name), name)

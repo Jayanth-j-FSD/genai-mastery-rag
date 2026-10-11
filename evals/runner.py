@@ -327,12 +327,10 @@ def save_results(results, path=None):
         raise
     try:
         _replace_with_retries(temporary, path)     # a write cut short never leaves half a file where a good one was
-    except PermissionError as exc:                 # still refused after the retries: the finished run stays in the temporary file
+    except PermissionError as exc:                 # the run is finished and whole in the temporary file, which is never deleted from here on
         raise PermissionError(f"{exc}; the finished run is kept in {temporary}") from exc
-    except BaseException:
-        if os.path.exists(temporary):
-            os.remove(temporary)
-        raise
+    except OSError as exc:
+        raise OSError(f"{exc}; the finished run is kept in {temporary}") from exc
     return path
 
 

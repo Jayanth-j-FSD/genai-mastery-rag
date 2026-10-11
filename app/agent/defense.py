@@ -29,6 +29,7 @@ matters as much as what it does.
 Everything here is a plain function or a small class, and it is off unless the caller passes
 `run_agent(..., defense=Defense(...))`.
 """
+import itertools
 import re
 import unicodedata
 
@@ -47,16 +48,18 @@ INJECTION_PATTERNS = [
     re.compile(r"\b(include|append|add|insert|show)\b.{0,30}\b(this|the following)\s+(link|url|email|sentence|text|code)\b", re.I),
 ]
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+_DASHES = {code: "-" for code in (*range(0x2010, 0x2016), 0x2212)}    # the hyphens, dashes and the minus sign a date can be pasted with
 _INVISIBLE_RE = re.compile("[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]")    # soft hyphen, zero-width and direction marks can hide or split a keyword
 _PASSAGE_PREFIX_RE = re.compile(r"^(\s*\[\d+\]\s*\[source:[^\]]*\]\s*)")
 _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
-_SOURCE_TAG_RE = re.compile(r"\[\s*source:\s*([^\]]+?)\s*\]|\(\s*source:\s*([^)]+?)\s*\)", re.I)    # [source: A.md] or (Source: A.md)
+_SOURCE_TAG_RE = re.compile(r"\[\s*source:\s*([^\]]+?)\s*\]|\(\s*source:\s*((?:[^()]|\([^()]*\))+?)\s*\)", re.I)    # [source: A.md] or (Source: A.md (v2).md)
 _PREFIX_NAME_RE = re.compile(r"\[source:\s*([^\]]*?)\s*\]", re.I)       # the whole name in a passage heading, up to its closing bracket
 _SOURCE_PREFIX_RE = re.compile(r"^\s*source:\s*", re.I)
 DOCUMENT_EXTENSIONS = ("md", "txt", "pdf", "docx", "html", "csv", "json")
 _QUALIFIER_START = r"(?:\s*#|\s+\(|\s+-\s|:\s)"                      # what may follow a name: "A.md#2", "A.md (section 3)", "A.md - intro"
 _QUALIFIER_AFTER_EXTENSION_RE = re.compile(r"(\.(?:" + "|".join(DOCUMENT_EXTENSIONS) + r"))" + _QUALIFIER_START + ".*$", re.I)
 _QUALIFIER_START_RE = re.compile(_QUALIFIER_START)
+MAX_CUTS = 50                    # places a qualifier may start that a loose reading of a citation tries
 _TOOL_OUTPUT_TAG_RE = re.compile(r"<\s*(/?)\s*tool_output", re.I)
 REMOVED = "[removed: instruction-like text]"
 REMOVED_NAME = "name-removed-instruction-like"
@@ -149,7 +152,8 @@ def dates_in(text):
 
     "04/01/2027" may be 4 January or 1 April, so both are kept. Use date_is_known to ask about a date.
     """
-    text = " ".join((text or "").split())           # any Unicode space (a pasted no-break space) becomes a plain one first
+    text = _INVISIBLE_RE.sub(" ", (text or "").translate(_DASHES))      # a pasted dash variant is a hyphen and a zero-width character is a gap
+    text = " ".join(text.split())                   # any Unicode space (a pasted no-break space) becomes a plain one next
     found = set(f"{y}-{m}-{d}" for y, m, d in _ISO_RE.findall(text))
     for day, month, year in _DMY_RE.findall(text):
         if month.lower() in _MONTHS:
@@ -209,9 +213,11 @@ def _stem(name):
 
 def _loose_stems(name):
     """The readings of a citation that has no extension ("HR - Leave Policy#2"): the name cut where a qualifier may
-    start, at each place it could, because a document name can contain a dash or a bracket itself."""
+    start, at each place it could, because a document name can contain a dash or a bracket itself. Only the first
+    MAX_CUTS places are tried: a name with more is not a document name, and trying them all costs time for nothing."""
     name = name.strip()
-    return {_stem_of(name[:hit.start()]) for hit in _QUALIFIER_START_RE.finditer(name) if name[:hit.start()].strip()}
+    cuts = (name[:hit.start()] for hit in itertools.islice(_QUALIFIER_START_RE.finditer(name), MAX_CUTS))
+    return {_stem_of(cut) for cut in cuts if cut.strip()}
 
 
 def looks_like_a_document_name(name):

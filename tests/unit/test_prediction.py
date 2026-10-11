@@ -222,6 +222,19 @@ class ThirdCheckPredictionTests(unittest.TestCase):
         self.assertIn("limits was not recorded for the after run(s)", "; ".join(prediction.check_setup(meta(), older)))
 
 
+class FourthLookPredictionTests(unittest.TestCase):
+    def test_a_field_recorded_as_none_is_still_a_recorded_value_that_can_differ(self):
+        def meta(**extra):
+            return dict({"models": {"agent": "m"}, "agent_max_calls_per_tool": 0, "complete": True, "retrieval_mode": "dense",
+                         "tasks": ["a"], "limits": {"max_steps": 8}, "top_k_workflow": 4, "overrides": {}}, **extra)
+        said = "; ".join(prediction.check_setup(meta(), dict(meta(agent_max_calls_per_tool=3), limits=None)))
+        self.assertIn("differ in limits", said)
+        self.assertNotIn("was not recorded", said)
+
+    def test_a_report_with_no_pair_left_out_does_not_mention_any(self):
+        self.assertNotIn("left out", "\n".join(prediction.format_prediction([], False, 0)))
+
+
 class CheckPredictionScriptTests(unittest.TestCase):
     def call(self, *args):
         sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))

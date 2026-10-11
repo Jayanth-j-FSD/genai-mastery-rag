@@ -6,13 +6,13 @@ order, with inputs it was really given, and stop cleanly)? A run that is right b
 path is the gap this week is about. It also reports what a run costs: mean and 99th percentile.
 
 Run:
-    python scripts/run_trajectories.py --label before                # runs the agent (model calls)
-    python scripts/run_trajectories.py --label after --set agent_max_calls_per_tool=3
-    python scripts/run_trajectories.py --interleave before after:agent_max_calls_per_tool=3 before-2 --repeats 3
-    python scripts/run_trajectories.py --grade race-race             # re-grade a saved Week 7 race: free
+    python scripts/run_trajectories.py --label my-before             # runs the agent (model calls); a saved label is refused unless --force
+    python scripts/run_trajectories.py --label my-after --set agent_max_calls_per_tool=3
+    python scripts/run_trajectories.py --interleave my-before my-after:agent_max_calls_per_tool=3 my-before-2 --repeats 3
+    python scripts/run_trajectories.py --grade race-race --label my-regrade   # re-grade a saved Week 7 race: free
     python scripts/run_trajectories.py --regrade before              # re-grade a saved run in place, keeping its settings: free
     python scripts/run_trajectories.py --show before                 # print the report of a saved run: free
-    python scripts/run_trajectories.py --label guarded --defense     # same tasks with the defences on
+    python scripts/run_trajectories.py --label my-guarded --defense  # same tasks with the defences on
 """
 import argparse
 import os
@@ -208,7 +208,13 @@ def main(argv=None):
             if not records:
                 print(f"\n'{label}': no run finished, nothing saved")
                 continue
-            results, path = grade_and_save(tasks, records, meta, label)
+            try:
+                results, path = grade_and_save(tasks, records, meta, label)
+            except OSError as exc:                                  # one arm that cannot be saved must not stop the others from being finished
+                saved_all = False
+                print()
+                print(f"ERROR: could not save '{label}': {exc}")
+                continue
             leftover = path[:-len(".json")] + ".incomplete.json"
             if meta["complete"] and os.path.exists(leftover):         # a progress save that --force redirected beside an older complete file
                 os.remove(leftover)
@@ -245,7 +251,11 @@ def main(argv=None):
         print(f"Error: {exc}")
         return 1
 
-    results, path = grade_and_save(tasks, records, meta, args.label)
+    try:
+        results, path = grade_and_save(tasks, records, meta, args.label)
+    except OSError as exc:
+        print(f"Error: could not save '{args.label}': {exc}")
+        return 1
     if runner.kept_older_run(path):                               # a forced run that was cut short must not look like it replaced the old one
         print()
         print(f"WARNING: '{args.label}' already had a complete saved run, so it was kept, and this partial run was saved "

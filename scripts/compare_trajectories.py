@@ -35,7 +35,7 @@ def main(argv=None):
         after = runner.load_results("trajectories-" + args.after)
     except FileNotFoundError as exc:
         print(f"Error: {exc}")
-        print("Make a run first:  python scripts/run_trajectories.py --label before")
+        print("Make a run first:  python scripts/run_trajectories.py --label <a name that is not saved yet>")
         return 1
     tasks = get_tasks(None, include_probes=True)
     known = {task["id"] for task in tasks}
