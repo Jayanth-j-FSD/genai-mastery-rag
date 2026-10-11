@@ -305,6 +305,11 @@ def _replace_with_retries(source, target, attempts=5):
             time.sleep(0.2 * (attempt + 1))
 
 
+def replace_file(source, target):
+    """Move `source` over `target` in one step, trying again for a moment if another program holds the target (Windows)."""
+    _replace_with_retries(source, target)
+
+
 def kept_older_run(path):
     """True if save_results put a cut-short run beside an older complete one instead of replacing it."""
     return path.endswith(".incomplete.json")

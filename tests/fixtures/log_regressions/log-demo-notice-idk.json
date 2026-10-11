@@ -1,0 +1,84 @@
+{
+ "id": "log-demo-notice-idk",
+ "kind": "RETRIEVAL",
+ "case": {
+  "id": "log-demo-notice-idk",
+  "question": "How much notice must a permanent employee give before resigning?",
+  "problem_type": "crowded-handbook",
+  "origin": "week11:log-demo-notice-idk",
+  "expected_sources": [
+   "Acme-Employment-Terms-2026.md",
+   "Synthetic_HR_Policy_RAG_Test_Dataset.md"
+  ],
+  "expect_contains": [
+   "30 calendar days",
+   "60 calendar days"
+  ],
+  "expect_all": [],
+  "forbid_contains": [],
+  "should_refuse": false,
+  "whole_words": true,
+  "reference": "The Acme employment terms say 30 calendar days for a permanent employee and the handbook says 60 for confirmed employees: the documents disagree, and the app should say so instead of saying it does not know."
+ },
+ "failing_result": {
+  "answer": "I don't know based on the provided documents.",
+  "grounded": false,
+  "sources": [],
+  "retrieved": [
+   {
+    "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+    "score": 0.2238
+   },
+   {
+    "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+    "score": 0.2238
+   },
+   {
+    "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+    "score": 0.2238
+   },
+   {
+    "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+    "score": 0.2238
+   }
+  ]
+ },
+ "corrected_result": {
+  "answer": "A permanent employee must provide 30 calendar days of written notice before resigning. [source: Acme-Employment-Terms-2026.md]",
+  "grounded": true,
+  "sources": [
+   "Acme-Employment-Terms-2026.md"
+  ],
+  "retrieved": [
+   {
+    "source": "Acme-Employment-Terms-2026.md",
+    "score": 0.5517
+   },
+   {
+    "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+    "score": 0.4887
+   },
+   {
+    "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+    "score": 0.4846
+   },
+   {
+    "source": "Acme-Employment-Terms-2026.md",
+    "score": 0.4745
+   }
+  ]
+ },
+ "failing_checks": [
+  "refusal",
+  "cites_expected_source",
+  "has_expected_fact"
+ ],
+ "logged": {
+  "request_id": "503834ae",
+  "date": "2026-09-25",
+  "model_served": null
+ },
+ "why": "Two documents answer a plain notice question, and the app said it did not know: four copies of the same boilerplate passage filled every slot.",
+ "drafted_by": "the failure tool, to be reviewed by you",
+ "worked_example": true
+}
