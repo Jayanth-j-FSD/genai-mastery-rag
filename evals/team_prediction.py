@@ -211,7 +211,8 @@ def check_prediction(results):
         failed = True                                   # one deciding row is not held, whatever the others have
     else:
         failed = None if None in deciding else False    # all held is a pass; a deciding row with no data is no verdict
-    return rows, failed, dict(dropped, registered={"units": REGISTERED_UNITS, "read": dropped["kept"], "problems": problems})
+    return rows, failed, dict(dropped, registered={"units": REGISTERED_UNITS, "read": dropped["kept"], "problems": problems},
+                              prediction_doc=(results.get("meta") or {}).get("prediction_doc"))
 
 
 def why_not_checkable(results):
@@ -233,6 +234,8 @@ def format_prediction(rows, failed, dropped, label):
     registered = dropped.get("registered") or {}
     problems = registered.get("problems") or []
     lines = [f"=== Week 10 prediction, checked against race '{label}' ==="]
+    if dropped.get("prediction_doc"):
+        lines.append(f"prediction document recorded with this race: git blob {dropped['prediction_doc']}")
     if problems:
         lines += [f"PARTIAL: read on {registered['read']} of {registered['units']} registered units ({'; '.join(problems)}).",
                   f"The thresholds were registered for {REGISTERED_TASKS} tasks x {REGISTERED_REPEATS} repeats = {REGISTERED_UNITS} units, so the rows that "

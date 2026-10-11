@@ -30,6 +30,7 @@ Nothing here decides the winner. The numbers go into docs/week10/findings.md; th
 """
 import json
 import math
+import re
 
 from app import pricing
 from evals import trajectory
@@ -40,7 +41,8 @@ AGENTS = ("manager", "researcher", "calculator")
 PRICE_RATIOS = (1, 2, 4, 8, 20)    # output tokens cost this many input tokens: 1 is the plain count, 4 to 8 is typical of real lists
 DAILY_REQUESTS = 500               # what a free-tier key allowed per model per day when measured (docs/week8)
 LIMIT_STOPS = ("max_steps", "timeout", "token_budget", "repeated_call", "budget")       # a run ended on a limit, not on an answer
-TROUBLE_STOPS = ("error", "quota_exhausted")                                              # a run ended on the provider
+TROUBLE_STOPS = ("error", "quota_exhausted", "empty_reply")                               # a run ended on the provider: a failed call, a spent quota, or a reply with no text and no tool request
+_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 # ---------------------------------------------------------------------------- small statistics
@@ -232,7 +234,8 @@ def asked_side_by_side(record):
 
 
 def provider_trouble(record):
-    """True when the run ended on a provider error, or a specialist did, or the team recorded a warning or an internal error."""
+    """True when the run ended on a provider problem (an error, a spent quota or an empty reply), or a specialist did, or the team
+    recorded a warning or an internal error. Such a run says nothing about the design, so the clean set leaves its unit out."""
     team = record.get("team") or {}
     return (record["stop_reason"] in TROUBLE_STOPS or any(h.get("stop_reason") in TROUBLE_STOPS for h in team.get("handoffs", []))
             or bool(team.get("warnings")) or bool(team.get("errors")) or bool(record.get("usage_warning")))
@@ -479,7 +482,8 @@ def clean_units(results, first=AGENT, second=TEAM, drop_limits=True):
     """The results cut down to the units where both arms ran and neither hit a limit or a provider problem, and what was dropped.
 
     A unit is one task and repeat. Dropping every unit in which ANY agent of either arm ended on a step, token, time or
-    repeat limit, or on a provider error, shows whether the caps and the provider, rather than the designs, decided the result.
+    repeat limit, or on a provider problem (an error, a spent quota or an empty reply: a reply with no text and no tool request),
+    shows whether the caps and the provider, rather than the designs, decided the result.
     With drop_limits=False only the provider problems and the incomplete units go (the prediction counts limit stops itself).
     """
     by_cell = {}
@@ -500,6 +504,88 @@ def clean_units(results, first=AGENT, second=TEAM, drop_limits=True):
     return ({"meta": dict(results["meta"], arms=[first, second], approaches=[first, second]), "runs": kept},
             {"units": len(by_cell), "kept": len(keep), "dropped_for_limits": dropped_limits, "dropped_for_provider": dropped_trouble,
              "incomplete": incomplete})
+
+
+# ---------------------------------------------------------------------------- how the race was run
+
+def _resume_stamp(entry):
+    """When a resumed session started: a dict with 'at' (the current script) or a plain timestamp (an older one)."""
+    return entry.get("at") if isinstance(entry, dict) else entry
+
+
+def calendar_days(meta):
+    """The distinct calendar dates (YYYY-MM-DD, as written) of the race's start and of each resume, oldest first. A stamp that is not a date is ignored."""
+    stamps = [meta.get("started")] + [_resume_stamp(entry) for entry in meta.get("resumed") or []]
+    return sorted({stamp[:10] for stamp in stamps if isinstance(stamp, str) and _DATE_RE.match(stamp)})
+
+
+def _describe_resume(entry):
+    if not isinstance(entry, dict):
+        return str(entry)
+    details = []
+    if entry.get("arms_added"):
+        details.append("added " + ", ".join(entry["arms_added"]))
+    if entry.get("model"):
+        details.append(f"model {entry['model']}")
+    if entry.get("rpm") is not None:
+        details.append(f"{entry['rpm']} calls a minute")
+    return str(entry.get("at") or "?") + (f" ({'; '.join(details)})" if details else "")
+
+
+def _interleaving(meta):
+    """The sentence about run order: interleaved, except any arm a resume added after the others had run."""
+    said = "; runs interleaved, the order rotating" if meta.get("interleaved") else ""
+    late = meta.get("not_interleaved_arms") or []
+    if late:
+        said += f"{',' if said else ';'} except {', '.join(late)}, which ran after the others (added by a resume) and so were not interleaved with them"
+    return said
+
+
+def history_lines(meta):
+    """Header lines on how the race was run, each only when the file records it (older files do not): resumes with the rate limit and
+    model of each session, runs set aside after an outage, the code stamp of each session, and the prediction document's hash."""
+    lines, resumed = [], meta.get("resumed") or []
+    if resumed:
+        lines.append(f"resumed {len(resumed)} time{'' if len(resumed) == 1 else 's'}: " + "; ".join(_describe_resume(entry) for entry in resumed))
+        rates = sorted({rate for rate in [meta.get("llm_rpm")] + [e.get("rpm") for e in resumed if isinstance(e, dict)]
+                        if isinstance(rate, int) and not isinstance(rate, bool)})
+        if len(rates) > 1:
+            lines.append(f"WARNING: the sessions ran at different rate limits ({' and '.join(str(rate) for rate in rates)} calls a minute), "
+                         "so wall-clock seconds are not comparable across them")
+        requested = sorted({model for model in (meta.get("models") or {}).values() if model})
+        for entry in resumed:
+            if isinstance(entry, dict) and entry.get("model") and requested and entry["model"] not in requested:
+                lines.append(f"WARNING: the session at {entry.get('at') or '?'} used model {entry['model']}, not {' or '.join(requested)}")
+    aside = len(meta.get("set_aside_runs") or [])
+    if aside:
+        lines.append(f"{aside} run{' was' if aside == 1 else 's were'} set aside after a provider outage and run again (kept verbatim in the saved file, outside the runs counted below)")
+    history = [entry for entry in meta.get("code_history") or [] if isinstance(entry, dict)]
+    if history:
+        codes = [entry.get("code") or {} for entry in history]
+        changed = sorted({key for code in codes[1:] for key in set(code) | set(codes[0]) if code.get(key) != codes[0].get(key)})
+        same = "the code was the same in every session" if not changed else \
+            f"the code was not the same in every session (differs from the first stamp in: {', '.join(changed)})"
+        stamps = "; ".join(f"{entry.get('at') or '?'} git {code.get('git', '?')}" for entry, code in zip(history, codes))
+        lines.append(f"code history: {len(history)} stamp{'' if len(history) == 1 else 's'} ({stamps}); {same}")
+    if meta.get("prediction_doc"):
+        lines.append(f"prediction document (docs/week10/prediction.md): git blob {meta['prediction_doc']}, recorded when the race started")
+    return lines
+
+
+def closing_text(meta):
+    """The paragraph that ends the report: what the numbers cannot tell you, with what the file knows about the race filled in."""
+    days = calendar_days(meta)
+    when = (f"this race spanned a quota reset (it ran on {len(days)} calendar days: {', '.join(days)}), so it is one model but not one day, "
+            "drift between the days is in the comparison, and it is one run of the race" if len(days) > 1
+            else "this is one model on one day and one run of the race")
+    return (f"Read before quoting a number: {when}, so variation between races is not measured. "
+            "The runs are few (the repeats of a task are correlated), so quality is described, not ranked: a gap smaller than the intervals "
+            "and the McNemar p allow is not resolved, and with the single agent near the ceiling only a loss can show. The team and the "
+            "single agent differ in more than one thing (prompts, the split of tools, a manager that must rephrase the question, per-agent "
+            "step limits), so this compares THIS team with the Week 7 agent as it stands, not multi-agent with single-agent in general. "
+            "Wall-clock time is mostly the shared rate limiter, and a timeout is probably the limiter unless model seconds alone exceed the "
+            "budget. Parallel hand-offs were not tried. Tokens are the provider's own counts. Dollars are only as good as the prices you "
+            "state. The verdict is yours to write in docs/week10/findings.md.")
 
 
 # ---------------------------------------------------------------------------- the whole comparison
@@ -584,10 +670,11 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
     stats, arms = data["stats"], data["arms"]
     models = meta.get("models") or {}
     limits = meta.get("limits") or {}
+    noise_late = "this arm ran after the others, so day-to-day drift is in it" if NOISE in (meta.get("not_interleaved_arms") or []) else ""
     lines = [f"=== Week 10 race '{meta.get('label', '?')}': {len(meta.get('tasks', []))} task(s) x {meta.get('repeats', '?')} repeat(s), "
              f"requested model {models.get(AGENT) or models.get(TEAM) or '?'} ===",
              f"arms: {', '.join(arms)}" + (f"   ({NOISE} is a second identical single-agent arm: a calibration of the method)" if NOISE in arms else "")
-             + ("; runs interleaved, the order rotating" if meta.get("interleaved") else ""),
+             + _interleaving(meta),
              f"limits per run: {limits.get('max_steps', '?')} steps, {limits.get('max_total_tokens', '?')} tokens, "
              f"{limits.get('timeout_seconds', '?')}s (the team shares ONE token and time budget; its step limits are per agent); "
              f"rate limit {meta.get('llm_rpm', '?')} calls a minute"]
@@ -597,6 +684,7 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
         lines.append("code: " + ", ".join(f"{key} {value}" for key, value in meta["code"].items()))
     if meta.get("corpus"):
         lines.append(f"corpus: {len(meta['corpus'])} files, hashes " + ", ".join(f"{name} {digest}" for name, digest in meta["corpus"].items()))
+    lines += history_lines(meta)
     if meta.get("caps"):
         lines += ["", "CAPS      what each agent may use. The team shares ONE token and time budget; its step limits are per agent, so its total number of model calls is not capped as a single agent's is",
                   f"{'arm':<10}{'agent':<12}{'steps':>6}{'tokens':>9}{'timeout':>9}{'calls per tool':>16}{'memory':>8}"]
@@ -634,7 +722,8 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
                      "at this number of runs a gap of one or two runs is not resolved. Read the by-task line first: the pair line counts "
                      "the near-copy repeats of a task as separate trials")
     if "calibration" in data:
-        lines += [_pair_line(data["calibration"]["paired"], AGENT, NOISE, f"calibration, {AGENT} against {NOISE} (the same design twice), paired by task and repeat"),
+        lines += [_pair_line(data["calibration"]["paired"], AGENT, NOISE,
+                             f"calibration, {AGENT} against {NOISE} (the same design twice{', but ' + noise_late if noise_late else ''}), paired by task and repeat"),
                   _task_line(data["calibration"]["by_task"], AGENT, NOISE)]
     lines += ["", "SPEED     per run. Model seconds are time inside model calls. Wall seconds include queueing behind the previous run's calls in the shared rate limiter",
               f"{'arm':<9}{'calls':>7}{'max':>5}{'>8':>4}{'>12':>5}{'model s mean':>14}{'median':>8}{'max':>7}{'wall s mean':>13}{'median':>8}{'max':>7}{'waiting':>9}{'limiter s':>11}"]
@@ -695,7 +784,7 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
     if "calibration" in data:
         ratios = data["calibration"]["noise_over_agent"]
         lines.append(f"{NOISE} / {AGENT}:  calls {_x(ratios['calls'])}, tokens {_x(ratios['tokens'])}, model seconds {_x(ratios['model_seconds'])}, "
-                     f"wall seconds {_x(ratios['elapsed'])}   (the same design twice: how far apart chance puts two arms)")
+                     f"wall seconds {_x(ratios['elapsed'])}   (the same design twice: how far apart chance puts two arms{'; ' + noise_late if noise_late else ''})")
     if "per_agent" in data and data["per_agent"]["runs"]:
         crew = data["per_agent"]
         lines += ["", f"THE TEAM, BY AGENT   over {crew['runs']} run(s)",
@@ -739,7 +828,7 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
     if "clean" in data:
         clean, dropped = data["clean"], data["clean"]["dropped"]
         lines += ["", f"SENSITIVITY   the same comparison with every unit dropped in which any agent of either arm hit a limit or a provider problem "
-                      f"({dropped['kept']} of {dropped['units']} units kept: {dropped['dropped_for_limits']} dropped for limits, "
+                      f"(an error, a spent quota or an empty reply) ({dropped['kept']} of {dropped['units']} units kept: {dropped['dropped_for_limits']} dropped for limits, "
                       f"{dropped['dropped_for_provider']} for the provider, {dropped['incomplete']} incomplete)"]
         lines += _quality_rows(clean["stats"], (AGENT, TEAM))
         lines += [_pair_line(clean["paired"], AGENT, TEAM), _task_line(clean["paired_by_task"], AGENT, TEAM)]
@@ -752,12 +841,5 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
             lines.append(f"      failed checks: {'; '.join(failed['failed_checks'])}")
         if failed["answer"]:
             lines.append(f"      answer: {' '.join(failed['answer'].split())}")
-    lines += ["", "Read before quoting a number: this is one model on one day and one run of the race, so variation between races is not measured. "
-              "The runs are few (the repeats of a task are correlated), so quality is described, not ranked: a gap smaller than the intervals "
-              "and the McNemar p allow is not resolved, and with the single agent near the ceiling only a loss can show. The team and the "
-              "single agent differ in more than one thing (prompts, the split of tools, a manager that must rephrase the question, per-agent "
-              "step limits), so this compares THIS team with the Week 7 agent as it stands, not multi-agent with single-agent in general. "
-              "Wall-clock time is mostly the shared rate limiter, and a timeout is probably the limiter unless model seconds alone exceed the "
-              "budget. Parallel hand-offs were not tried. Tokens are the provider's own counts. Dollars are only as good as the prices you "
-              "state. The verdict is yours to write in docs/week10/findings.md."]
+    lines += ["", closing_text(meta)]
     return lines
