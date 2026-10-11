@@ -80,6 +80,7 @@ class QuotaTests(TeamTestCase):
         told = client.requests[-1]["messages"][-1]
         self.assertEqual(told["role"], "tool")
         self.assertIn("daily quota is used up", told["content"])
+        self.assertIn("Do not ask again", told["content"])
 
 
 class QuotaStopTests(TeamTestCase):

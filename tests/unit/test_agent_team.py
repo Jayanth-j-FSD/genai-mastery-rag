@@ -54,7 +54,7 @@ class HandOffTests(TeamTestCase):
             says(f"30 calendar days. [source: {SOURCE}]", prompt=80, completion=12),
             says(answer, prompt=150, completion=14)])
         self.assertEqual(client.script, [])
-        self.assertEqual((run.stop_reason, run.finished, run.answer), ("final", True, answer))
+        self.assertEqual((run.question, run.stop_reason, run.finished, run.answer), (QUESTION, "final", True, answer))
         self.assertEqual([(s["n"], s["agent"], s["local_n"]) for s in run.steps],
                          [(1, "manager", 1), (2, "researcher", 1), (3, "researcher", 2), (4, "manager", 2)])
         self.assertEqual([s["handoff"] for s in run.steps], [None, 1, 1, None])
@@ -142,6 +142,11 @@ class HandOffTests(TeamTestCase):
         for name in sources:
             self.assertIn(name, last)                                          # the oldest result was shortened, its source tag was not
         self.assertIn("[shortened]", last)                                     # and it really was shortened: the test proves what it says
+
+    def test_the_question_is_handed_over_and_recorded_without_the_spaces_around_it(self):
+        run, client = self.run_team([asks(to_researcher("m1", "  notice period  ")), says("30 calendar days"), says("done")])
+        self.assertEqual(client.requests[1]["messages"][1], {"role": "user", "content": "notice period"})
+        self.assertEqual(run.team["handoffs"][0]["question"], "notice period")
 
     def test_a_blank_question_is_refused_without_running_a_specialist(self):
         run, client = self.run_team([asks(to_researcher("m1", question="   ")), says(IDK)])
@@ -247,6 +252,20 @@ class UsageTests(TeamTestCase):
         self.assertEqual(run.usage["calls"], llm.usage_snapshot()["calls"])    # the run's usage is what the process counters moved by
         self.assertEqual(sum(row["calls"] for row in run.team["per_agent"].values()) + 1, run.usage["calls"])
 
+    def test_a_stray_call_that_reported_no_tokens_is_still_reported_as_a_mismatch(self):
+        stray = _testkit.fake_response("x", prompt_tokens=0, completion_tokens=0)
+
+        def meddle(query, top_k=3):                      # one more call than the agents made, and it counted no tokens
+            with llm.call_scope("somebody-else"):
+                llm.chat([], model="m1")
+            return "[1] [source: x.md] text"
+
+        tools = [Tool("search_policies", "s", SEARCH.parameters, meddle), calculator_tool(), date_tool()]
+        run, _client = self.run_team([asks(to_researcher("m1")), asks(call("r1", "search_policies", {"query": "q"})), stray,
+                                      says("a"), says("b")], tools=tools)
+        self.assertEqual(len(run.team["warnings"]), 1)
+        self.assertEqual(run.usage["prompt_tokens"], sum(row["prompt_tokens"] for row in run.team["per_agent"].values()))      # the tokens agree: only the calls do not
+
     def test_every_model_call_is_in_the_call_log_tagged_with_its_agent_and_hand_off(self):
         run, _client = self.run_team(list(self.SCRIPT))
         log = run.team["call_log"]
@@ -288,6 +307,40 @@ class UsageTests(TeamTestCase):
         self.assertEqual((handoff["state"], handoff["stop_reason"]), ("not_finished", "internal_error"))
         self.assertEqual((handoff["calls"], handoff["prompt_tokens"], handoff["completion_tokens"]), (1, 40, 4))   # the hand-off record agrees with the per-agent total
 
+    def test_an_agents_seconds_over_several_hand_offs_are_summed_without_float_noise(self):
+        now, seconds = {"t": 0.0}, iter([0.5, 0.1, 0.5, 0.2, 0.5])
+
+        class TickingClient(FakeClient):
+            def _create(self, **kwargs):
+                now["t"] += next(seconds)
+                return super()._create(**kwargs)
+
+        client = TickingClient([asks(to_researcher("m1", "first thing")), says("fact one"), asks(to_researcher("m2", "second thing")),
+                                says("fact two"), says("done")])
+        with mock.patch.object(llm, "_get_client", return_value=client), mock.patch.object(llm.time, "monotonic", lambda: now["t"]):
+            run = team.run_team(QUESTION, TOOLS, clock=lambda: now["t"])
+        per_agent = run.team["per_agent"]
+        self.assertEqual((per_agent["manager"]["api_seconds"], per_agent["researcher"]["api_seconds"]), (1.5, 0.3))      # 0.1 + 0.2 is 0.30000000000000004 until it is rounded
+        self.assertEqual(run.usage["api_seconds"], 1.8)
+
+    def test_the_seconds_a_rate_limit_made_each_hand_off_wait_are_kept_in_its_record(self):
+        now = {"t": 1000.0}
+
+        def sleep(seconds):
+            now["t"] += seconds
+
+        llm._call_times.clear()
+        self.addCleanup(llm._call_times.clear)
+        client = FakeClient(list(self.SCRIPT))
+        with mock.patch.object(llm, "_get_client", return_value=client), mock.patch.object(llm.time, "monotonic", lambda: now["t"]), \
+                mock.patch.object(llm.time, "sleep", sleep):
+            run = team.run_team(QUESTION, TOOLS, rpm=2, clock=lambda: now["t"])        # the third call of the four has to wait for a slot
+        waited = run.team["handoffs"][0]["wait_seconds"]
+        self.assertGreater(waited, 59.0)
+        self.assertEqual(waited, run.team["per_agent"]["researcher"]["wait_seconds"])
+        self.assertEqual(run.team["per_agent"]["manager"]["wait_seconds"], 0.0)
+        self.assertEqual(run.usage["wait_seconds"], waited)
+
     def test_a_difference_in_tokens_alone_between_the_agents_and_the_process_counters_is_reported_as_a_mismatch(self):
         def drifts(query, top_k=3):                      # the process counters move by tokens, with no call and no agent to blame
             llm._usage["prompt_tokens"] += 5
@@ -314,8 +367,17 @@ class UsageTests(TeamTestCase):
         self.assertEqual((per_agent["manager"]["api_seconds"], per_agent["researcher"]["api_seconds"]), (9.0, 6.0))
         self.assertEqual(run.team["handoffs"][0]["api_seconds"], 6.0)
         self.assertEqual(run.usage["api_seconds"], 15.0)
+        self.assertEqual(run.elapsed_seconds, 15.0)                                     # the team's own clock, start to finish
         self.assertEqual([c["seconds"] for c in run.team["call_log"]], [1.0, 2.0, 4.0, 8.0])
         self.assertEqual(run.team["warnings"], [])
+
+    def test_the_notes_in_the_run_are_the_managers_own_and_the_model_is_the_one_every_agent_was_asked_for(self):
+        run, client = self.run_team([
+            asks(call("n1", "remember", {"fact": "manager note"})), asks(to_researcher("m1")),
+            asks(call("r1", "remember", {"fact": "researcher note"})), says("30 days"), says("done")], model="model-x")
+        self.assertEqual(run.notes, ["manager note"])
+        self.assertEqual(run.model, "model-x")
+        self.assertEqual({request["model"] for request in client.requests}, {"model-x"})
 
     def test_each_run_starts_with_a_clean_record(self):
         first, _ = self.run_team(list(self.SCRIPT))
