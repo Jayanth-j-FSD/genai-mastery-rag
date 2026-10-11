@@ -340,7 +340,13 @@ def results_path(label):
 
 
 def load_aggregate(label_or_path):
-    return runner.load_results(label_or_path if os.path.exists(label_or_path) else results_path(label_or_path))
+    """A saved measurement by label or by path. A dry run's file lives beside its raw logs, so a label starting with dry- finds it there."""
+    candidates = [label_or_path, results_path(label_or_path), os.path.join(MEASURE_DIR, runner.safe_label(label_or_path), "cost-dry.json")]
+    for path in candidates:
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as handle:
+                return json.load(handle)
+    raise FileNotFoundError(f"No saved measurement called {label_or_path!r} (looked for {os.path.basename(candidates[1])})")
 
 
 def aggregate_exists(label):

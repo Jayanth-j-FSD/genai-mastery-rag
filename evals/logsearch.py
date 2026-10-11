@@ -107,7 +107,7 @@ def default_paths(log=None, drill=None):
 
 # ---------------------------------------------------------------------------- filtering
 
-def _stated(price):
+def stated_price(price):
     """A price as stated. None means not stated, which is 0.0 here, never the PRICE_* setting: the search shows dollars only
     from prices given to it, so the same log never prints two different costs on two machines."""
     return 0.0 if price is None else price
@@ -117,7 +117,7 @@ def cost_of(record, input_per_million, output_per_million):
     """Dollars at the prices given, or None when the request's tokens are unknown or no price was given."""
     if record["prompt_tokens"] is None or record["completion_tokens"] is None:
         return None
-    return pricing.cost_of(record["prompt_tokens"], record["completion_tokens"], _stated(input_per_million), _stated(output_per_million))
+    return pricing.cost_of(record["prompt_tokens"], record["completion_tokens"], stated_price(input_per_million), stated_price(output_per_million))
 
 
 def matches(record, criteria):
@@ -233,7 +233,7 @@ def show_lines(record, input_per_million=None, output_per_million=None):
         tokens = "-" if span.get("prompt_tokens") is None else f"{span.get('prompt_tokens')}/{span.get('completion_tokens')}"
         cost = "-"
         if span.get("kind") == "model" and span.get("prompt_tokens") is not None:
-            dollars = pricing.cost_of(span["prompt_tokens"], span.get("completion_tokens") or 0, _stated(input_per_million), _stated(output_per_million))
+            dollars = pricing.cost_of(span["prompt_tokens"], span.get("completion_tokens") or 0, stated_price(input_per_million), stated_price(output_per_million))
             cost = "no price" if dollars is None else f"${dollars:.6f}"
         elif span.get("cost_usd") == 0.0:
             cost = "$0 (local)"
@@ -247,7 +247,7 @@ def show_lines(record, input_per_million=None, output_per_million=None):
         lines.append(f"  totals    {usage.get('model_calls')} model call(s), {usage.get('prompt_tokens')} in / {usage.get('completion_tokens')} out tokens"
                      + ("" if usage.get("tokens_known") else " (a lower bound: the provider did not report every call)")
                      + f", {usage.get('provider_ms')} ms at the provider, {usage.get('wait_ms')} ms waiting")
-    priced = pricing.is_priced(_stated(input_per_million), _stated(output_per_million))
-    lines.append("  cost      " + (pricing.describe_prices(_stated(input_per_million), _stated(output_per_million)) if priced
+    priced = pricing.is_priced(stated_price(input_per_million), stated_price(output_per_million))
+    lines.append("  cost      " + (pricing.describe_prices(stated_price(input_per_million), stated_price(output_per_million)) if priced
                                   else "no price stated (pass --price-in and --price-out to see dollars)"))
     return lines
