@@ -40,7 +40,8 @@ def describe_prices(input_per_m=None, output_per_m=None):
     """One line saying which prices a cost used, so a number never travels without them."""
     input_per_m, output_per_m = _resolve(input_per_m, output_per_m)
     if input_per_m <= 0 and output_per_m <= 0:
-        return "no price stated, so cost is not reported (set PRICE_INPUT_PER_MILLION and PRICE_OUTPUT_PER_MILLION)"
+        return ("no price stated, so cost is not reported (pass --price-in, --price-out and --price-source "
+                "to scripts/race_team.py --show)")                      # the PRICE_* settings are not read by the race report
     return (f"${input_per_m:g} per million input tokens and ${output_per_m:g} per million output tokens "
             f"({ASSUMPTION})")
 

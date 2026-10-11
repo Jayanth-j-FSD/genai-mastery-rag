@@ -1,4 +1,9 @@
 """Week 10: app/pricing.py turns tokens into dollars only with a price you state (no network)."""
+import contextlib
+import io
+import os
+import re
+import sys
 import unittest
 from unittest import mock
 
@@ -7,6 +12,11 @@ from pydantic import ValidationError
 
 from app import pricing
 from app.config import Settings, settings
+
+sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))
+import race_team           # noqa: E402
+
+OPTION = re.compile(r"--[a-z][a-z-]*")
 
 
 class CostTests(unittest.TestCase):
@@ -41,6 +51,56 @@ class CostTests(unittest.TestCase):
         self.assertIn("assumption", pricing.describe_prices(0.10, 0.40))
         self.assertIn("$0.1 per million input tokens", pricing.describe_prices(0.10, 0.40))
         self.assertIn("no price stated", pricing.describe_prices(0.0, 0.0))
+
+
+def race_team_options():
+    """Every option scripts/race_team.py really has, read from its own --help."""
+    shown = io.StringIO()
+    with contextlib.redirect_stdout(shown):
+        try:
+            race_team.main(["--help"])
+        except SystemExit:
+            pass
+    return set(OPTION.findall(shown.getvalue()))
+
+
+def price_paragraph():
+    """The comment lines directly above PRICE_INPUT_PER_MILLION in .env.example."""
+    with open(os.path.join(_testkit.ROOT, ".env.example"), encoding="utf-8") as handle:
+        lines = handle.read().splitlines()
+    index = next(number for number, line in enumerate(lines) if line.startswith("PRICE_INPUT_PER_MILLION="))
+    block = []
+    while index > 0 and lines[index - 1].startswith("#"):
+        index -= 1
+        block.insert(0, lines[index])
+    return "\n".join(block)
+
+
+class GuidanceTests(unittest.TestCase):
+    """No Week 10 command reads the PRICE_* settings: dollars come only from the options of `race_team.py --show`."""
+
+    def test_the_options_the_report_says_to_use_are_real_options_of_the_race_script(self):
+        real = race_team_options()
+        for option in ("--show", "--price-in", "--price-out", "--price-source"):
+            self.assertIn(option, real)
+
+    def test_the_no_price_hint_names_exactly_the_price_options_of_the_race_script_and_no_setting(self):
+        hint = pricing.describe_prices(0.0, 0.0)
+        self.assertTrue(hint.startswith("no price stated, so cost is not reported ("))
+        named = set(OPTION.findall(hint))
+        self.assertEqual(named, {"--show", "--price-in", "--price-out", "--price-source"})
+        self.assertTrue(named <= race_team_options())
+        self.assertIn("scripts/race_team.py", hint)
+        self.assertTrue(os.path.exists(os.path.join(_testkit.ROOT, "scripts", "race_team.py")))
+        self.assertNotIn("PRICE_", hint)
+
+    def test_the_env_example_says_the_race_report_ignores_the_two_price_settings_and_names_the_real_options(self):
+        paragraph = price_paragraph()
+        self.assertIn("No Week 10 command reads", paragraph)
+        named = set(OPTION.findall(paragraph))
+        self.assertTrue({"--show", "--price-in", "--price-out", "--price-source"} <= named)
+        self.assertTrue(named <= race_team_options())
+        self.assertNotIn("the reports then show tokens only", paragraph)             # the old promise that setting them changes a report
 
 
 class SettingTests(unittest.TestCase):
