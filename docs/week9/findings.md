@@ -25,58 +25,97 @@ tools are named nowhere in the agent. Week 9 changed no file of the agent, the r
 A test, `test_the_agent_machinery_never_names_a_particular_server`, fails if any file of the agent, the client or the
 vetting gate mentions the demo HRIS server by name, or if the loop imports `app.mcp`.
 
-A live run with these tools, on `gemini-3-flash-preview`, 2026-10-11, recorded before the review fixes to the client (the agent, the tools and the model are as now):
+A live run with these tools, on `gemini-3-flash-preview`, 2026-10-11:
 
 `python scripts/run_agent_mcp.py --model gemini-3-flash-preview "Employee E1001 asks how many annual leave days they have left, and how many of those they could carry forward at year end"`
 
 ```
 discovered 6 tool(s) on 3 server(s); 6 accepted, 0 refused:
-    policy.search_policies        Search the company policy documents (leave, notice periods, remote wor
-    utils.calculate              Do exact arithmetic. Use it whenever the answer needs a sum, differenc
-    utils.add_days               Add calendar days to a date (negative days go backwards) and get the r
-    hris.get_leave_balance      Annual leave entitlement, days taken and days remaining, and sick days
-    hris.get_employee_summary   Name, department, manager, start date and employment status (probation
-    hris.list_direct_reports    The employee ids and names of the people who report directly to one ma
+    policy.search_policies        Search the company policy documents (leave, notice periods, remote ...
+    utils.calculate              Do exact arithmetic. Use it whenever the answer needs a sum, differ...
+    utils.add_days               Add calendar days to a date (negative days go backwards) and get th...
+    hris.get_leave_balance      Annual leave entitlement, days taken and days remaining, and sick d...
+    hris.get_employee_summary   Name, department, manager, start date and employment status (probat...
+    hris.list_direct_reports    The employee ids and names of the people who report directly to one...
 
 Question: Employee E1001 asks how many annual leave days they have left, and how many of those they could carry forward at year end
 
 [step 1] CALL   get_leave_balance({"employee_id": "E1001"})
           RESULT {"employee_id":"E1001","as_of":"2026-10-01","annual_entitlement_days":18,"annual_taken_days":4,"annual_remaining_days":14,"sick_taken_days":2}
-          (909 tokens, 2.0s)
+          (996 tokens, 4.5s)
 [step 2] CALL   search_policies({"query": "carry forward annual leave"})
           RESULT [1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar d...
-          (1131 tokens, 1.4s)
+          (1218 tokens, 1.2s)
 [step 3] CALL   search_policies({"query": "carry forward unused leave Synthetic_HR_Policy_RAG_Test_Dataset.md"})
-          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. � Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effectiv...
-          (1707 tokens, 2.3s)
-[step 4] CALL   search_policies({"query": "carry forward limit"})
+          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. ? Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effectiv...
+          (1794 tokens, 1.8s)
+[step 4] CALL   search_policies({"query": "carry forward Synthetic_HR_Policy_RAG_Test_Dataset.md"})
+          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. ? Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effectiv...
+          (2505 tokens, 1.8s)
+[step 5] CALL   search_policies({"query": "annual leave Synthetic_HR_Policy_RAG_Test_Dataset.md"})
+          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. ? Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effectiv...
+          (2622 tokens, 1.7s)
+[step 6] CALL   search_policies({"query": "carry unused Synthetic_HR_Policy_RAG_Test_Dataset.md"})
+          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. ? Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effectiv...
+          (2973 tokens, 1.7s)
+[step 7] CALL   search_policies({"query": "carry forward Synthetic_HR_Policy_RAG_Test_Dataset.md"})  <-- the tool refused
+          RESULT You already called search_policies with exactly these arguments and got: [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. ? Synthetic HR Policy Handbook **Document purpose:**...
+          (3066 tokens, 96.4s)
+[step 8] CALL   search_policies({"query": "carry forward unused annual leave days"})
           RESULT [1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar d...
-          (2427 tokens, 2.5s)
-[step 5] CALL   search_policies({"query": "Northstar Digital Solutions carry forward days"})
-          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Effective Dates Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to ...
-          (2676 tokens, 1.9s)
-[step 6] CALL   search_policies({"query": "annual leave allowance days"})
-          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may pe...
-          (2666 tokens, 2.5s)
-[step 7] CALL   search_policies({"query": "carry forward Synthetic_HR_Policy_RAG_Test_Dataset.md"})
-          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. � Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effectiv...
-          (3106 tokens, 94.5s)
-[step 8] CALL   search_policies({"query": "carry forward limit Synthetic_HR_Policy_RAG_Test_Dataset.md"})
-          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. � Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effectiv...
-          (3455 tokens, 1.7s)
+          (2720 tokens, 1.3s)
 
 NO ANSWER: the run was stopped before a final answer.
 
-stopped because: max_steps | 8 step(s) | 8 model call(s), 18077 tokens
+stopped because: max_steps | 8 step(s) | 8 model call(s), 17894 tokens
 ```
 
-Read straight off that output: the agent called `get_leave_balance` x 1, `search_policies` x 7. The run ended without an answer (stopped because `max_steps`, 8 steps, 18077 tokens). Four or more calls to one tool is what Week 8 calls `over-calling`; it is a property of the agent loop and the model, not of MCP.
+Read straight off that output: the agent asked for `get_leave_balance` x 1, `search_policies` x 7 (6 returned a result). The run ended without an answer (stopped because `max_steps`, 8 steps, 17894 tokens). Four or more calls to one tool that returned a result is what Week 8 calls `over-calling`; it is a property of the agent loop and the model, not of MCP.
 
-A second run with the Week 8 call budget could not be made: the model's free daily quota was used up. Its command and result are left open:
+`AGENT_MAX_CALLS_PER_TOOL=3 python scripts/run_agent_mcp.py --model gemini-3-flash-preview "Employee E1001 asks how many annual leave days they have left, and how many of those they could carry forward at year end"`
 
-`AGENT_MAX_CALLS_PER_TOOL=3 python scripts/run_agent_mcp.py --model <a model with quota left> "Employee E1001 asks how many annual leave days they have left, and how many of those they could carry forward at year end"`
+```
+discovered 6 tool(s) on 3 server(s); 6 accepted, 0 refused:
+    policy.search_policies        Search the company policy documents (leave, notice periods, remote ...
+    utils.calculate              Do exact arithmetic. Use it whenever the answer needs a sum, differ...
+    utils.add_days               Add calendar days to a date (negative days go backwards) and get th...
+    hris.get_leave_balance      Annual leave entitlement, days taken and days remaining, and sick d...
+    hris.get_employee_summary   Name, department, manager, start date and employment status (probat...
+    hris.list_direct_reports    The employee ids and names of the people who report directly to one...
 
-Result: not run yet.
+Question: Employee E1001 asks how many annual leave days they have left, and how many of those they could carry forward at year end
+
+[step 1] CALL   get_leave_balance({"employee_id": "E1001"})
+          RESULT {"employee_id":"E1001","as_of":"2026-10-01","annual_entitlement_days":18,"annual_taken_days":4,"annual_remaining_days":14,"sick_taken_days":2}
+          (996 tokens, 3.5s)
+[step 2] CALL   search_policies({"query": "carry forward annual leave"})
+          RESULT [1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar d...
+          (1218 tokens, 1.7s)
+[step 3] CALL   search_policies({"query": "carry forward unused leave Synthetic_HR_Policy_RAG_Test_Dataset.md"})
+          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. ? Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effectiv...
+          (1794 tokens, 2.5s)
+[step 4] CALL   search_policies({"query": "carry forward Synthetic_HR_Policy_RAG_Test_Dataset.md"})
+          RESULT [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. ? Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effectiv...
+          (2505 tokens, 2.0s)
+[step 5] CALL   search_policies({"query": "annual leave Synthetic_HR_Policy_RAG_Test_Dataset.md"})  <-- refused before it ran (the result says by what)
+          RESULT BUDGET: search_policies has already returned 3 results for this question. Use what you found. If it is not enough, reply exactly: I don't know based on the provided documents.
+          (2622 tokens, 1.5s)
+[step 6] CALL   search_policies({"query": "carry forward Synthetic_HR_Policy_RAG_Test_Dataset.md"})  <-- the tool refused
+          RESULT You already called search_policies with exactly these arguments and got: [1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. ? Synthetic HR Policy Handbook **Document purpose:**...
+          (2474 tokens, 2.5s)
+[step 7] CALL   search_policies({"query": "unused annual leave Synthetic_HR_Policy_RAG_Test_Dataset.md"})  <-- refused before it ran (the result says by what)
+          RESULT BUDGET: search_policies has already returned 3 results for this question. Use what you found. If it is not enough, reply exactly: I don't know based on the provided documents.
+          (2635 tokens, 102.4s)
+[step 8] CALL   search_policies({"query": "carry forward limit annual leave"})  <-- refused before it ran (the result says by what)
+          RESULT BUDGET: search_policies has already returned 3 results for this question. Use what you found. If it is not enough, reply exactly: I don't know based on the provided documents.
+          (2725 tokens, 2.8s)
+
+NO ANSWER: the run was stopped before a final answer.
+
+stopped because: max_steps | 8 step(s) | 8 model call(s), 16969 tokens
+```
+
+Read straight off that output: the agent asked for `get_leave_balance` x 1, `search_policies` x 7 (3 returned a result), and 3 call(s) were answered with the `BUDGET` notice and not executed. The run ended without an answer (stopped because `max_steps`, 8 steps, 16969 tokens).
 
 ## 2. Adding a capability without changing the agent (check 2)
 
@@ -90,7 +129,7 @@ discovered 3 tool(s) on 2 server(s); 3 accepted, 0 refused:
 ```
 
 The only difference between that run and the one in section 1 is the config file: `diff mcp_servers.json mcp_servers.no-hris.json`
-shows the HRIS entry, and nothing else, being the line that is missing.
+shows the HRIS entry being the part that is missing (and the comma after the `utils` entry that it needs).
 
 ```
 4,6c4
@@ -134,7 +173,8 @@ Prompts the server offers: ['answer_from_policies']
 `scripts/other_agent_demo.py` is written as if by someone else: a test, `test_the_other_agent_imports_nothing_from_this_project`,
 checks that it imports nothing from this project. It uses `fastmcp`'s client, a different library from the official
 `mcp` client our own agent uses, and is told only a command and a folder. It discovered the policy server's one tool,
-called it, read the `policy://documents` resource and listed the server's one prompt.
+called it, read the `policy://documents` resource and listed the server's one prompt. The order of the two passages
+depends on `RETRIEVAL_MODE`; this was captured with `dense`, the setting in `.env.example`.
 
 ## 4. The raw messages, once
 
@@ -204,8 +244,8 @@ Those were all the requests the server received.
 | A slow tool is a tool error, not a hang | `app/mcp/client.py` | `test_a_tool_that_takes_too_long_is_a_tool_error_not_a_hang` |
 | A server-side error reaches the model as advice it can act on | `app/mcp/client.py` | `test_a_server_side_error_becomes_a_tool_error_with_the_servers_advice`, `test_the_agent_loop_shows_that_error_to_the_model_as_an_observation` |
 
-Not built, only described in `README.md`: remote MCP over HTTP with authentication, and pinning a tool's definition
-after it has been vetted so that a later change is refused.
+Not built: remote MCP over HTTP with authentication (described in `README.md`), and pinning a tool's definition after
+it has been vetted so that a later change is refused (described in `CHANGES.md`).
 
 ## 6. The gate
 
@@ -213,10 +253,10 @@ after it has been vetted so that a later change is refused.
 
 ```
 == check_all ==
-[ok] compile     122 files
-[ok] imports     48 modules, 30 scripts
-[ok] --help      26 scripts
-[ok] unit tests  777 tests in 74.661s
+[ok] compile     124 files
+[ok] imports     48 modules, 31 scripts
+[ok] --help      27 scripts
+[ok] unit tests  847 tests in 73.428s
 
 All checks passed.
 ```
