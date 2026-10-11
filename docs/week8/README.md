@@ -37,7 +37,7 @@ over the agent, and builds defences that are measured, not assumed.
 .\.venv\Scripts\python.exe scripts\run_trajectories.py --label before             # model calls: runs the agent, grades every path
 .\.venv\Scripts\python.exe scripts\run_trajectories.py --grade race-race --label race-regraded   # free: re-grade a saved Week 7 race
 .\.venv\Scripts\python.exe scripts\run_injection.py --static                      # free: what the sanitizer alone removes
-.\.venv\Scripts\python.exe scripts\run_injection.py --label final                 # model calls: every attack, defences off and on
+.\.venv\Scripts\python.exe scripts\run_injection.py --label r2-final              # model calls: every attack, defences off and on
 .\.venv\Scripts\python.exe scripts\compare_trajectories.py before after --save
 .\.venv\Scripts\python.exe scripts\run_trajectories.py --show before               # free: print a saved run's report
 .\.venv\Scripts\python.exe scripts\run_injection.py --compare layer-sanitize layer-guard-fixed layer-validate final   # free
@@ -48,7 +48,8 @@ over the agent, and builds defences that are measured, not assumed.
 .\.venv\Scripts\python.exe scripts\replay_defense.py before before-p control race-race   # free: what the defences would do to saved legitimate runs
 ```
 
-A saved run is never overwritten by accident: a label that already exists is refused unless `--force` is given.
+A saved run is never overwritten by accident: a label that already exists is refused unless `--force` is given, for trajectory
+runs and for injection runs.
 A comparison reads only the (task, repeat) pairs both runs completed, so a run cut short by a daily quota is still
 compared like with like. The per-tool call budget is switched on for one run with `--set agent_max_calls_per_tool=3`.
 

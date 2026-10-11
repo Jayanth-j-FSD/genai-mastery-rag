@@ -67,7 +67,7 @@ The "before" and "after" of the fix are measured again on the merged code.
 the review above. The two runs of every (attack, mode) pair ended with the same answer in all 26 cases, so its 26 are 13
 independent trials. Ten of its 26 defended answers were withheld, and the review found that only 4 of those 10 had
 stopped a working attack (two were correct cited answers to legitimate questions and four were harmless non-answers), so
-its "defences on" numbers are not the numbers of the final defences. The suite is re-run on the final code and reported
+its "defences on" numbers are not the numbers of the final defences. The suite will be re-run on the final code and reported
 separately. The files are kept as they were saved: `injection-final.json` and the four `injection-layer-*.json`.*
 
 The suite runs every attack with the defences off and on, in a private throwaway index, so the real index is
@@ -200,9 +200,11 @@ fewer), and `t7-leave-end-date` took 11,679, 6,111 and 6,101 tokens in its three
    below are unchanged.
 7. **The setup is checked and saved evidence is protected.** Each run records the call cap that was really in force, and
    `check_prediction.py` warns when the arms do not differ only in the cap (another model, a cap that was not recorded,
-   a run cut short). The effect and the noise are read on the pairs all three runs completed. The interleaved job saves
+   another retrieval mode, limit or task list, other settings changed differently, a run cut short). The effect and the noise are read on the pairs all three runs completed. The interleaved job saves
    after every task and stops on a provider outage. `run_trajectories.py` refuses to replace a saved label unless it is
    given `--force`.
+8. **A provider error is not evidence about the cap.** A pair in which either run ended on a provider error is left out
+   of every row, and the number left out is printed, so a single 503 cannot decide the failure rule.
 
 `python scripts/check_prediction.py before-final after-final --noise before-final-2` prints all of this as arithmetic.
 
