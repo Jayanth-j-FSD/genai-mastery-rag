@@ -1,0 +1,164 @@
+"""Check the pre-registered prediction for the team race against a saved race (Week 10).
+
+Before the race was run, `docs/week10/CHANGES.md` wrote down what the team should do and what would
+count as the prediction failing. This turns those sentences into arithmetic over the saved race, so nobody has to
+decide afterwards whether the prediction held. The thresholds below are copied from that section and change only if
+that section does, and that section was committed before the first race run.
+
+Every prediction is about a MEASURED quantity; none says which design to ship. The verdict about which design to use
+is yours to write.
+
+Where the numbers come from. Anchor 1, `evals/results/race-race.json`, the Week 7 race of the single agent on these nine
+tasks: 3.5 model calls and 4,220 tokens a run, 704 of the tokens the opening of its one conversation. Anchor 2, a model of
+the hand-offs on that tool mix (scripts/race_team.py --plan): 4.5 to 8.4 team calls a run (4.5 if every task were a single
+lookup, which needs a manager call, a search, a researcher answer and a manager answer). Anchor 3, two pilots on 14 questions
+that are NOT race tasks (evals/results/pilot-1.json and pilot-2.json, listed in CHANGES.md): the single agent made 2.4 calls
+and 2,300 tokens a run, the team 4.6 calls and 3,300 tokens a run, so the team's calls are smaller (about 730 tokens a call
+against 980). The bands: calls 1.3 to 3.0 times (4.5 / 3.5 up to 8.4 / 3.5, widened), tokens 0.8 to 2.0 times (the 730 tokens
+a call times 4.5 to 8.4 calls, over 4,220), model seconds 1.0 to 3.0 times (they follow the calls).
+
+The predictions, read on the units both arms completed (a unit is a task and a repeat):
+  P1  calls: the team makes between 1.3 and 3.0 times the single agent's model calls per run, and more of them on at
+      least 7 of the 9 tasks
+  P2  tokens: the team uses between 0.8 and 2.0 times the single agent's total tokens per run
+  P3  model seconds: between 1.0 and 3.0 times the single agent's model seconds per run
+  P4  the calculator is handed work in at least 6 of the 9 runs of the three tasks that need a calculation
+      (t7-carry-forward-sum, t7-notice-end-date, t7-leave-end-date) and in at most 4 of the other 18 runs
+  P5  on those three tasks the team passes at least as many runs as the single agent minus 2
+  P6  over all tasks the team passes at least as many runs as the single agent minus 5
+  P7  the manager asks for one hand-off at a time in at least 70% of the team's runs
+  P8  the opening tokens (the first call of every conversation) of the team are at least 1.5 times the single agent's
+  P9  at most 3 team runs and at most 2 single-agent runs end on a limit (steps, tokens, time or a repeated call)
+  P10 on the unanswerable task the team refuses every time and never needs more than 12 model calls
+The prediction has FAILED if P1, P2, P3 or P6 does not hold. The others are reported held or not held, with no verdict
+on the whole. Units where any run ended on a provider problem or carried a usage warning, and units where an arm is
+missing, are dropped and counted. Every analysis not listed here is exploratory.
+"""
+from evals import team_report
+from evals.team_report import AGENT, TEAM
+
+BANDS = {"calls": (1.3, 3.0), "tokens": (0.8, 2.0), "model_seconds": (1.0, 3.0)}
+MORE_CALLS_ON_AT_LEAST = 7              # of the nine tasks
+CALCULATOR_TASKS = ("t7-carry-forward-sum", "t7-notice-end-date", "t7-leave-end-date")
+CALCULATOR_MIN_ON_THEM, CALCULATOR_MAX_ELSEWHERE = 6, 4
+PASS_MARGIN_CALCULATION, PASS_MARGIN_ALL = 2, 5
+ONE_AT_A_TIME_SHARE = 0.70
+OPENING_FACTOR = 1.5
+MAX_LIMIT_STOPS = {TEAM: 3, AGENT: 2}
+UNANSWERABLE, MAX_CALLS_UNANSWERABLE = "t7-unanswerable", 12
+FAILS_IF = ("P1", "P2", "P3", "P6")
+
+
+def _passes(runs):
+    return sum(bool(run["success"]) for run in runs)
+
+
+def _band(key, name):
+    low, high = BANDS[name]
+
+    def check(clean, _runs):
+        value = team_report.ratio(clean["stats"][TEAM][key], clean["stats"][AGENT][key])
+        return value is not None and low <= value <= high, f"{'n/a' if value is None else f'{value:.2f}x'} (band {low} to {high})"
+    return check
+
+
+def _p1(clean, _runs):
+    ratio_held, evidence = _band("calls_mean", "calls")(clean, None)
+    tasks = team_report.per_task(clean["results"], (AGENT, TEAM))
+    more = [task for task, cells in tasks.items() if AGENT in cells and TEAM in cells and cells[TEAM]["calls"] > cells[AGENT]["calls"]]
+    return ratio_held and len(more) >= MORE_CALLS_ON_AT_LEAST, f"{evidence}; more calls on {len(more)} of {len(tasks)} tasks (needs {MORE_CALLS_ON_AT_LEAST})"
+
+
+def _p4(clean, runs):
+    team_runs = [run for run in runs if run["approach"] == TEAM and run.get("team")]
+    asked = lambda run: run["team"]["per_agent"]["calculator"]["handoffs"] > 0         # noqa: E731
+    on = [run for run in team_runs if run["task_id"] in CALCULATOR_TASKS]
+    elsewhere = [run for run in team_runs if run["task_id"] not in CALCULATOR_TASKS]
+    used_on, used_elsewhere = sum(asked(run) for run in on), sum(asked(run) for run in elsewhere)
+    held = used_on >= CALCULATOR_MIN_ON_THEM and used_elsewhere <= CALCULATOR_MAX_ELSEWHERE
+    return held, (f"calculator handed work in {used_on} of {len(on)} runs of the calculation tasks (needs at least {CALCULATOR_MIN_ON_THEM}) "
+                  f"and in {used_elsewhere} of {len(elsewhere)} other runs (at most {CALCULATOR_MAX_ELSEWHERE})")
+
+
+def _passes_on(runs, arm, tasks):
+    return _passes([run for run in runs if run["approach"] == arm and run["task_id"] in tasks])
+
+
+def _p5(clean, runs):
+    agent, crew = _passes_on(runs, AGENT, CALCULATOR_TASKS), _passes_on(runs, TEAM, CALCULATOR_TASKS)
+    return crew >= agent - PASS_MARGIN_CALCULATION, f"team {crew}, single agent {agent} passes on the calculation tasks (team needs at least {agent - PASS_MARGIN_CALCULATION})"
+
+
+def _p6(clean, runs):
+    agent, crew = clean["stats"][AGENT]["success"], clean["stats"][TEAM]["success"]
+    return crew >= agent - PASS_MARGIN_ALL, f"team {crew}, single agent {agent} passes (team needs at least {agent - PASS_MARGIN_ALL})"
+
+
+def _p7(clean, runs):
+    team_runs = [run for run in runs if run["approach"] == TEAM and run.get("team")]
+    one_at_a_time = sum(team_report.overlap_saving(run) == 0 for run in team_runs)
+    share = one_at_a_time / len(team_runs) if team_runs else 0.0
+    return share >= ONE_AT_A_TIME_SHARE, f"{one_at_a_time} of {len(team_runs)} team runs ({share:.0%}; needs {ONE_AT_A_TIME_SHARE:.0%})"
+
+
+def _p8(clean, runs):
+    agent, crew = clean["stats"][AGENT]["opening_mean"], clean["stats"][TEAM]["opening_mean"]
+    value = team_report.ratio(crew, agent)
+    return value is not None and value >= OPENING_FACTOR, f"{'n/a' if value is None else f'{value:.2f}x'} (needs at least {OPENING_FACTOR}x)"
+
+
+def _p9(clean, runs):
+    stops = {arm: clean["stats"][arm]["limit_stops"] for arm in (TEAM, AGENT)}
+    return all(stops[arm] <= MAX_LIMIT_STOPS[arm] for arm in stops), f"team {stops[TEAM]} (at most {MAX_LIMIT_STOPS[TEAM]}), single agent {stops[AGENT]} (at most {MAX_LIMIT_STOPS[AGENT]})"
+
+
+def _p10(clean, runs):
+    team_runs = [run for run in runs if run["approach"] == TEAM and run["task_id"] == UNANSWERABLE]
+    refused = sum(team_report.answer_features(run)["refused"] for run in team_runs)
+    longest = max((run["llm_calls"] for run in team_runs), default=0)
+    return bool(team_runs) and refused == len(team_runs) and longest <= MAX_CALLS_UNANSWERABLE, \
+        f"refused {refused} of {len(team_runs)}, most model calls in one run {longest} (at most {MAX_CALLS_UNANSWERABLE})"
+
+
+PREDICTIONS = [
+    ("P1", "the team makes 1.3 to 3.0 times the single agent's model calls per run, and more on at least 7 of the 9 tasks", "ratio of mean calls per run", _p1),
+    ("P2", "the team uses 0.8 to 2.0 times the single agent's total tokens per run", "ratio of mean total tokens per run", _band("tokens_mean", "tokens")),
+    ("P3", "the team spends 1.0 to 3.0 times the single agent's model seconds per run", "ratio of mean model seconds per run", _band("model_seconds_mean", "model_seconds")),
+    ("P4", "the calculator is handed work in at least 6 of the 9 calculation-task runs and at most 4 of the other 18", "runs with a calculator hand-off", _p4),
+    ("P5", "on the three calculation tasks the team passes at least as many runs as the single agent minus 2", "passing runs on those tasks", _p5),
+    ("P6", "over all tasks the team passes at least as many runs as the single agent minus 5", "passing runs", _p6),
+    ("P7", "the manager asks for one hand-off at a time in at least 70% of the team's runs", "runs with no overlapping hand-offs", _p7),
+    ("P8", "the team's opening tokens are at least 1.5 times the single agent's", "ratio of mean opening tokens per run", _p8),
+    ("P9", "at most 3 team runs and at most 2 single-agent runs end on a limit", "runs that ended on a limit", _p9),
+    ("P10", "on the unanswerable task the team refuses every time with at most 12 model calls", "refusals and calls on t7-unanswerable", _p10),
+]
+
+
+def check_prediction(results):
+    """(rows, failed, dropped): each prediction held or not on the clean units, whether the whole prediction failed, and what was dropped."""
+    if team_report.AGENT not in team_report.arm_names(results) or TEAM not in team_report.arm_names(results):
+        return [], False, None
+    clean_results, dropped = team_report.clean_units(results, drop_limits=False)
+    usable = clean_results["runs"]
+    clean = {"results": clean_results, "stats": {arm: team_report.arm_stats(clean_results, arm) for arm in (AGENT, TEAM)}}
+    rows = []
+    for ident, claim, metric, check in PREDICTIONS:
+        held, evidence = check(clean, usable)
+        rows.append({"id": ident, "claim": claim, "metric": metric, "held": bool(held), "evidence": evidence})
+    failed = any(not row["held"] for row in rows if row["id"] in FAILS_IF)
+    return rows, failed, dropped
+
+
+def format_prediction(rows, failed, dropped, label):
+    """The result as printable lines."""
+    if not rows:
+        return [f"Cannot check the prediction on '{label}': it needs a race with both the agent and the team arm."]
+    lines = [f"=== Week 10 prediction, checked against race '{label}' ===",
+             f"read on {dropped['kept']} of {dropped['units']} units ({dropped['dropped_for_provider']} dropped for a provider problem, "
+             f"{dropped['incomplete']} incomplete; units that hit a limit stay in, P9 counts them)", ""]
+    for row in rows:
+        lines.append(f"{row['id']:<4}{'held' if row['held'] else 'NOT HELD':<9}{row['claim']}")
+        lines.append(f"{'':<13}{row['evidence']}")
+    lines += ["", f"The prediction as a whole: {'FAILED' if failed else 'did not fail'} (it fails if any of {', '.join(FAILS_IF)} does not hold).",
+              "Every analysis not listed here is exploratory. The verdict about which design to use is yours to write in findings.md."]
+    return lines

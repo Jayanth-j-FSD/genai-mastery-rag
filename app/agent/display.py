@@ -12,6 +12,16 @@ def _flat(text, limit):
     return flat if len(flat) <= limit else flat[: limit - 1] + "..."
 
 
+def show_team_step(step):
+    """Print one finished step of a team run, led by who took it: "manager", or "researcher #2" for hand-off number 2.
+
+    Steps arrive as they finish, so a manager step that handed work over comes AFTER the specialist steps it caused.
+    """
+    who = step["agent"] if step.get("handoff") is None else f"{step['agent']} #{step['handoff']}"
+    print(f"--- {who} ---")
+    show_step(step)
+
+
 def show_step(step):
     """Print one finished step: what the model chose, what came back, what it cost."""
     cost = f"{step['tokens']['prompt'] + step['tokens']['completion']} tokens, {step['seconds']:.1f}s"

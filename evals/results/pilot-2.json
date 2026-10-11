@@ -1,0 +1,303 @@
+{
+ "meta": {
+  "label": "pilot-2",
+  "model": "gemini-3.1-flash-lite-preview",
+  "seed": 2,
+  "n": 8,
+  "timeout_seconds": 300.0,
+  "started": "2026-10-12T02:19:50+05:30",
+  "code": "07a066d plus uncommitted changes",
+  "code_stamp": {
+   "git": "34a214a",
+   "dirty": true,
+   "team.py": "d88e25834cf5",
+   "loop.py": "c89065271920",
+   "llm.py": "1c3149d37e6d",
+   "checks.py": "f27fafcbdc90",
+   "agent_tasks.py": "2f4ee5b7f16a",
+   "race.py": "74e1dfab14b7",
+   "team_prediction.py": "1415d1740f29"
+  },
+  "ad_hoc_questions": [
+   "My annual leave allowance is 20 days and I have used 7 of them. How many days do I have left?",
+   "If I spend 3 working days at a conference, what is the most I can claim for meals in total?"
+  ],
+  "left_out_as_race_tasks_or_close_to_one": [
+   "How many weeks of paid parental leave are available?"
+  ],
+  "complete": true,
+  "stopped_because": null
+ },
+ "runs": [
+  {
+   "question": "Who approves my leave request?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "Leave requests are approved by your manager. When reviewing requests, managers consider business continuity, employee circumstances, and previously approved requests [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "calls": 2,
+   "tokens": 1834,
+   "steps": 2,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "Who approves my leave request?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "Based on the provided documents, it is stated that managers should consider business continuity, employee circumstances, and previously approved requests when reviewing leave requests [source: Synthetic_HR_Policy_RAG_Test_Dataset.md]. However, the documents do not explicitly state who has the formal authority to approve leave requests.",
+   "calls": 8,
+   "tokens": 6505,
+   "steps": 8,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "Who is responsible for approving leave requests?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 183
+    },
+    {
+     "agent": "researcher",
+     "question": "Does the policy explicitly state who approves leave requests?",
+     "state": "finished",
+     "calls": 3,
+     "answer_chars": 45
+    }
+   ]
+  },
+  {
+   "question": "How much notice does an employee on probation have to give?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "The provided documents contain conflicting information regarding the notice period for employees on probation:\n\n*   **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that the notice period during probation is **30 calendar days**, unless the employment agreement specifies otherwise [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n*   **Acme-Employment-Terms-2026.md** states that an employee within the probationary period must provide **7 calendar days** of written notice [source: Acme-Employment-Terms-2026.md].\n\nPlease check your specific employment agreement, as the Acme Employment Terms policy notes that a separate written agreement may provide a longer notice period, which would take precedence [source: Acme-Employment-Terms-2026.md].",
+   "calls": 2,
+   "tokens": 1941,
+   "steps": 2,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "How much notice does an employee on probation have to give?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "The provided policy documents contain conflicting information regarding the notice period for an employee on probation:\n\n*   **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that the notice period is 30 calendar days, unless the employment agreement specifies otherwise.\n*   **Acme-Employment-Terms-2026.md** states that an employee on probation must provide 7 calendar days of written notice.",
+   "calls": 4,
+   "tokens": 3053,
+   "steps": 4,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "What is the notice period for an employee on probation?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 328
+    }
+   ]
+  },
+  {
+   "question": "How many days of notice must a permanent employee give before resigning?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "The company policy documents provide conflicting information regarding the notice period for permanent employees:\n\n*   **Acme Employment Terms Policy 2026** states that a permanent employee must provide **30 calendar days** of written notice after the successful completion of probation [source: Acme-Employment-Terms-2026.md].\n*   **Synthetic HR Policy RAG Test Dataset** states that the standard notice period is **60 calendar days** for confirmed (permanent) employees, unless the employment agreement specifies otherwise [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n\nPlease check your specific employment agreement, as both documents note that individual agreements may take precedence [source: Acme-Employment-Terms-2026.md, Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "calls": 2,
+   "tokens": 1959,
+   "steps": 2,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "How many days of notice must a permanent employee give before resigning?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "The policy documents provide conflicting information regarding the notice period for permanent employees:\n\n*   According to the **Synthetic_HR_Policy_RAG_Test_Dataset.md**, the standard notice period is 60 calendar days for confirmed employees.\n*   According to the **Acme-Employment-Terms-2026.md**, a permanent employee must provide 30 calendar days of written notice before resigning.",
+   "calls": 4,
+   "tokens": 3211,
+   "steps": 4,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "How many days of notice must a permanent employee give before resigning?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 357
+    }
+   ]
+  },
+  {
+   "question": "Where should Azure access keys and database passwords be stored?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "Azure access keys and database passwords must never be stored directly in source code [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]. Instead, they must be stored using an approved secrets-management solution, such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]. Access to these stored secrets must be restricted to authorized applications and administrators [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+   "calls": 2,
+   "tokens": 1967,
+   "steps": 2,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "Where should Azure access keys and database passwords be stored?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "According to company policy, Azure access keys and database passwords must be stored using an approved secrets-management solution, such as Azure Key Vault. Furthermore, these credentials must never be stored directly in source code [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+   "calls": 4,
+   "tokens": 3123,
+   "steps": 4,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "Where should Azure access keys and database passwords be stored according to company policy?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 292
+    }
+   ]
+  },
+  {
+   "question": "By when do I have to submit an internet claim?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "You must submit your internet claim by the tenth day of the month following the month for which you are claiming the expense [source: Northstar-Remote-Work-Policy-2026.md].",
+   "calls": 2,
+   "tokens": 1748,
+   "steps": 2,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "By when do I have to submit an internet claim?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "You must submit your internet claim by the tenth day of the following month [source: Northstar-Remote-Work-Policy-2026.md].",
+   "calls": 4,
+   "tokens": 2839,
+   "steps": 4,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "What is the deadline for submitting an internet claim?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 112
+    }
+   ]
+  },
+  {
+   "question": "How quickly must I report a security incident?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "Suspected personal-data incidents must be reported to the Security team within 4 hours of discovery [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "calls": 2,
+   "tokens": 1773,
+   "steps": 2,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "How quickly must I report a security incident?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "You must report a suspected personal-data security incident to the Security team within 4 hours of discovery [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "calls": 4,
+   "tokens": 2979,
+   "steps": 4,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "What is the required timeframe for reporting a security incident?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 150
+    }
+   ]
+  },
+  {
+   "question": "My annual leave allowance is 20 days and I have used 7 of them. How many days do I have left?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "The company policy documents provide conflicting information regarding the annual leave allowance:\n\n*   **Acme-Leave-Policy-2026.md** states that employees receive 18 days of annual leave per calendar year [source: Acme-Leave-Policy-2026.md].\n*   **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive 24 days of annual leave per calendar year [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n\nBased on your stated allowance of 20 days and having used 7 days, you have **13 days** remaining (20 - 7 = 13). Please note that this calculation is based on the figure you provided, as the policy documents do not specify a 20-day allowance.",
+   "calls": 3,
+   "tokens": 2911,
+   "steps": 3,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "My annual leave allowance is 20 days and I have used 7 of them. How many days do I have left?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "You have 13 days of annual leave remaining. This is based on your total allowance of 20 days minus the 7 days you have already used.",
+   "calls": 4,
+   "tokens": 2327,
+   "steps": 4,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "calculator",
+     "question": "what is 20 minus 7",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 17
+    }
+   ]
+  },
+  {
+   "question": "If I spend 3 working days at a conference, what is the most I can claim for meals in total?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "The maximum you can claim for meals while attending a conference for 3 working days is $120.\n\nThis is based on the meal limit of $40 per day while traveling [source: expenses.md].\n\nCalculation: 3 days * $40/day = $120.",
+   "calls": 3,
+   "tokens": 2858,
+   "steps": 3,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "If I spend 3 working days at a conference, what is the most I can claim for meals in total?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "The most you can claim for meals for 3 working days at a conference is $120. This is based on a daily meal allowance of $40 per day [source: expenses.md].",
+   "calls": 7,
+   "tokens": 4538,
+   "steps": 7,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "What is the daily meal allowance for employees attending a conference?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 64
+    },
+    {
+     "agent": "calculator",
+     "question": "what is 40 times 3",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 18
+    }
+   ]
+  }
+ ]
+}

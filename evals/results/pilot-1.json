@@ -1,0 +1,221 @@
+{
+ "meta": {
+  "label": "pilot-1",
+  "model": "gemini-3.1-flash-lite-preview",
+  "seed": 1,
+  "n": 6,
+  "timeout_seconds": 300.0,
+  "started": "2026-10-12T02:08:49+05:30",
+  "code": "07a066d plus uncommitted changes",
+  "code_stamp": {
+   "git": "34a214a",
+   "dirty": true,
+   "team.py": "7c0adbdc2147",
+   "loop.py": "c89065271920",
+   "llm.py": "1c3149d37e6d",
+   "checks.py": "f27fafcbdc90",
+   "agent_tasks.py": "2f4ee5b7f16a",
+   "race.py": "74e1dfab14b7",
+   "team_prediction.py": "1415d1740f29"
+  },
+  "left_out_as_race_tasks_or_close_to_one": [
+   "How many weeks of paid parental leave are available?"
+  ],
+  "complete": true,
+  "stopped_because": null
+ },
+ "runs": [
+  {
+   "question": "After how many days of service can I request remote work?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "You may request remote work after completing 60 days of service [source: Northstar-Remote-Work-Policy-2026.md].",
+   "calls": 2,
+   "tokens": 1828,
+   "steps": 2,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "After how many days of service can I request remote work?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "Regular employees are eligible to request remote work after completing 60 days of service [source: Northstar-Remote-Work-Policy-2026.md].",
+   "calls": 4,
+   "tokens": 2901,
+   "steps": 4,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "After how many days of service can an employee request remote work?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 125
+    }
+   ]
+  },
+  {
+   "question": "How many days of casual leave do employees get per year?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "Employees receive 6 days of casual leave per calendar year [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "calls": 2,
+   "tokens": 1951,
+   "steps": 2,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "How many days of casual leave do employees get per year?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "Employees receive 6 days of casual leave per calendar year [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "calls": 4,
+   "tokens": 3007,
+   "steps": 4,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "How many days of casual leave do employees get per year?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 109
+    }
+   ]
+  },
+  {
+   "question": "When does an expense need pre-approval?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "Expenses over $200 require pre-approval from your manager [source: expenses.md].",
+   "calls": 2,
+   "tokens": 1739,
+   "steps": 2,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "When does an expense need pre-approval?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "An expense requires pre-approval from your manager if it is over $200 [source: expenses.md].",
+   "calls": 4,
+   "tokens": 2771,
+   "steps": 4,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "When does an expense need pre-approval?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 80
+    }
+   ]
+  },
+  {
+   "question": "What do I have to do during my notice period?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "During your notice period, you are required to:\n\n*   Complete a documented handover of your responsibilities.\n*   Return all company property.\n*   Remain available during normal working hours, unless People Operations approves an earlier release.\n\n[source: Acme-Employment-Terms-2026.md]",
+   "calls": 4,
+   "tokens": 4972,
+   "steps": 4,
+   "refused": false,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "What do I have to do during my notice period?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "I don't know based on the provided documents.",
+   "calls": 4,
+   "tokens": 2811,
+   "steps": 4,
+   "refused": true,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "What are the employee's responsibilities or requirements during their notice period?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 45
+    }
+   ]
+  },
+  {
+   "question": "Is there a December code freeze on booking leave?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "I don't know based on the provided documents.",
+   "calls": 3,
+   "tokens": 3079,
+   "steps": 3,
+   "refused": true,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "Is there a December code freeze on booking leave?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "I don't know based on the provided documents.",
+   "calls": 5,
+   "tokens": 3887,
+   "steps": 5,
+   "refused": true,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "Is there a December code freeze on booking leave?",
+     "state": "finished",
+     "calls": 3,
+     "answer_chars": 45
+    }
+   ]
+  },
+  {
+   "question": "Is there an annual bonus scheme?",
+   "arm": "agent",
+   "stop_reason": "final",
+   "answer": "I don't know based on the provided documents.",
+   "calls": 2,
+   "tokens": 1774,
+   "steps": 2,
+   "refused": true,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": []
+  },
+  {
+   "question": "Is there an annual bonus scheme?",
+   "arm": "team",
+   "stop_reason": "final",
+   "answer": "I don't know based on the provided documents.",
+   "calls": 4,
+   "tokens": 2798,
+   "steps": 4,
+   "refused": true,
+   "served_model": "gemini-3.1-flash-lite-preview",
+   "handoffs": [
+    {
+     "agent": "researcher",
+     "question": "Is there an annual bonus scheme mentioned in the company policy documents?",
+     "state": "finished",
+     "calls": 2,
+     "answer_chars": 45
+    }
+   ]
+  }
+ ]
+}

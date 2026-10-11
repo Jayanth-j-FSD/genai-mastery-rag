@@ -8,6 +8,7 @@ down, you can watch the stop conditions work.
 Run:
     python scripts/run_agent.py "I will have 25 unused leave days. How many carry forward?"
     python scripts/run_agent.py --workflow "How many weeks of paid parental leave are there?"   # the fixed recipe instead
+    python scripts/run_agent.py --team "A permanent employee resigns on 3 November 2026. When does the notice end?"   # Week 10: a manager and two specialists
     python scripts/run_agent.py --max-steps 2 "..."          # watch it stop on the step limit
 """
 import argparse
@@ -18,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import openai                                              # noqa: E402
 from app import llm                                        # noqa: E402
-from app.agent import display, loop, workflow              # noqa: E402
+from app.agent import display, loop, team, workflow        # noqa: E402
 from app.agent.tools import default_tools                  # noqa: E402
 from app.config import settings                            # noqa: E402
 from app.console import make_output_safe                   # noqa: E402
@@ -26,9 +27,10 @@ from app.rag import pipeline                               # noqa: E402
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Run the HR agent (or the fixed workflow) on one question.")
+    parser = argparse.ArgumentParser(description="Run the HR agent (or the fixed workflow, or the Week 10 team) on one question.")
     parser.add_argument("question", nargs="+", help="the question to ask")
     parser.add_argument("--workflow", action="store_true", help="run the fixed workflow instead of the agent")
+    parser.add_argument("--team", action="store_true", help="run the Week 10 team (a manager and two specialists) instead of the agent")
     parser.add_argument("--max-steps", type=int, default=None, help=f"step limit (default {settings.agent_max_steps})")
     parser.add_argument("--max-tokens", type=int, default=None, help=f"total token budget (default {settings.agent_max_total_tokens})")
     parser.add_argument("--timeout", type=float, default=None, help=f"seconds before giving up (default {settings.agent_timeout_seconds})")
@@ -40,6 +42,9 @@ def main(argv=None):
         if value is not None and value <= 0:             # 0 would silently fall back to the default
             print(f"Error: {flag} must be greater than 0, got {value}.")
             return 1
+    if args.team and (args.workflow or args.no_memory):        # the team has no such switches: say so, do not ignore them
+        print("Error: --team cannot be combined with " + ("--workflow." if args.workflow else "--no-memory (every agent in the team keeps its notes)."))
+        return 1
     question = " ".join(args.question)
 
     try:
@@ -47,6 +52,9 @@ def main(argv=None):
         print(f"Question: {question}\nModel: {args.model or settings.llm_model}\n")
         if args.workflow:
             run = workflow.run_workflow(question, model=args.model, on_step=display.show_step)
+        elif args.team:
+            run = team.run_team(question, default_tools(), max_steps=args.max_steps, max_total_tokens=args.max_tokens,
+                                timeout_seconds=args.timeout, model=args.model, on_step=display.show_team_step)
         else:
             run = loop.run_agent(question, default_tools(), max_steps=args.max_steps, max_total_tokens=args.max_tokens,
                                  timeout_seconds=args.timeout, use_memory=not args.no_memory, model=args.model,
@@ -69,6 +77,10 @@ def main(argv=None):
           f"{usage.get('api_seconds', 0):.1f}s in the model, {run.elapsed_seconds:.1f}s total")
     if run.notes:
         print("notes the agent saved: " + " | ".join(run.notes))
+    for agent, row in (getattr(run, "team", None) or {}).get("per_agent", {}).items():     # a team run says what each agent spent
+        if row["calls"]:
+            handed = f", {row['handoffs']} hand-off(s)" if agent != "manager" else ""
+            print(f"  {agent:<11} {row['calls']} model call(s), {row['prompt_tokens'] + row['completion_tokens']} tokens{handed}")
     return 0 if run.finished else 2
 
 
