@@ -1,21 +1,22 @@
 """Check the pre-registered prediction for the team race against a saved race (Week 10).
 
-Before the race was run, `docs/week10/CHANGES.md` wrote down what the team should do and what would
+Before the race was run, `docs/week10/prediction.md` wrote down what the team should do and what would
 count as the prediction failing. This turns those sentences into arithmetic over the saved race, so nobody has to
-decide afterwards whether the prediction held. The thresholds below are copied from that section and change only if
-that section does, and that section was committed before the first race run.
+decide afterwards whether the prediction held. The thresholds below are copied from that document and change only if
+that document does, and that document was committed before the first race run.
 
 Every prediction is about a MEASURED quantity; none says which design to ship. The verdict about which design to use
 is yours to write.
 
 Where the numbers come from. Anchor 1, `evals/results/race-race.json`, the Week 7 race of the single agent on these nine
 tasks: 3.5 model calls and 4,220 tokens a run, 704 of the tokens the opening of its one conversation. Anchor 2, a model of
-the hand-offs on that tool mix (scripts/race_team.py --plan): 4.5 to 8.4 team calls a run (4.5 if every task were a single
+the hand-offs on that tool mix (scripts/race_team.py --plan): 6.1 to 8.4 team calls a run (4 if every task were a single
 lookup, which needs a manager call, a search, a researcher answer and a manager answer). Anchor 3, two pilots on 14 questions
 that are NOT race tasks (evals/results/pilot-1.json and pilot-2.json, listed in CHANGES.md): the single agent made 2.4 calls
 and 2,300 tokens a run, the team 4.6 calls and 3,300 tokens a run, so the team's calls are smaller (about 730 tokens a call
-against 980). The bands: calls 1.3 to 3.0 times (4.5 / 3.5 up to 8.4 / 3.5, widened), tokens 0.8 to 2.0 times (the 730 tokens
-a call times 4.5 to 8.4 calls, over 4,220), model seconds 1.0 to 3.0 times (they follow the calls).
+against 980). The bands: calls 1.3 to 3.0 times (6.1 / 3.5 = 1.7 up to 8.4 / 3.5 = 2.4, widened on both sides because the model is a
+guess), tokens 0.8 to 2.0 times (the 730 tokens a call times 6.1 to 8.4 calls, over 4,220, is 1.1 to 1.5, widened the same way),
+model seconds 1.0 to 3.0 times (they follow the calls).
 
 The predictions, read on the units both arms completed (a unit is a task and a repeat):
   P1  calls: the team makes between 1.3 and 3.0 times the single agent's model calls per run, and more of them on at
@@ -28,11 +29,14 @@ The predictions, read on the units both arms completed (a unit is a task and a r
   P6  over all tasks the team passes at least as many runs as the single agent minus 5
   P7  the manager asks for one hand-off at a time in at least 70% of the team's runs
   P8  the opening tokens (the first call of every conversation) of the team are at least 1.5 times the single agent's
-  P9  at most 3 team runs and at most 2 single-agent runs end on a limit (steps, tokens, time or a repeated call)
+  P9  at most 3 team runs and at most 2 single-agent runs end on a limit (steps, tokens, time or a repeated call): a run's own
+      stop reason; a team run in which a hand-off hit a limit and the manager still finished is reported beside it, not counted
   P10 on the unanswerable task the team refuses every time and never needs more than 12 model calls
 The prediction has FAILED if P1, P2, P3 or P6 does not hold. The others are reported held or not held, with no verdict
-on the whole. Units where any run ended on a provider problem or carried a usage warning, and units where an arm is
-missing, are dropped and counted. Every analysis not listed here is exploratory.
+on the whole. Units where any run ended on a provider problem (an error, a spent quota or an empty reply) or carried a usage
+warning, and units where an arm is missing, are dropped and counted. The thresholds are registered for 9 tasks x 3 repeats,
+27 units: a race that is incomplete, or that leaves a different number of usable units, gets a PARTIAL banner and no verdict.
+P1, P2, P3 and P8 are compared at the two decimals the report prints. Every analysis not listed here is exploratory.
 """
 from evals import team_report
 from evals.team_report import AGENT, TEAM
