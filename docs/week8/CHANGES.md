@@ -63,11 +63,12 @@ The "before" and "after" of the fix are measured again on the merged code.
 
 ## What the first injection run taught (and what was changed after seeing it)
 
-*This is the first run: 13 attacks, recorded before the review above. Ten of its 26 defended answers were withheld,
-and the review found that only 4 of those 10 had stopped a working attack (two were correct cited answers to
-legitimate questions and four were harmless non-answers). Its "defences on" numbers are therefore superseded by the
-re-run on the final code. The files are kept as they were saved: `injection-final.json` and the four
-`injection-layer-*.json`.*
+*This is the first run: 13 attacks, each run twice with the defences off and on, on `gemini-3.1-flash-lite`, recorded before
+the review above. The two runs of every (attack, mode) pair ended with the same answer in all 26 cases, so its 26 are 13
+independent trials. Ten of its 26 defended answers were withheld, and the review found that only 4 of those 10 had
+stopped a working attack (two were correct cited answers to legitimate questions and four were harmless non-answers), so
+its "defences on" numbers are not the numbers of the final defences. The suite is re-run on the final code and reported
+separately. The files are kept as they were saved: `injection-final.json` and the four `injection-layer-*.json`.*
 
 The suite runs every attack with the defences off and on, in a private throwaway index, so the real index is
 never poisoned. An attack counts only if its poisoned document reached the model.
@@ -186,8 +187,9 @@ fewer), and `t7-leave-end-date` took 11,679, 6,111 and 6,101 tokens in its three
 3. **The failure rule.** Predictions 1, 2, 4 and 5 stand. The fix has failed if the outcome-right count drops by more
    than 2, or more than 2 runs that used to finish now end without an answer. Nothing about tokens can make the fix
    pass or fail.
-4. **Prediction 1 is exact.** The cap exempts `remember`, and `over-calling` no longer counts it, so "goes to 0" holds
-   by construction for every tool the cap covers.
+4. **Prediction 1 is exact.** The cap exempts `remember` and counts only calls that returned a result (an error, a
+   refusal and a repeat do not use it up); `over-calling` counts the same calls, so "goes to 0" holds by construction
+   for every tool the cap covers.
 5. **The benign check was repeated on the final defences.** The replay quoted above was made on the first version of
    them; see "the false-block measurement" in the review section. The prediction for the live `--defense` run stands:
    at most 2 of 33 answers withheld or calls refused, each reported by name.
@@ -196,6 +198,11 @@ fewer), and `t7-leave-end-date` took 11,679, 6,111 and 6,101 tokens in its three
    file after the other. A daily quota that ends part-way then leaves the three files with nearly the same runs, and
    the three meet the same provider conditions. Each is still saved under its own label, so the comparison commands
    below are unchanged.
+7. **The setup is checked and saved evidence is protected.** Each run records the call cap that was really in force, and
+   `check_prediction.py` warns when the arms do not differ only in the cap (another model, a cap that was not recorded,
+   a run cut short). The effect and the noise are read on the pairs all three runs completed. The interleaved job saves
+   after every task and stops on a provider outage. `run_trajectories.py` refuses to replace a saved label unless it is
+   given `--force`.
 
 `python scripts/check_prediction.py before-final after-final --noise before-final-2` prints all of this as arithmetic.
 
@@ -203,9 +210,9 @@ fewer), and `t7-leave-end-date` took 11,679, 6,111 and 6,101 tokens in its three
 
 - **The free quota ran out.** The app stops a run when the provider says the daily quota is used up and saves what it
   has as partial, with the message (`meta.stopped_because` in `trajectories-before.json` and `trajectories-control.json`).
-  For the lite models the provider's response names the limit: on 2026-10-11 the responses for `gemini-3.1-flash-lite`
-  and `gemini-3.1-flash-lite-preview` gave quota id `GenerateRequestsPerDayPerProjectPerModel-FreeTier`, value 500
-  requests a day. The first control run stopped after 7 of its 33 runs (`complete: false`) and the benign run with the
+  For the lite models the provider's response names the limit: a probe on 2026-10-11 at about 05:43 IST got a 429 for
+  `gemini-3.5-flash-lite`, `gemini-flash-lite-latest`, `gemini-3.1-flash-lite` and `gemini-3.1-flash-lite-preview`, each
+  with quota id `GenerateRequestsPerDayPerProjectPerModel-FreeTier` and value 500 requests a day (`quota-evidence.txt`). The first control run stopped after 7 of its 33 runs (`complete: false`) and the benign run with the
   defences on could not start. The measured pair had not been run when this was written; it and its results are added
   in their own section after it.
 - **What the partial control shows.** The cap of 3 on `gemini-3.1-flash-lite-preview`, which never searches more

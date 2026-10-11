@@ -81,6 +81,9 @@ stopped because: final | 5 step(s), 4 tool call(s) | 5 model call(s), 7361 token
 Three searches ran. The fourth was not executed: the loop answered it with the `BUDGET` text shown on the line
 below it, and the model's next step was the refusal sentence.
 
+The notice in this transcript reads "has already run 3 times". The loop's wording has since changed to "has already
+returned 3 results", because only calls that returned a result use the budget up.
+
 Two things to read carefully:
 
 - The marker on step 4 says "BLOCKED by the argument guard". That wording was wrong: it was the budget, as the

@@ -29,13 +29,13 @@ over the agent, and builds defences that are measured, not assumed.
 | Three defence layers, each switchable and measurable alone: sanitize what it reads, guard what it does, validate what it says | `app/agent/defense.py`, wired into `app/agent/loop.py` | 2 |
 | The before-and-after number on the top failure mode, and the prediction written before it was measured, checked as arithmetic | `scripts/compare_trajectories.py`, `scripts/check_prediction.py`, `docs/week8/CHANGES.md` | 3 |
 | A one-run illustration of the call budget on the unanswerable question: eight searches and no answer, then three searches and a refusal | `docs/week8/example-budget.md` | 3 |
-| What still gets through: written as executable statements in a test, measured, and mapped to the OWASP list in `owasp-map.md` | `tests/unit/test_injection.py` (`WhatEachLayerStopsTests`), `docs/week8/findings.md` | 4 |
+| What the tests and the OWASP map record about what gets through: inputs for check 4, whose answer is yours to write in your own words (`findings.md`, section 4) | `tests/unit/test_injection.py` (`WhatEachLayerStopsTests`), `docs/week8/findings.md` | 4 |
 
 ## Run it
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\run_trajectories.py --label before             # model calls: runs the agent, grades every path
-.\.venv\Scripts\python.exe scripts\run_trajectories.py --grade race-race --label regraded   # free: re-grade a saved Week 7 race
+.\.venv\Scripts\python.exe scripts\run_trajectories.py --grade race-race --label race-regraded   # free: re-grade a saved Week 7 race
 .\.venv\Scripts\python.exe scripts\run_injection.py --static                      # free: what the sanitizer alone removes
 .\.venv\Scripts\python.exe scripts\run_injection.py --label final                 # model calls: every attack, defences off and on
 .\.venv\Scripts\python.exe scripts\compare_trajectories.py before after --save
@@ -48,6 +48,7 @@ over the agent, and builds defences that are measured, not assumed.
 .\.venv\Scripts\python.exe scripts\replay_defense.py before before-p control race-race   # free: what the defences would do to saved legitimate runs
 ```
 
+A saved run is never overwritten by accident: a label that already exists is refused unless `--force` is given.
 A comparison reads only the (task, repeat) pairs both runs completed, so a run cut short by a daily quota is still
 compared like with like. The per-tool call budget is switched on for one run with `--set agent_max_calls_per_tool=3`.
 
@@ -68,10 +69,10 @@ one mode. The grader was validated against real runs before it was trusted: see 
    nothing.
 2. **Guard what it does.** Tools are read-only, and arguments are checked before a call runs: a date must
    be one the question states (in any common written form) or one a date or calculator tool produced, so a poisoned
-   document cannot supply the date it wants used; numbers must be in a sane range, in any notation; and a note to
+   document cannot supply the date it wants used; numbers must be in a sane range (plain, underscore and exponent forms); and a note to
    memory may not be an instruction or an address. This is least privilege.
 3. **Validate what it says.** The final answer must cite a document the agent really retrieved (a short
-   "I don't know" needs no citation), may contain only email and web addresses that appear in the approved documents,
+   "I don't know" needs no citation), may contain only email addresses and `http`, `https`, `ftp`, `hxxp` and `www` addresses that appear in the approved documents,
    and may not repeat 60 or more characters in a row of the system prompt.
 
 All three are off unless the caller passes `run_agent(..., defense=Defense(...))`, so Weeks 3 to 7 behave
