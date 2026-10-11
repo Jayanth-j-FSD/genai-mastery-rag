@@ -138,7 +138,25 @@ class TokensInNoStepTests(unittest.TestCase):
         self.assertNotIn("had no model call behind it", report.conversations.__doc__)
 
 
+class PerPassTests(unittest.TestCase):
+    """Tokens per pass divide by the runs that passed, not by every run."""
+
+    def test_a_failed_run_costs_tokens_but_is_not_a_pass_to_divide_by(self):
+        rows = [record("a", "agent", 1, True, prompt=100, completion=10), record("a", "agent", 2, False, prompt=200, completion=20),
+                record("a", "agent", 3, True, prompt=300, completion=30)]
+        stats = report.arm_stats(race(rows, arms=("agent",)), "agent")
+        self.assertEqual(stats["tokens_per_success"], (110 + 220 + 330) / 2)
+        self.assertEqual(stats["units_per_success"][1], (110 + 220 + 330) / 2)
+        self.assertEqual(stats["tokens_mean"], (110 + 220 + 330) / 3)
+
+
 class ClosingParagraphTests(unittest.TestCase):
+    def test_a_single_agent_rate_of_exactly_90_percent_is_near_the_ceiling_and_80_percent_is_not(self):
+        nine_of_ten = two_arm_race(tuple([True] * 9 + [False]))
+        eight_of_ten = two_arm_race(tuple([True] * 8 + [False] * 2))
+        self.assertIn("only a loss can show", closing(nine_of_ten))
+        self.assertNotIn("only a loss can show", closing(eight_of_ten))
+
     def test_the_near_the_ceiling_sentence_prints_only_when_the_agent_rate_is_high(self):
         self.assertIn("only a loss can show", closing(two_arm_race((True, True))))
         self.assertNotIn("only a loss can show", closing(two_arm_race((True, False))))

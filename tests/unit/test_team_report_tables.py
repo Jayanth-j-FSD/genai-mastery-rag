@@ -56,6 +56,13 @@ class AlignmentTests(unittest.TestCase):
         ends = edges(header, [f"r={r} per run" for r in report.PRICE_RATIOS])
         self.assertEqual([match.end() for match in re.finditer(r"\d+", agent)], ends, (header, agent))
 
+    def test_the_cost_headings_do_not_run_into_each_other(self):
+        lines = lines_of(full_race())
+        header = lines[next(i for i, line in enumerate(lines) if line.startswith("COST")) + 1]
+        self.assertNotIn("per runr=", header)
+        self.assertEqual(header.count("per run"), len(report.PRICE_RATIOS))
+        self.assertTrue(all(len(piece) >= 1 for piece in header.split("per run")[:-1]))
+
     def test_the_per_pass_table_numbers_end_where_its_headings_end(self):
         lines = lines_of(full_race())
         start = next(i for i, line in enumerate(lines) if line.startswith("per pass"))

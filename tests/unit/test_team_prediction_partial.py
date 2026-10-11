@@ -60,6 +60,22 @@ class PartialRaceTests(unittest.TestCase):
         self.assertNotIn("did not fail", text)
         self.assertIn("No verdict on the prediction as a whole", text)
 
+    def test_a_ratio_outside_its_band_on_a_partial_race_is_shown_but_gives_no_failed_verdict(self):
+        saved = stopped_race(team=lambda t, r: {"tokens": (4000, 200)})                         # 10 times the agent's tokens: P2 is NOT HELD
+        rows, failed, _dropped = prediction.check_prediction(saved)
+        self.assertEqual(statuses(rows)["P2"], "not held")
+        self.assertIsNone(failed)
+        self.assertNotIn("FAILED", text_of(saved))
+
+    def test_units_that_cover_fewer_tasks_than_the_file_says_are_not_the_registered_design(self):
+        runs = []
+        for repeat in range(1, 10):                          # 27 usable units over 3 tasks, in a file whose meta still says 9 tasks x 3 repeats
+            for task in TASKS[:3]:
+                runs += [run(task, "agent", repeat), run(task, "team", repeat, calls=6, tokens=(800, 40), api=6.0, handoffs=2)]
+        saved = {"meta": {"label": "t", "arms": ["agent", "team"], "tasks": TASKS, "repeats": 3, "complete": True}, "runs": runs}
+        self.assertIn("the usable units cover 3 task(s), not 9", text_of(saved))
+        self.assertIsNone(prediction.check_prediction(saved)[1])
+
     def test_a_race_marked_incomplete_is_partial_even_when_every_unit_happens_to_be_there(self):
         saved = race()
         saved["meta"]["complete"] = False

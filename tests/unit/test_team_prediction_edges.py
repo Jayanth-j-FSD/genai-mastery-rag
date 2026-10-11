@@ -139,6 +139,23 @@ class CountEdgeTests(unittest.TestCase):
         self.assertIn("refused 2 of 3", row_of(one_answers, "P10")["evidence"])
 
 
+class SeventyPercentEdgeTests(unittest.TestCase):
+    """P7 is a share, so its inclusive edge can only be hit exactly with a number of team runs 70% divides: 10 here (a race cut short)."""
+
+    def ten_units(self, overlapping):
+        saved = race(team=first([(task, repeat) for repeat in (1, 2) for task in TASKS[:5]], overlapping, overlap=True))
+        saved["runs"] = [row for row in saved["runs"] if row["task_id"] in TASKS[:5] and row["repeat"] <= 2]
+        saved["meta"].update(complete=False, stopped_because="cut short for this test")
+        return saved
+
+    def test_7_of_10_is_exactly_70_percent_and_held_and_6_of_10_is_not(self):
+        at_edge, below = row_of(self.ten_units(3), "P7"), row_of(self.ten_units(4), "P7")
+        self.assertTrue(at_edge["held"])
+        self.assertIn("7 of 10 team runs (70.0%; needs 70%)", at_edge["evidence"])
+        self.assertFalse(below["held"])
+        self.assertIn("6 of 10 team runs (60.0%", below["evidence"])
+
+
 class StructureNotSecondsTests(unittest.TestCase):
     """P7 asks whether the manager asked for hand-offs together, which is read from the hand-offs, not from the seconds they took."""
 
@@ -193,6 +210,14 @@ class LimitStopsOfTheRunTests(unittest.TestCase):
         self.assertTrue(p9["held"])
         self.assertIn("team 0 (at most 3)", p9["evidence"])
         self.assertIn("4 more team run(s) had a hand-off stop on a limit and ended another way (not counted)", p9["evidence"])
+
+    def test_the_evidence_counts_only_the_runs_that_did_not_end_on_a_limit_themselves_as_recovered(self):
+        saved = self.recovered(2)
+        for row in [row for row in saved["runs"] if row["approach"] == "team"][2:3]:
+            row.update(stop_reason="max_steps", finished=False, success=False)                  # one run that ended on a limit itself
+        p9 = row_of(saved, "P9")
+        self.assertIn("team 1 (at most 3)", p9["evidence"])
+        self.assertIn("2 more team run(s) had a hand-off stop on a limit", p9["evidence"])
 
     def test_the_arm_stats_keep_limit_stops_as_it_was_and_add_the_runs_own_count_beside_it(self):
         stats = team_report.arm_stats(self.recovered(4), "team")

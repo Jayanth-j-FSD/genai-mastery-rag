@@ -54,6 +54,10 @@ class TaskLevelPairingTests(unittest.TestCase):
         by_task = report.paired_by_task(race(rows))
         self.assertEqual((by_task["tasks"], by_task["more_agent"], by_task["more_team"], by_task["same"]), (1, 1, 0, 0))
 
+    def test_one_task_is_not_called_tasks(self):
+        text = "\n".join(report.format_report(race([record("a", "agent", 1, True), record("a", "team", 1, False)])))
+        self.assertIn("by task (1 task): agent passed more of the repeats on 1 task, team on 0, the same on 0", text)
+
     def test_with_no_differing_task_the_p_is_one(self):
         rows = [record("a", "agent", 1, True), record("a", "team", 1, True)]
         self.assertEqual(report.paired_by_task(race(rows))["p"], 1.0)
