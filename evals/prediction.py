@@ -17,8 +17,11 @@ The fix has FAILED if the right answers fall by more than 2, or more than 2 fini
 
 The noise floor is how much two IDENTICAL runs (no cap, same model, same day) differ in mean tokens per run. A change
 smaller than that cannot be told from chance, so it is reported as "not distinguishable from noise". The effect and the
-noise are read on the SAME pairs: the (task, repeat) pairs all three runs completed.
+noise are read on the SAME pairs: the (task, repeat) pairs all three runs completed. A pair in which either run ended on a
+provider error is left out of everything (an outage is not evidence about the cap), and the number left out is printed.
 """
+import json
+
 from evals import trajectory
 
 MAX_FEWER_RIGHT = 2
@@ -63,6 +66,14 @@ def check_setup(before_meta, after_meta, noise_meta=None):
             warnings.append(f"'before' and the noise run should have no cap, but the caps were {caps}")
         if caps["after"] == caps["before"]:
             warnings.append(f"'after' has the same call cap as 'before' ({caps['after']}), so it tests nothing")
+    for field in ("retrieval_mode", "limits", "tasks", "top_k_workflow"):
+        values = {name: meta.get(field) for name, meta in runs if field in meta}
+        if len({json.dumps(value, sort_keys=True, default=str) for value in values.values()}) > 1:
+            warnings.append(f"the runs differ in {field}: {values}")
+    others = {name: {key: value for key, value in (meta.get("overrides") or {}).items() if key != "agent_max_calls_per_tool"}
+              for name, meta in runs}
+    if len({json.dumps(value, sort_keys=True, default=str) for value in others.values()}) > 1:
+        warnings.append(f"the runs changed other settings differently: {others}")
     for name, meta in runs:
         if meta.get("defense"):
             warnings.append(f"the '{name}' run had the defences on")
@@ -80,8 +91,12 @@ def check_budget_prediction(before_records, after_records, tasks, noise_records=
     known = {task["id"] for task in tasks}
     before_all = [r for r in before_records if r["task_id"] in known]
     before, after = trajectory.pair_records(before_all, [r for r in after_records if r["task_id"] in known])
+    usable = [(x, y) for x, y in zip(before, after) if x.get("stop_reason") != "error" and y.get("stop_reason") != "error"]
+    left_out = len(before) - len(usable)
+    before, after = [x for x, _ in usable], [y for _, y in usable]
     if not before:
         return [], False, 0
+    left_note = f" ({left_out} pair(s) left out: a run ended on a provider error)" if left_out else ""
     b = trajectory.summarize(trajectory.grade_all(before, tasks), before)
     a = trajectory.summarize(trajectory.grade_all(after, tasks), after)
     over_before, over_after = b["modes"].get("over-calling", 0), a["modes"].get("over-calling", 0)
@@ -111,10 +126,10 @@ def check_budget_prediction(before_records, after_records, tasks, noise_records=
         {"number": 1, "claim": "over-calling goes to 0", "measured": f"{over_before} runs before, {over_after} after",
          "held": over_after == 0},
         {"number": 2, "claim": f"right answers fall by at most {MAX_FEWER_RIGHT}",
-         "measured": f"{b['outcome_ok']} before, {a['outcome_ok']} after (fell by {right_drop})", "held": right_drop <= MAX_FEWER_RIGHT},
+         "measured": f"{b['outcome_ok']} before, {a['outcome_ok']} after (fell by {right_drop}){left_note}", "held": right_drop <= MAX_FEWER_RIGHT},
         cost_row(3, "mean tokens per run (reported, not judged)", "tokens", lambda value: f"{value:.0f}"),
         {"number": 4, "claim": f"at most {MAX_NEW_UNFINISHED} finished runs now end without an answer",
-         "measured": f"{new_unfinished} run(s)", "held": new_unfinished <= MAX_NEW_UNFINISHED},
+         "measured": f"{new_unfinished} run(s){left_note}", "held": new_unfinished <= MAX_NEW_UNFINISHED},
         {"number": 5, "claim": "unverified-citation is unchanged",
          "measured": f"{cite_before} before, {cite_after} after", "held": cite_before == cite_after},
         cost_row(6, "mean model calls per run (reported, not judged)", "calls", lambda value: f"{value:.1f}"),

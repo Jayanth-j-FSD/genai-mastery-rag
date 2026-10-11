@@ -256,6 +256,15 @@ class SaveAndFailureTests(RunnerCase):
         self.assertTrue(saved_to.endswith("keep.incomplete.json"))
         self.assertEqual(runner.load_results(path)["cases"], [{"id": "a"}])
 
+    def test_a_write_that_fails_part_way_leaves_the_earlier_file_whole(self):
+        path = self.label_path("whole")
+        runner.save_results({"meta": {"label": "whole", "complete": True}, "cases": [{"id": "a"}]}, path)
+        with mock.patch.object(runner.json, "dump", side_effect=OSError("the disk filled up")):
+            with self.assertRaises(OSError):
+                runner.save_results({"meta": {"label": "whole", "complete": True}, "cases": [{"id": "b"}]}, path)
+        self.assertEqual(runner.load_results(path)["cases"], [{"id": "a"}])
+        self.assertFalse(os.path.exists(path + ".tmp"))
+
     def test_an_incomplete_run_is_saved_normally_when_nothing_complete_exists(self):
         path = self.label_path("fresh")
         self.assertEqual(runner.save_results({"meta": {"label": "fresh", "complete": False}, "cases": []}, path), path)

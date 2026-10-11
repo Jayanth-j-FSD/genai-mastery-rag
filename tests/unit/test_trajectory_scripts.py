@@ -232,6 +232,36 @@ class InterleaveTests(unittest.TestCase):
             self.assertFalse(os.path.exists(runner.results_path("trajectories-c")))          # nothing ran, not even the new arm
             self.assertEqual(self.call("--interleave", "a", "c", "--only", TASK_ID, "--repeats", "1", "--force")[0], 0)
 
+    def test_a_forced_job_that_finishes_removes_the_leftover_progress_file_and_replaces_the_old_run(self):
+        runner.save_results(saved_run("a", [agent_run(1), agent_run(2)]), runner.results_path("trajectories-a"))
+        with self.fake_run():
+            code, _ = self.call("--interleave", "a", "b", "--only", TASK_ID, "--repeats", "1", "--force")
+        self.assertEqual(code, 0)
+        self.assertEqual(len(runner.load_results("trajectories-a")["runs"]), 1)               # the new job's single run replaced the old two
+        self.assertFalse(os.path.exists(runner.results_path("trajectories-a")[:-5] + ".incomplete.json"))
+
+    def test_a_forced_job_that_is_cut_short_says_the_old_complete_run_was_kept(self):
+        runner.save_results(dict(saved_run("a", [agent_run(1), agent_run(2)]), meta={"label": "a", "complete": True}),
+                            runner.results_path("trajectories-a"))
+        with self.fake_run(stop_on_call=3):                                                   # repeat 1 finished for both arms, then the quota ends
+            code, out = self.call("--interleave", "a", "b", "--only", TASK_ID, "--repeats", "2", "--force")
+        self.assertEqual(code, 1)
+        self.assertIn("WARNING: 'a' already had a complete saved run, so it was kept", out)
+        self.assertEqual(len(runner.load_results("trajectories-a")["runs"]), 2)               # still the old complete file
+        self.assertTrue(os.path.exists(runner.results_path("trajectories-a")[:-5] + ".incomplete.json"))
+
+    def test_show_lists_every_call_a_defence_or_the_budget_refused_by_name(self):
+        record = agent_run(1)
+        record["steps"][0]["tool_calls"].append({"name": "add_days", "arguments": "{}", "observation": "BLOCKED: the date was not stated",
+                                                 "ok": False, "blocked": True})
+        with mock.patch.object(run_trajectories.race, "run_race", return_value=saved_run("x", [record])):
+            self.call("--label", "refused", "--only", TASK_ID)
+        code, out = self.call("--show", "refused")
+        self.assertEqual(code, 0)
+        self.assertIn("calls refused before they ran:", out)
+        self.assertIn("add_days (guard): BLOCKED: the date was not stated", out)
+        self.assertIn("calls refused before they ran: 1 by the guard", out)
+
     def test_a_plain_run_records_its_cap_and_also_refuses_to_replace_a_saved_label(self):
         racing = mock.patch.object(run_trajectories.race, "run_race", return_value=saved_run("x", [agent_run(1)]))
         with racing:

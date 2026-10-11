@@ -149,6 +149,38 @@ class SecondReviewPredictionTests(unittest.TestCase):
         partial = prediction.check_setup(meta(0), meta(3, complete=False, stopped_because="quota"))
         self.assertIn("partial (quota)", "; ".join(partial))
 
+    def test_a_pair_in_which_a_run_ended_on_a_provider_error_is_left_out_of_the_verdict_and_counted(self):
+        before = [run(n) for n in (1, 2, 3, 4)]
+        after = [run(1)] + [run(n, success=False, stop="error") for n in (2, 3, 4)]          # three 503s, not three wrong answers
+        rows, failed, pairs = prediction.check_budget_prediction(before, after, TASKS)
+        self.assertEqual((failed, pairs), (False, 1))
+        measured = {row["number"]: row["measured"] for row in rows}
+        self.assertIn("3 pair(s) left out: a run ended on a provider error", measured[2])
+        self.assertIn("3 pair(s) left out: a run ended on a provider error", measured[4])
+        noisy_before = [run(1, success=False, stop="error"), run(2), run(3), run(4)]          # an error on the 'before' side leaves its pair out too
+        self.assertEqual(prediction.check_budget_prediction(noisy_before, [run(n) for n in (1, 2, 3, 4)], TASKS)[2], 3)
+
+    def test_the_noise_is_read_on_the_pairs_all_three_runs_completed_not_on_every_pair_the_noise_run_shares_with_before(self):
+        before = [run(1, 4, 1000), run(2, 4, 2000)]
+        after = [run(2, 3, 1900)]                                                              # only repeat 2 has all three runs
+        noise = [run(1, 4, 1000), run(2, 4, 2200)]                                             # 0% apart on repeat 1, 10% on repeat 2
+        text = tokens_line(before, after, noise)
+        self.assertIn("differ by 10.0%", text)                                                # on repeat 2 alone, not the 6.7% of both repeats
+        self.assertIn("1 pair(s) all three runs completed", text)
+
+    def test_the_setup_check_also_compares_the_other_settings_and_the_task_list(self):
+        def meta(**extra):
+            return dict({"models": {"agent": "m"}, "agent_max_calls_per_tool": 0, "complete": True, "retrieval_mode": "dense",
+                         "tasks": ["a", "b"], "overrides": {}}, **extra)
+        after = meta(agent_max_calls_per_tool=3)
+        self.assertEqual(prediction.check_setup(meta(), after, meta()), [])
+        self.assertIn("differ in retrieval_mode", "; ".join(prediction.check_setup(meta(), dict(after, retrieval_mode="hybrid"))))
+        self.assertIn("differ in tasks", "; ".join(prediction.check_setup(meta(), dict(after, tasks=["a"]))))
+        other = prediction.check_setup(meta(overrides={"top_k": 3}), dict(after, overrides={"agent_max_calls_per_tool": 3, "top_k": 4}))
+        self.assertIn("other settings differently", "; ".join(other))
+        same = prediction.check_setup(meta(overrides={"top_k": 3}), dict(after, overrides={"agent_max_calls_per_tool": 3, "top_k": 3}))
+        self.assertEqual(same, [])
+
     def test_the_report_leads_with_the_setup_warnings_when_there_are_any(self):
         rows, failed, pairs = prediction.check_budget_prediction([run(1)], [run(1)], TASKS)
         text = "\n".join(prediction.format_prediction(rows, failed, pairs, warnings=["the runs used different models"]))

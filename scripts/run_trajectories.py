@@ -208,6 +208,9 @@ def main(argv=None):
             leftover = path[:-len(".json")] + ".incomplete.json"
             if meta["complete"] and os.path.exists(leftover):         # a progress save that --force redirected beside an older complete file
                 os.remove(leftover)
+            if path.endswith(".incomplete.json"):                     # a forced run that was cut short must not look like it replaced the old one
+                print(f"\nWARNING: '{label}' already had a complete saved run, so it was kept, and this partial run was saved "
+                      f"beside it as {display_path(path, BASE_DIR)}")
             print()
             print("\n".join(trajectory.format_report(results["summary"], label)))
             print_modes(results["graded"])

@@ -410,6 +410,20 @@ class InjectionScriptTests(unittest.TestCase):
             self.assertIn("off 0/1", as_saved)
             self.assertIn("off 1/1", rescored)
 
+    def test_a_saved_label_is_refused_unless_forced_so_saved_evidence_is_not_overwritten(self):
+        import tempfile
+        from evals import runner
+        results = {"meta": {"label": "t", "attacks": ["dir-ignore-reply"], "repeats": 1, "model": "m", "complete": True}, "runs": []}
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, mock.patch.object(runner, "RESULTS_DIR", tmp):
+            runner.save_results(results, runner.results_path("injection-t"))
+            code, out = self.call("--label", "t", "--only", "dir-ignore-reply")
+            self.assertEqual(code, 1)
+            self.assertIn("'t' is already saved", out)
+            with mock.patch.object(injection, "run_suite", return_value=results) as suite, mock.patch("app.rag.pipeline.require_index"):
+                code, _out = self.call("--label", "t", "--only", "dir-ignore-reply", "--force")
+            self.assertEqual(code, 0)
+            suite.assert_called_once()
+
     def test_unknown_attack_ids_are_a_clear_error(self):
         code, out = self.call("--only", "nope")
         self.assertEqual(code, 1)

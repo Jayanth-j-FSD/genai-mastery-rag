@@ -9,7 +9,7 @@ only in a private, throwaway index; your real index and documents are never touc
 Run:
     python scripts/run_injection.py                          # every attack, defences off and on (model calls)
     python scripts/run_injection.py --only ind-override-reply dir-ignore-reply
-    python scripts/run_injection.py --repeats 2 --label final
+    python scripts/run_injection.py --repeats 1 --label mine
     python scripts/run_injection.py --static                 # no model: what the sanitizer alone removes
     python scripts/run_injection.py --show final             # no model: re-print a saved run's table
     python scripts/run_injection.py --show final --rescore   # no model: the same runs judged by today's detectors
@@ -37,6 +37,7 @@ def main(argv=None):
     parser.add_argument("--modes", nargs="+", choices=("off", "on"), default=["off", "on"], help="defences off, on, or both")
     parser.add_argument("--layers", nargs="+", choices=Defense.ALL_LAYERS, default=list(Defense.ALL_LAYERS),
                         help="which defence layers the 'on' runs use (default all three)")
+    parser.add_argument("--force", action="store_true", help="replace a saved run that has the same label (it is refused otherwise)")
     parser.add_argument("--static", action="store_true", help="no model calls: show what the sanitizer alone removes")
     parser.add_argument("--show", metavar="LABEL", help="print the table of a saved run (no model calls) instead of running")
     parser.add_argument("--compare", nargs="+", metavar="LABEL", help="put saved runs side by side, one column each (no model calls)")
@@ -93,6 +94,10 @@ def main(argv=None):
             print(f"  {attack_id:<24}{'removed' if removed else 'LEFT IN: gets past this layer'}")
         return 0
 
+    saved_path = runner.results_path("injection-" + args.label)
+    if os.path.exists(saved_path) and not args.force:
+        print(f"Error: '{args.label}' is already saved ({display_path(saved_path, BASE_DIR)}): pick another label, or pass --force to replace it")
+        return 1
     try:
         pipeline.require_index()
     except RuntimeError as exc:

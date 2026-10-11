@@ -298,8 +298,15 @@ def save_results(results, path=None):
         if existing_is_complete:
             path = path[: -len(".json")] + ".incomplete.json"
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(results, handle, ensure_ascii=False, indent=1)
+    temporary = path + ".tmp"
+    try:
+        with open(temporary, "w", encoding="utf-8") as handle:
+            json.dump(results, handle, ensure_ascii=False, indent=1)
+        os.replace(temporary, path)                # a write cut short never leaves half a file where a good one was
+    except BaseException:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+        raise
     return path
 
 
