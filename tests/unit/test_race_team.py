@@ -30,9 +30,9 @@ def captured(function, *args):
     return result, out.getvalue()
 
 
-def fake_record(task, approach, repeat, success=True, stop="final", team=None, calls=2, steps=None):
+def fake_record(task, approach, repeat, success=True, stop="final", team=None, calls=2, steps=None, answer="an answer"):
     record = {"task_id": task["id"], "approach": approach, "repeat": repeat, "success": success, "finished": stop == "final",
-              "rules_passed": success, "stop_reason": stop, "answer": "an answer", "failed_checks": [], "warnings": [], "n_steps": 2,
+              "rules_passed": success, "stop_reason": stop, "answer": answer, "failed_checks": [], "warnings": [], "n_steps": 2,
               "tool_calls": [], "llm_calls": calls, "prompt_tokens": 100, "completion_tokens": 10, "api_seconds": 1.0, "wait_seconds": 0.0,
               "elapsed_seconds": 2.0, "steps": steps if steps is not None else [], "notes": []}
     if team is not None:

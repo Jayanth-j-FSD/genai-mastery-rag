@@ -24,7 +24,9 @@ Run:
     python scripts/race_team.py --show wk10 --save                                   # also write docs/week10/race-results.md
 
 A saved label is evidence and is never replaced silently: racing again under it stops with a message unless you pass --resume
-(carry on) or --force (start over; an older complete race is kept if the new one is cut short). Name the model: never the alias.
+(carry on) or --force (start over). A forced race moves what it would overwrite to race-<label>.replaced-<time>.json and says so;
+an older complete race stays in place while the new one is cut short, and moves aside only when the new one replaces it.
+Name the model: never the alias.
 """
 import argparse
 import hashlib
@@ -374,6 +376,71 @@ def changed_since(saved_meta, meta):
     return differences
 
 
+def read_meta(path):
+    """The meta of a saved race, or None when the file is missing, unreadable or not a race."""
+    try:
+        return runner.load_results(path)["meta"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def when(meta):
+    """When a saved race last wrote its file, as a datetime, or None when it did not say."""
+    try:
+        return datetime.fromisoformat(meta.get("finished") or meta["started"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def newer_progress(path, leftover):
+    """The file a --resume carries on from: the leftover when it was written after the saved race (a resume, or a forced race,
+    that was cut short while a complete race sat at the label), else the saved race itself."""
+    if not os.path.exists(leftover):
+        return path
+    saved, beside = read_meta(path), read_meta(leftover)
+    if saved is None or beside is None:
+        return path
+    try:
+        return leftover if when(beside) >= when(saved) else path
+    except TypeError:                                    # a time that was not recorded, or has no zone: a leftover only ever sits beside a complete race
+        return leftover if saved.get("complete") else path
+
+
+def keep_aside(path, say=print):
+    """Move a saved race to a name of its own, because a saved race is evidence and a write that would replace it must not destroy it."""
+    stem = path[:-len(".json")]
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    target, number = f"{stem}.replaced-{stamp}.json", 1
+    while os.path.exists(target):                        # two in the same second must not overwrite each other
+        number += 1
+        target = f"{stem}.replaced-{stamp}-{number}.json"
+    runner._replace_with_retries(path, target)           # the same retried rename the saves use: another program may hold the file for a moment
+    say(f"Kept the saved race: {display_path(path, BASE_DIR)} was moved to {display_path(target, BASE_DIR)}.")
+    return target
+
+
+def keep_before_a_forced_race(path, leftover):
+    """--force starts over, but a saved race is evidence. The first save would overwrite a leftover or an unfinished race, so those
+    move aside now. A COMPLETE race stays where it is, because runner.save_results keeps it while the new race is cut short; it
+    moves aside only when the new race completes and would replace it (keep_other_race)."""
+    for old in (leftover, path):
+        if not os.path.exists(old):
+            continue
+        meta = read_meta(old)
+        if old == path and meta is not None and meta.get("complete"):
+            continue
+        keep_aside(old)
+
+
+def keep_other_race(path, meta):
+    """Before a complete race is written over the file at `path`: if that file is another race (another start time), move it aside."""
+    if not os.path.exists(path):
+        return
+    other = read_meta(path)
+    if other is None or other.get("started") != meta.get("started"):
+        keep_aside(path)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Race the team against the single agent on the same tasks.")
     parser.add_argument("--label", default=None, help="name of this race (saved as evals/results/race-<label>.json)")
@@ -453,7 +520,7 @@ def main(argv=None):
 
     path = runner.results_path("race-" + args.label)
     leftover = path[:-len(".json")] + ".incomplete.json"
-    source = leftover if args.resume and os.path.exists(leftover) else path       # progress saved beside a complete race is newer
+    source = newer_progress(path, leftover) if args.resume else path               # progress saved beside a complete race may be newer
     started = datetime.now().astimezone().isoformat(timespec="seconds")
     meta = make_meta(args.label, tasks, args.repeats, arms, args.model, started, args.timeout)
     if meta["code"]["dirty"] is None:
@@ -492,6 +559,12 @@ def main(argv=None):
         saved_meta.update(complete=False, stopped_because=None)
         arms = saved_meta["arms"]
     else:
+        if args.force:
+            try:
+                keep_before_a_forced_race(path, leftover)
+            except OSError as exc:
+                print(f"Error: could not move the saved race aside ({exc}), so the forced race was not started and nothing was changed.")
+                return 1
         results = {"meta": meta, "runs": []}
 
     plan = build_plan(tasks, args.repeats, arms)
@@ -516,6 +589,8 @@ def main(argv=None):
     if stopped:
         print(f"\nSTOPPED: {stopped}\nSaved what finished. Carry on with --resume once the cause is gone.")
     try:
+        if results["meta"]["complete"]:
+            keep_other_race(path, results["meta"])      # a forced race that finished replaces the old one: the old one is kept aside
         saved_path = runner.save_results(results, path)
     except OSError as exc:
         print(f"Error: could not save the race: {exc}")
@@ -524,7 +599,9 @@ def main(argv=None):
         print(f"\nWARNING: '{args.label}' already had a complete saved race, so it was kept, and this partial one was saved beside it as "
               f"{display_path(saved_path, BASE_DIR)}")
     if results["meta"]["complete"] and os.path.exists(leftover):        # a progress save that went beside an older complete file
-        os.remove(leftover)
+        beside = read_meta(leftover)
+        if beside is not None and beside.get("started") == results["meta"].get("started"):      # only this race's own progress: another's is evidence
+            os.remove(leftover)
     print()
     print("\n".join(team_report.format_report(results, 0.0, 0.0)))
     print(f"\nsaved: {display_path(saved_path, BASE_DIR)}")
