@@ -92,9 +92,10 @@ Everything below is built and tested except remote MCP, which is described but n
   the description: the title and every string in the input schema too. A tool is refused if its name is not a
   plain identifier or is one the agent reserves (`remember`); if any of that text is missing, enormous, contains
   control, zero-width, private-use or unassigned characters, mixes Latin with Cyrillic, Greek or Armenian inside a
-  word of more than three letters, or contains instruction-like text (read across line breaks, with look-alike letters
-  made plain) or the shape of a known payload (an `<important>` tag, "do not tell the user", "before using this
-  tool", a path such as `~/.ssh`); if its schema is odd or over 8,000 characters; or if it is not on the operator's
+  word of more than three letters (digits do not count, so `100µs` passes), or contains instruction-like text (read
+  across line breaks, with look-alike letters made plain), or two or more of the signals a payload is made of (a tag
+  such as `<important>`, an order to hide something from the user, an order to act before or first, a path to a secret
+  such as `~/.ssh`; any one alone is an ordinary phrase and passes); if its schema is odd or over 8,000 characters; or if it is not on the operator's
   allowlist; optionally, if it is not declared read-only (`--require-read-only`). One server may offer at most 40
   tools, and all the definitions together may take at most 60,000 characters, because every definition goes into
   every model request. This is a gate, not a guarantee: a plain instruction that uses none of the trigger words

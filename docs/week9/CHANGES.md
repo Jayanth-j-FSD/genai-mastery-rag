@@ -40,11 +40,13 @@ loop imports `app.mcp`. That is the point of the week: the agent gets new capabi
   started with `HRIS_SCOPE=payroll`; under the default scope an agent cannot discover it.
 - **Vetting is a gate, not a guarantee.** It checks every piece of text the model reads (description, title and
   every string in the input schema), not only the description, and refuses odd or reserved names, control,
-  zero-width, private-use and unassigned characters, words of more than three letters that mix Latin with Cyrillic,
-  Greek or Armenian, instruction-like text read across line breaks and with look-alike letters made plain, the shape
-  of a known poisoning payload, odd or oversized schemas and anything off an operator's allowlist, and optionally
-  anything not declared read-only. A plain instruction with no trigger words passes, a look-alike letter outside a small
-  table passes, and a harmless description that uses a trigger word is refused (all three are tests). A tool that passes can still return poisoned results, which is what
+  zero-width, private-use and unassigned characters, words of more than three letters (digits not counted) that mix
+  Latin with Cyrillic, Greek or Armenian, instruction-like text read across line breaks and with look-alike letters made
+  plain, two or more of the signals a poisoning payload is made of (a tag such as `<important>`, an order to hide it from
+  the user, an order to act first, a path to a secret), odd or oversized schemas and anything off an operator's
+  allowlist, and optionally anything not declared read-only. A plain instruction with no trigger words passes, a single
+  payload signal passes, a look-alike letter outside the table passes, and a harmless description that uses a trigger
+  word is refused (all four are tests). A tool that passes can still return poisoned results, which is what
   Week 8's screening of results is for (`--defense`).
 - **A server error is a recoverable observation.** A tool that reports an error, times out or whose server
   dies comes back to the model as an `ERROR:` text it can act on, not as a crash.

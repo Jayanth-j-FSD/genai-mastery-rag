@@ -48,8 +48,8 @@ A week is done only when all of these hold. They are the gate before its tag is 
 Nothing here has been run. Git was not signed in while the work was built, and the rule was to push, pull and fetch
 nothing, so what exists is local branches and annotated tags. `main` was never touched.
 
-1. Sign in as the repository's own account (`Jayanth-j-FSD`), not a work account. The remote URL names the account
-   (`git remote -v`); a 403 on push means the wrong account is signed in. Do not use `gh` for this repository.
+1. Sign in as the account that owns the repository, not a work account. The remote URL names it (`git remote -v`); a
+   403 on push means the wrong account is signed in. Do not use `gh` for this repository.
 2. Look before pushing: `git status` is clean, `git branch -vv` shows the five branches below, `git tag -n1` shows the
    annotated tags below, and `python scripts/check_all.py --strict` is green on the tip being pushed.
 3. Push the branches, oldest first, then the tags, never with `--force`:
