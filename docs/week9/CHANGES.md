@@ -39,15 +39,17 @@ loop imports `app.mcp`. That is the point of the week: the agent gets new capabi
 - **Access control at the server, by not offering.** The HRIS payroll tool exists only when the server is
   started with `HRIS_SCOPE=payroll`; under the default scope an agent cannot discover it.
 - **Vetting is a gate, not a guarantee.** It checks every piece of text the model reads (description, title and
-  every string in the input schema), not only the description, and refuses odd or reserved names, control,
-  zero-width, private-use and unassigned characters, words of more than three letters (digits not counted) that mix
-  Latin with Cyrillic, Greek or Armenian, instruction-like text read across line breaks and with look-alike letters made
-  plain, two or more of the signals a poisoning payload is made of (a tag such as `<important>`, an order to hide it from
-  the user, an order to act first, a path to a secret), odd or oversized schemas and anything off an operator's
-  allowlist, and optionally anything not declared read-only. A plain instruction with no trigger words passes, a single
-  payload signal passes, a look-alike letter outside the table passes, and a harmless description that uses a trigger
-  word is refused (all four are tests). A tool that passes can still return poisoned results, which is what
-  Week 8's screening of results is for (`--defense`).
+  every string in the input schema), not only the description, and refuses odd or reserved names; control, zero-width,
+  lone-surrogate, private-use and unassigned characters and letters that draw nothing; words that mix Latin with
+  Cyrillic, Greek or Armenian (a word of up to three letters is let through only when its foreign letters are the
+  symbols of units); instruction-like text read across line breaks and with look-alike letters made plain; two different
+  signals of the ones a poisoning payload is made of (an order to hide it from the user, an order to act first, a path
+  to a secret, a tag such as `<system>`), counted over one tool's whole definition, with a bare tag such as `<important>`
+  counting as two; odd or oversized schemas and anything off an operator's allowlist, and optionally anything not
+  declared read-only. A plain instruction with no trigger words passes, a single payload signal passes, a look-alike
+  letter outside the table passes, signals in two different tools are not added together, and a harmless description
+  that uses a trigger word is refused (all of these are tests). A tool that passes can still return poisoned results,
+  which is what Week 8's screening of results is for (`--defense`).
 - **A server error is a recoverable observation.** A tool that reports an error, times out or whose server
   dies comes back to the model as an `ERROR:` text it can act on, not as a crash.
 - **Tool names are decided after vetting.** A server prefix is added only when two ACCEPTED tools share a name, so
