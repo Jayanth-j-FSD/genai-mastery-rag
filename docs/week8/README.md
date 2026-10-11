@@ -27,15 +27,19 @@ over the agent, and builds defences that are measured, not assumed.
 | Run the agent on the Week 7 tasks and grade every path; or re-grade a saved race for free | `scripts/run_trajectories.py` | 1 |
 | An injection suite: 15 attacks (12 indirect, planted in poisoned documents in a private throwaway index; 3 direct), each with a canary so success is detected mechanically | `evals/injection.py`, `scripts/run_injection.py` | 2 |
 | Three defence layers, each switchable and measurable alone: sanitize what it reads, guard what it does, validate what it says | `app/agent/defense.py`, wired into `app/agent/loop.py` | 2 |
+| Where the leak window sits against the longest stretch saved honest answers share with the system prompt, and against saved leaks (no model calls) | `scripts/calibrate_leak_window.py` | 2 |
 | The before-and-after number on the top failure mode, and the prediction written before it was measured, checked as arithmetic | `scripts/compare_trajectories.py`, `scripts/check_prediction.py`, `docs/week8/CHANGES.md` | 3 |
 | A one-run illustration of the call budget on the unanswerable question: eight searches and no answer, then three searches and a refusal | `docs/week8/example-budget.md` | 3 |
 | What the tests and the OWASP map record about what gets through: inputs for check 4, whose answer is yours to write in your own words (`findings.md`, section 4) | `tests/unit/test_injection.py` (`WhatEachLayerStopsTests`), `docs/week8/findings.md` | 4 |
 
 ## Run it
 
+Saved runs are evidence, so a label that is already saved is refused unless you add `--force`: use a new label for your own
+runs (`my-run` below is one; `before-final` and the labels beside it are the ones the measured runs use).
+
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_trajectories.py --label before             # model calls: runs the agent, grades every path
-.\.venv\Scripts\python.exe scripts\run_trajectories.py --grade race-race --label race-regraded   # free: re-grade a saved Week 7 race
+.\.venv\Scripts\python.exe scripts\run_trajectories.py --label my-run             # model calls: runs the agent, grades every path
+.\.venv\Scripts\python.exe scripts\run_trajectories.py --grade race-race --label my-regrade   # free: re-grade a saved Week 7 race
 .\.venv\Scripts\python.exe scripts\run_injection.py --static                      # free: what the sanitizer alone removes
 .\.venv\Scripts\python.exe scripts\run_injection.py --label r2-final              # model calls: every attack, defences off and on
 .\.venv\Scripts\python.exe scripts\compare_trajectories.py before after --save
