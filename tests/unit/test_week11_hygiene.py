@@ -1,5 +1,8 @@
 """Week 11: request logs and drill data never reach the public repository by accident."""
+import glob
+import json
 import os
+import re
 import subprocess
 import unittest
 
@@ -41,6 +44,44 @@ class IgnoreTests(unittest.TestCase):
         self.assertTrue(tracked)
         for path in tracked:
             self.assertTrue(path.startswith("data/corpus/"), f"{path} is tracked: only the corpus belongs in git under data/")
+
+
+def tracked_week11_files():
+    """What this week commits that could carry text from a log or a machine: its documents, the fixtures, the saved measurements."""
+    found = []
+    for pattern in ("docs/week11/*.md", "tests/fixtures/**/*.json", "evals/results/cost-*.json", "evals/logged_failures.json"):
+        found += glob.glob(os.path.join(ROOT, pattern), recursive=True)
+    return sorted(set(found))
+
+
+class DocumentHygieneTests(unittest.TestCase):
+    def test_no_em_dash_machine_path_file_url_or_personal_address_in_what_the_week_commits(self):
+        paths = tracked_week11_files()
+        self.assertTrue(any(p.endswith("prediction.md") for p in paths))
+        machine = re.compile("[A-Za-z]:[" + chr(92) + chr(92) + "/]|file:///|/Users/|/home/")      # a drive letter and a slash, a file URL, a home folder
+        address = re.compile(r"[\w.+-]+@[\w-]+\.(?!example)[\w.]+")
+        for path in paths:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+            name = os.path.relpath(path, ROOT)
+            self.assertNotIn(chr(0x2014), text, f"{name} has an em dash")
+            self.assertNotIn(chr(0x2013), text, f"{name} has an en dash")
+            self.assertIsNone(machine.search(text), f"{name} names a place on a machine")
+            self.assertIsNone(address.search(text), f"{name} holds an address")
+
+    def test_nothing_in_the_agent_machinery_reads_the_drill(self):
+        agent = os.path.join(ROOT, "app", "agent")
+        for name in os.listdir(agent):
+            if name.endswith(".py"):
+                with open(os.path.join(agent, name), encoding="utf-8") as handle:
+                    self.assertNotIn("drill", handle.read().lower(), f"app/agent/{name} mentions the drill")
+
+    def test_a_saved_measurement_holds_numbers_and_names_only(self):
+        for path in glob.glob(os.path.join(ROOT, "evals", "results", "cost-*.json")):
+            with open(path, encoding="utf-8") as handle:
+                saved = json.load(handle)
+            for row in saved["rows"]:
+                self.assertTrue({"answer", "question", "text", "retrieved", "passages"}.isdisjoint(row), os.path.basename(path))
 
 
 if __name__ == "__main__":
