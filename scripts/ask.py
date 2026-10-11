@@ -9,8 +9,16 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import openai                              # noqa: E402
+from app import observability              # noqa: E402
 from app.console import make_output_safe   # noqa: E402
 from app.rag.pipeline import answer        # noqa: E402
+
+
+def show_request_id():
+    """Say which logged request this was (it is on the line in data/traces/traces.jsonl, or in errors.jsonl when it failed)."""
+    request_id = observability.last_request_id()
+    if request_id:
+        print(f"\nrequest id: {request_id}")
 
 
 if __name__ == "__main__":
@@ -21,12 +29,15 @@ if __name__ == "__main__":
 
     question = " ".join(sys.argv[1:])   # join the words so surrounding quotes are optional
     try:
-        result = answer(question)
+        with observability.channel("cli"):
+            result = answer(question)
     except RuntimeError as exc:          # e.g. no API key, nothing indexed yet, daily quota used up
         print(f"Error: {exc}")
+        show_request_id()
         sys.exit(1)
     except openai.APIError as exc:       # the AI provider refused or failed: rate limit, bad key, network
         print(f"Error: the AI provider call failed ({type(exc).__name__}): {exc}")
+        show_request_id()
         sys.exit(1)
 
     print("\nANSWER:")
@@ -37,3 +48,4 @@ if __name__ == "__main__":
             print(f"  - {s['document']}  (score {s['score']})")
     else:
         print("\n(No sources — the answer was not found in the documents.)")
+    show_request_id()

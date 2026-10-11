@@ -120,7 +120,9 @@ class CallScope:
     exception type that ended a failed call, else None). Three more numbers are there when the provider reports
     them, else None: total_tokens, cached_tokens (the part of the prompt served from a cache) and
     reasoning_tokens (hidden thinking it counted). A total that is not prompt plus completion is tokens the two
-    counters miss. `extra` is whatever the caller wants kept with the scope (the team keeps the hand-off number).
+    counters miss. usage_reported says whether the provider sent a usage block at all: without one the token fields are 0,
+    which would otherwise look like a call that cost nothing. `extra` is whatever the caller wants kept with the scope (the
+    team keeps the hand-off number).
     A scope opened inside another is listed in the outer one's `children`, so an outer scope can still total everything
     done under it (`walk()`, `totals(deep=True)`), while `calls` holds only its own.
     """
@@ -169,7 +171,7 @@ def call_scope(label="", **extra):
 
 
 def _record_call(began, seconds, paused, attempts, model, served=None, prompt_tokens=0, completion_tokens=0, error=None,
-                 total_tokens=None, cached_tokens=None, reasoning_tokens=None):
+                 total_tokens=None, cached_tokens=None, reasoning_tokens=None, usage_reported=False):
     """Add one call record to the innermost open scope, if there is one."""
     scopes = _scopes.get()
     if scopes:
@@ -177,7 +179,8 @@ def _record_call(began, seconds, paused, attempts, model, served=None, prompt_to
                                  "model": model, "served": served, "prompt_tokens": prompt_tokens,
                                  "completion_tokens": completion_tokens,
                                  "status": "ok" if error is None else "error", "error": error,
-                                 "total_tokens": total_tokens, "cached_tokens": cached_tokens, "reasoning_tokens": reasoning_tokens})
+                                 "total_tokens": total_tokens, "cached_tokens": cached_tokens, "reasoning_tokens": reasoning_tokens,
+                                 "usage_reported": usage_reported})
 
 
 def _count(value):
@@ -298,5 +301,6 @@ def chat(messages, model: str = "", rpm=None, **kwargs):
         _record_call(began, provider_seconds, paused_seconds, attempt + 1, model, served, prompt_tokens, completion_tokens,
                      total_tokens=_count(getattr(counts, "total_tokens", None)),
                      cached_tokens=_count(getattr(prompt_details, "cached_tokens", None)),
-                     reasoning_tokens=_count(getattr(completion_details, "reasoning_tokens", None)))
+                     reasoning_tokens=_count(getattr(completion_details, "reasoning_tokens", None)),
+                     usage_reported=counts is not None)
         return response

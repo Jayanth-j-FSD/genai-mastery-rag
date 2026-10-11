@@ -7,7 +7,7 @@ when the answer isn't in those chunks. Mentor checks #2 and #3 live here.
 import os
 import re
 
-from app import llm
+from app import llm, observability
 from app.config import settings
 from app.models import Source
 
@@ -84,27 +84,34 @@ def generate_answer(question: str, chunks):
     """Return (answer_text, sources, grounded).
     grounded is False (and sources empty) when the app can't answer from the docs."""
     if not chunks:                          # nothing retrieved -> can't answer
+        observability.note(refusal_cause="no_chunks")
         return IDK, [], False
 
     # Optional safety net: if even the best chunk is too weak a match, don't guess.
     # Off by default (min_relevance = 0.0); tune it after seeing real scores.
     if settings.min_relevance > 0 and max(c["score"] for c in chunks) < settings.min_relevance:
+        observability.note(refusal_cause="below_min_relevance")
         return IDK, [], False
 
     # Give the model each chunk with its source label so it can cite correctly.
     context = "\n\n".join(f"[source: {c['source']}]\n{c['text']}" for c in chunks)
     user_prompt = f"Context passages:\n{context}\n\nQuestion: {question}"
+    # What the prompt was made of, so a logged request can say how much of what it paid for was instructions, evidence or question.
+    observability.note(prompt_sha=observability.sha12(SYSTEM_PROMPT),
+                       chars={"system": len(SYSTEM_PROMPT), "context": len(context), "question": len(question), "stripped": 0})
 
     # llm.chat adds the per-minute limiter and the retries a free tier needs (app/llm.py).
-    resp = llm.chat(
-        [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0,                      # 0 = most consistent, least random
-    )
+    with observability.model_span("generate", requested_model=settings.llm_model):
+        resp = llm.chat(
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0,                  # 0 = most consistent, least random
+        )
     answer = llm.text_of(resp)
     if not answer:                          # empty reply -> treat as "don't know"
+        observability.note(refusal_cause="empty_reply")
         return IDK, [], False
 
     # "Grounded" = the model actually answered (didn't refuse). Normalise the curly

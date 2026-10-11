@@ -14,9 +14,16 @@ comparison is a fair one.
 """
 import math
 
+from app import observability
 from app.config import settings
 from app.rag.embedder import embed_texts
 from app.rag import fusion, keyword, store
+
+
+def _embed_attrs():
+    """What the span of embedding the question says about itself: where the vectors came from and what that cost (a local model is free)."""
+    local = settings.embed_provider == "local"
+    return {"provider": settings.embed_provider, "cost_usd": 0.0 if local else None, "cost_basis": "local" if local else "unknown"}
 
 
 def _cosine(left, right) -> float:
@@ -71,8 +78,10 @@ def retrieve(question: str, top_k: int):
     # An empty question would otherwise be sent to the embeddings API, which rejects it.
     if top_k <= 0 or not (question or "").strip():
         return []
-    question_vector = embed_texts([question])[0]
-    return _dense_search(question_vector, top_k)
+    with observability.span("embed_query", "embed", **_embed_attrs()):
+        question_vector = embed_texts([question])[0]
+    with observability.span("search", "retrieve", mode="dense", top_k=top_k):
+        return _dense_search(question_vector, top_k)
 
 
 def retrieve_hybrid(question: str, top_k: int):
@@ -89,9 +98,12 @@ def retrieve_hybrid(question: str, top_k: int):
     # Ask each retriever for a wider pool than we need, so fusion has room to reorder.
     candidate_count = max(settings.hybrid_candidates, top_k)
 
-    question_vector = embed_texts([question])[0]
-    dense_hits = _dense_search(question_vector, candidate_count)
-    keyword_hits = keyword.search(question, candidate_count)
+    with observability.span("embed_query", "embed", **_embed_attrs()):
+        question_vector = embed_texts([question])[0]
+    with observability.span("search", "retrieve", mode="dense", top_k=candidate_count):
+        dense_hits = _dense_search(question_vector, candidate_count)
+    with observability.span("keyword_search", "retrieve", mode="keyword", top_k=candidate_count):
+        keyword_hits = keyword.search(question, candidate_count)
 
     # Index both result sets by chunk_id so the same chunk found twice is one entry.
     by_id: dict[str, dict] = {}

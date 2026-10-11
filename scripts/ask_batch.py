@@ -24,6 +24,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from app import observability                    # noqa: E402
 from app.config import settings, BASE_DIR        # noqa: E402
 from app.console import display_path               # noqa: E402
 from app.rag.pipeline import answer              # noqa: E402
@@ -85,7 +86,8 @@ def main():
     answered = refused = failed = 0
     for number, question in enumerate(questions, start=1):
         try:
-            result = answer(question, mode)
+            with observability.channel("batch"):
+                result = answer(question, mode)
         except Exception as exc:
             # One bad question must not abandon the rest of the batch.
             failed += 1

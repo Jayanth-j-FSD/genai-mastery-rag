@@ -6,10 +6,12 @@ In short:
 """
 from collections import Counter
 
-from app import llm
+from app import llm, observability
 from app.config import settings
 from app.rag import loader, chunker, embedder, keyword, store, retriever, generator
-from app.tracing import log_trace
+from app.tracing import log_error, log_trace
+
+_INDEX_ID = {}          # (folder, collection, chunk count) -> the index's id; emptied when ingest() changes the index
 
 
 def require_index():
@@ -82,6 +84,7 @@ def ingest():
     store.reset_collection()                       # start clean (supports re-ingest)
     store.add_chunks(chunks, embeddings)
     keyword.invalidate()                           # the keyword index is now stale (Week 4)
+    _INDEX_ID.clear()                              # and so is the id a request log names the index by (Week 11)
 
     # Count chunks per file so callers can SHOW how each document was split (check #4).
     per_source: dict[str, int] = {}
@@ -90,6 +93,30 @@ def ingest():
     plain = len(chunker.chunk_documents(docs, settings.chunk_size, settings.chunk_overlap))
     return {"documents": len(docs), "chunks": len(chunks), "per_source": per_source,
             "chunks_removed_by_cleaning": plain - len(chunks)}
+
+
+def _index_id():
+    """Which index answered: the chunk count and a short hash of every chunk's id and text, so a logged request can be told
+    from one answered by another index (a changed number in a policy changes it). Computed once per index and process, not per
+    request; an index rebuilt by ANOTHER process with the same number of chunks is not noticed until this one restarts."""
+    key = (settings.chroma_dir, settings.collection, store.count_chunks())
+    if key not in _INDEX_ID:
+        chunks = sorted(store.get_all_chunks(), key=lambda chunk: chunk["chunk_id"])
+        _INDEX_ID.clear()
+        _INDEX_ID[key] = f"{key[2]}:" + observability.sha12("\n".join(f"{c['chunk_id']}={observability.sha12(c['text'])}" for c in chunks))
+    return _INDEX_ID[key]
+
+
+def _note_outcome(grounded, sources):
+    """Tell the request log what the answer cited and, for a refusal, why. The cause is set where it happens (the generator's
+    early returns); a refusal that reached here without one came from the model's own "I don't know"."""
+    request = observability.current()
+    if request is None:
+        return
+    observability.note(sources=[source.document for source in sources])
+    if not grounded and "refusal_cause" not in request.notes:
+        asked = any(span.get("status") == "ok" for span in request.model_spans())
+        observability.note(refusal_cause="model_idk" if asked else "unknown")
 
 
 def answer(question: str, mode: str = None):
@@ -110,13 +137,20 @@ def answer(question: str, mode: str = None):
             "retrieval_mode": used_mode,
         }
 
-    require_index()                                # an empty index must not pass as a polite refusal
+    with observability.begin_request() as request:   # Week 11: the steps of this request are logged; a failure goes to errors.jsonl
+        try:
+            require_index()                        # an empty index must not pass as a polite refusal
 
-    chunks = retriever.retrieve_for_mode(question, settings.top_k, used_mode)
-    llm.reset_last_model()                         # so the trace names the model of THIS answer, or None
-    answer_text, sources, grounded = generator.generate_answer(question, chunks)
-    # best-effort, never raises
-    log_trace(question, chunks, answer_text, grounded, retrieval_mode=used_mode, model_served=llm.last_model())
+            chunks = retriever.retrieve_for_mode(question, settings.top_k, used_mode)
+            observability.note(index_id=observability.guarded("index_id", _index_id))
+            llm.reset_last_model()                 # so the trace names the model of THIS answer, or None
+            answer_text, sources, grounded = generator.generate_answer(question, chunks)
+            observability.guarded("note_outcome", _note_outcome, grounded, sources)
+            # best-effort, never raises
+            log_trace(question, chunks, answer_text, grounded, retrieval_mode=used_mode, model_served=llm.last_model())
+        except Exception as exc:
+            log_error(request, exc, question)      # best-effort, never raises; the exception goes on exactly as before
+            raise
     return {
         "answer": answer_text,
         "sources": [s.model_dump() for s in sources],
