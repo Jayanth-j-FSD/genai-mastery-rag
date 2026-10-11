@@ -5,7 +5,8 @@ prompt after seeing it fail on the race tasks would be tuning on the test set, s
 from the Week 5 question bank, with every race task (and any question close to one) left out. A pilot may run on code that is
 not committed yet. It saves under a label that starts with `pilot-`, so it cannot pass for the race; it scores nothing (these
 questions have no rule checks); and it prints what happened: each hand-off, the answer, the calls and the tokens. What it
-measures replaces the guess in `race_team.py --plan`. Every pilot made before the race is listed in docs/week10/CHANGES.md.
+measures sharpens the guess in `race_team.py --plan`: its team-to-agent ratio is applied to what the single agent makes on the race
+tasks, because the pilot questions are easier. Every pilot made before the race is listed in docs/week10/CHANGES.md.
 
 Run:
     python scripts/pilot_team.py --label pilot-1 --model gemini-3.1-flash-lite-preview          # 6 questions, both arms
@@ -14,6 +15,7 @@ Run:
     python scripts/pilot_team.py --show pilot-1                                                  # print a saved pilot: free
 """
 import argparse
+import math
 import os
 import random
 import re
@@ -66,10 +68,13 @@ def choose(questions, n, seed):
     return picked, left_out
 
 
-def summarize_run(question, arm, run):
+def summarize_run(question, arm, run, scope=None):
     crew = getattr(run, "team", None) or {}
     answer = run.answer or ""
-    return {"question": question, "arm": arm, "stop_reason": run.stop_reason, "answer": answer, "calls": run.usage.get("calls", 0),
+    calls = run.usage.get("calls", 0)
+    log = [call for _owner, call in scope.walk()] if scope is not None else []         # every call of the run, the team's specialists included
+    return {"question": question, "arm": arm, "stop_reason": run.stop_reason, "answer": answer, "calls": calls,
+            "requests": race_team.requests_from(log, calls, run.stop_reason == "error"),         # what the quota counts: retried and failed attempts too
             "tokens": run.usage.get("prompt_tokens", 0) + run.usage.get("completion_tokens", 0), "steps": len(run.steps),
             "refused": answer.lower().replace("\u2019", "'").startswith("i don't know"), "served_model": llm.last_model(),
             "handoffs": [{"agent": h["agent"], "question": h["question"], "state": h["state"], "calls": h["calls"], "answer_chars": h["answer_chars"]}
@@ -86,7 +91,9 @@ def run_pair(question, index, model, timeout):
     results = []
     for arm, start in runners:
         llm.reset_last_model()
-        results.append(summarize_run(question, arm, start()))
+        with llm.call_scope(arm) as scope:
+            run = start()
+        results.append(summarize_run(question, arm, run, scope))
     return sorted(results, key=lambda row: row["arm"])
 
 
@@ -98,6 +105,7 @@ def format_pilot(saved):
         lines += ["", f"Q: {question}"]
         for row in (r for r in saved["runs"] if r["question"] == question):
             lines.append(f"  {row['arm']:<6}{row['calls']:>3} calls, {row['tokens']:>6} tokens, {row['steps']} steps, stopped: {row['stop_reason']}"
+                         + (f"  ({row['requests']} requests)" if row.get("requests", row["calls"]) != row["calls"] else "")      # an older pilot has no count
                          + ("  (refused)" if row["refused"] else ""))
             for handoff in row["handoffs"]:
                 lines.append(f"        hand-off to the {handoff['agent']} ({handoff['state']}, {handoff['calls']} calls): {handoff['question']}")
@@ -119,7 +127,7 @@ def main(argv=None):
                              "The bank has no question that needs a calculation, so this is how the calculator gets shaken down")
     parser.add_argument("--seed", type=int, default=1, help="seed for picking the questions (default 1)")
     parser.add_argument("--timeout", type=float, default=300.0, help="seconds a run may take (default 300)")
-    parser.add_argument("--max-calls", type=int, default=None, help="stop after this many model calls")
+    parser.add_argument("--max-calls", type=int, default=None, help="stop after this many REQUESTS to the provider, retried and failed ones included")
     parser.add_argument("--questions", default=QUESTIONS, help="question file (default tests/trace_questions.txt)")
     parser.add_argument("--show", metavar="LABEL", help="print a saved pilot instead of running one")
     args = parser.parse_args(argv)
@@ -138,8 +146,8 @@ def main(argv=None):
     if not args.model or args.model.endswith("-latest"):
         print("Error: name the model with --model, by its exact name (an alias that moves is refused).")
         return 1
-    if args.n < 0 or (args.n == 0 and not args.extra) or args.timeout <= 0 or (args.max_calls is not None and args.max_calls < 1):
-        print("Error: --n must be 1 or greater (0 only with --extra), --max-calls 1 or greater and --timeout greater than 0.")
+    if args.n < 0 or (args.n == 0 and not args.extra) or not 0 < args.timeout < math.inf or (args.max_calls is not None and args.max_calls < 1):
+        print("Error: --n must be 1 or greater (0 only with --extra), --max-calls 1 or greater and --timeout greater than 0 and finite.")
         return 1
     for extra in args.extra:
         if too_close_to_a_race_task(extra):
@@ -173,7 +181,7 @@ def main(argv=None):
     calls_used = 0
     for index, question in enumerate(picked):
         if args.max_calls is not None and calls_used >= args.max_calls:
-            meta["stopped_because"] = f"--max-calls {args.max_calls} reached"
+            meta["stopped_because"] = f"--max-calls {args.max_calls} reached ({calls_used} requests used)"
             break
         try:
             rows = run_pair(question, index, args.model, args.timeout)
@@ -184,7 +192,7 @@ def main(argv=None):
             meta["stopped_because"] = f"the provider failed ({type(exc).__name__})"
             break
         results["runs"].extend(rows)
-        calls_used += sum(row["calls"] for row in rows)
+        calls_used += sum(row.get("requests", row["calls"]) for row in rows)
         runner.save_results(dict(results, meta=dict(meta, complete=False)), path)
     meta["complete"] = meta["stopped_because"] is None
     runner.save_results(results, path)

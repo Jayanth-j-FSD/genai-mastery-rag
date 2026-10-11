@@ -33,6 +33,7 @@ Name the model: never the alias.
 import argparse
 import hashlib
 import inspect
+import math
 import os
 import subprocess
 import sys
@@ -257,11 +258,9 @@ def provider_trouble(record):
 
 
 def usage_cross_check(record, scope):
-    """None when the per-call records add up to what the run reported, else a sentence saying how they differ.
-    Skipped when the scope saw no calls at all (nothing to compare)."""
+    """None when the per-call records add up to what the run reported, else a sentence saying how they differ. A scope that saw no
+    call is compared too: a run that made none and reports none is equal, and one that reports calls nobody recorded is the instrument failing."""
     counted = scope.totals(deep=True)
-    if not scope.walk():
-        return None
     reported = (record["llm_calls"], record["prompt_tokens"], record["completion_tokens"])
     seen = (counted["calls"], counted["prompt_tokens"], counted["completion_tokens"])
     if seen == reported:
@@ -282,18 +281,26 @@ def run_scoped(arm, task, repeat, tools, options, run_one):
     return scrub_record(record)
 
 
+def requests_from(call_log, llm_calls, failed=False):
+    """Requests one run sent to the provider: every attempt of every call, the retried and the failed ones included, which is what a
+    free daily quota counts. Never fewer than the calls that succeeded, and at least one for a run that ended on a provider error."""
+    sent = sum(call.get("attempts", 1) for call in call_log)
+    return max(sent, llm_calls, 1 if failed else 0)
+
+
 def run_plan(plan, results, tools, options, save, say=print, run_one=None, max_calls=None):
     """Run what the plan lists and the results do not have yet, saving after every run. Stops, keeping what finished, when a
-    quota runs out, when MAX_ERRORS_IN_A_ROW runs in a row hit a provider error, when a run crashes, when a run's usage does
-    not add up or a hand-off failed on a bug, or when --max-calls model calls have been used. Returns the reason, or None."""
+    quota runs out, when MAX_ERRORS_IN_A_ROW runs in a row (of any arms, or of one arm) hit a provider error, when a run crashes,
+    when a run's usage does not add up or a hand-off failed on a bug, or when --max-calls REQUESTS have been sent. Returns the reason, or None."""
     run_one = run_one or race.run_one
     done = {(run["repeat"], run["task_id"], run["approach"]) for run in results["runs"]}
     repeats, errors_in_a_row, calls_used = results["meta"]["repeats"], 0, 0
+    arm_streaks = {}                                               # per arm: the arms alternate, so one arm failing alone must not be reset by the other
     for repeat, task, arm in plan:
         if (repeat, task["id"], arm) in done:
             continue
         if max_calls is not None and calls_used >= max_calls:
-            return f"--max-calls {max_calls} reached ({calls_used} model calls used in this session)"
+            return f"--max-calls {max_calls} reached ({calls_used} requests used in this session)"
         llm.reset_last_model()                                         # so a run that never got an answer does not borrow the last one's name
         try:
             record = run_scoped(arm, task, repeat, tools, options, run_one)
@@ -307,18 +314,25 @@ def run_plan(plan, results, tools, options, save, say=print, run_one=None, max_c
         record["served_model"] = llm.last_model()                      # what the provider says answered (an alias can move)
         results["runs"].append(record)
         save(results)
-        calls_used += record["llm_calls"]
+        requests = requests_from(team_report.calls_of(record), record["llm_calls"], provider_trouble(record))     # retries count against the day's quota
+        calls_used += requests
         say(f"[{'ok  ' if record['success'] else 'FAIL'}] {task['id']:<24} {arm:<9} repeat {repeat}/{repeats}  "
-            f"{record['llm_calls']} call(s), {record['prompt_tokens'] + record['completion_tokens']} tokens, {record['stop_reason']}")
+            f"{record['llm_calls']} call(s){f' ({requests} requests)' if requests != record['llm_calls'] else ''}, "
+            f"{record['prompt_tokens'] + record['completion_tokens']} tokens, {record['stop_reason']}")
         crew = record.get("team") or {}
         if record.get("usage_warning") or crew.get("warnings"):
             return scrub_text(f"a run's per-agent usage did not add up to the process counters: {record.get('usage_warning') or crew['warnings'][0]}")
         if crew.get("errors"):
             return f"a hand-off failed on a bug in the team code ({crew['errors'][0]['type']} in the {crew['errors'][0]['agent']}); fix it and race again"
-        errors_in_a_row = errors_in_a_row + 1 if provider_trouble(record) else 0
-        if errors_in_a_row >= race.MAX_ERRORS_IN_A_ROW:                 # one provider error is a run; a string of them is an outage
+        trouble = provider_trouble(record)
+        errors_in_a_row = errors_in_a_row + 1 if trouble else 0
+        arm_streaks[arm] = arm_streaks.get(arm, 0) + 1 if trouble else 0
+        if errors_in_a_row >= race.MAX_ERRORS_IN_A_ROW or arm_streaks[arm] >= race.MAX_ERRORS_IN_A_ROW:        # one provider error is a run; a string of them is an outage
             steps = record.get("steps") or [{}]
-            return scrub_text(f"{errors_in_a_row} runs in a row ended on a provider error (the last: {steps[-1].get('content') or 'no detail recorded'})")
+            last = steps[-1].get("content") or "no detail recorded"
+            if errors_in_a_row >= race.MAX_ERRORS_IN_A_ROW:
+                return scrub_text(f"{errors_in_a_row} runs in a row ended on a provider error (the last: {last})")
+            return scrub_text(f"{arm_streaks[arm]} runs in a row ended on a provider error in the {arm} arm, while the other arms were fine (the last: {last})")
     return None
 
 
@@ -350,17 +364,32 @@ def plan_lines(arms, tasks, repeats, saved, pilot=None):
              f"single agent: {agent_per_run:.1f} model calls a run, measured over {saved_runs} runs of the saved Week 7 race" if agent_per_run else
              "single agent: no saved race to measure from"]
     if pilot and pilot.get("team"):
-        lines.append(f"team: {pilot['team']:.1f} model calls a run, measured on {pilot['n']} pilot question(s) that are not race tasks "
-                     f"(the single agent made {pilot['agent']:.1f} on the same)")
-        rows["team"] = pilot["team"]
+        rows["team"], line = pilot_team_line(pilot, agent_per_run, lean)
+        lines.append(line)
     elif lean:
         lines.append(f"team: between {lean:.1f} and {high:.1f} model calls a run (an ESTIMATE from a model of the hand-offs on that race's tool mix, not a measurement)")
         rows["team"] = (lean + high) / 2
     total = sum(rows.get(arm, 0) * runs for arm in arms)
     lines.append(f"about {total:.0f} model calls in all" + (f", {total / settings.llm_rpm:.0f} minutes at {settings.llm_rpm} calls a minute" if settings.llm_rpm else "")
                  + ". A lite model's free key allowed about 500 requests a model a day when measured, and retries count against it: "
-                   "give the race a model nothing else is using that day, and set --max-calls below the cap.")
+                   "give the race a model nothing else is using that day, and set --max-calls (it counts requests, retries included) below the cap.")
     return lines
+
+
+def pilot_team_line(pilot, agent_per_run, lean):
+    """(team calls a run, the plan line) from a pilot. Its questions are easier than the race tasks, so its team-to-agent ratio is applied to
+    what the single agent makes on the race tasks, and the result is never lower than the lean estimate of the hand-off model."""
+    where = f"on {pilot['n']} pilot question(s) that are not race tasks"
+    if not (pilot.get("agent") and agent_per_run):
+        team_calls = max(pilot["team"], lean or 0)
+        return team_calls, (f"team: {team_calls:.1f} model calls a run, measured {where} (the single agent made {pilot['agent']:.1f} on the same); "
+                            "not scaled, because there is no saved race (or no single-agent calls in the pilot) to scale by")
+    ratio = pilot["team"] / pilot["agent"]
+    scaled = ratio * agent_per_run
+    team_calls = max(scaled, lean or 0)
+    return team_calls, (f"team: {team_calls:.1f} model calls a run, SCALED from a pilot: {where} the team made {pilot['team']:.1f} calls where the single "
+                        f"agent made {pilot['agent']:.1f} (x{ratio:.2f}), and the single agent makes {agent_per_run:.1f} on the race tasks"
+                        + (f"; raised to the lean estimate of {lean:.1f}, the least the model of the hand-offs allows" if team_calls > scaled else ""))
 
 
 def mean_calls(saved, approach):
@@ -585,9 +614,9 @@ def main(argv=None):
     parser.add_argument("--workflow", action="store_true", help="add the fixed workflow as a reference arm (one model call a run)")
     parser.add_argument("--model", default=None, help="chat model for every arm, by its exact name (required to race: an alias can move)")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help=f"seconds a run may take, for every arm (default {DEFAULT_TIMEOUT:g})")
-    parser.add_argument("--max-calls", type=int, default=None, help="stop after this many model calls in this session (keep it below the day's quota)")
+    parser.add_argument("--max-calls", type=int, default=None, help="stop after this many REQUESTS to the provider in this session, retried and failed ones included (keep it below the day's quota)")
     parser.add_argument("--plan", action="store_true", help="print what the race would take in requests and minutes, then stop (no model calls)")
-    parser.add_argument("--pilot", metavar="LABEL", default=None, help="with --plan: a saved pilot whose calls per run replace the estimate")
+    parser.add_argument("--pilot", metavar="LABEL", default=None, help="with --plan: a saved pilot whose team-to-agent calls ratio scales the estimate")
     parser.add_argument("--allow-dirty", action="store_true", help="race on an uncommitted tree: only for a label that starts with pilot-")
     parser.add_argument("--resume", action="store_true", help="carry on a saved race that stopped early, under the same label")
     parser.add_argument("--force", action="store_true", help="start over under a label that is already saved")
@@ -601,8 +630,8 @@ def main(argv=None):
     make_output_safe()
 
     for flag, value in (("--price-in", args.price_in), ("--price-out", args.price_out)):
-        if value is not None and value < 0:
-            print(f"Error: {flag} must be 0 or more, got {value}.")
+        if value is not None and not 0 <= value < math.inf:                 # nan fails every comparison, so it is caught here too
+            print(f"Error: {flag} must be 0 or more and finite, got {value}.")
             return 1
     if args.show:
         return show(args)
@@ -611,8 +640,8 @@ def main(argv=None):
         if used:                                        # silently ignored, they would look like they had worked
             print(f"Error: {flag} works on a saved race, so it needs --show LABEL.")
             return 1
-    if args.repeats < 1 or args.timeout <= 0 or (args.max_calls is not None and args.max_calls < 1):
-        print("Error: --repeats and --max-calls must be 1 or greater and --timeout greater than 0.")
+    if args.repeats < 1 or not 0 < args.timeout < math.inf or (args.max_calls is not None and args.max_calls < 1):
+        print("Error: --repeats and --max-calls must be 1 or greater and --timeout greater than 0 and finite.")
         return 1
     try:
         tasks = get_tasks(args.only)
@@ -732,6 +761,12 @@ def main(argv=None):
         beside = read_meta(leftover)
         if beside is not None and beside.get("started") == results["meta"].get("started"):      # only this race's own progress: another's is evidence
             os.remove(leftover)
+    if results["meta"]["complete"]:
+        for arm in arms:
+            mine = [run for run in results["runs"] if run["approach"] == arm]
+            if mine and all(team_report.provider_trouble(run) for run in mine):
+                print(f"\nWARNING: every run of the {arm} arm ended on provider trouble, so this race measured the provider and not the design. "
+                      "Do not quote it: find the cause and race again under a new label.")
     print()
     print("\n".join(team_report.format_report(results, 0.0, 0.0)))
     print(f"\nsaved: {display_path(saved_path, BASE_DIR)}")
