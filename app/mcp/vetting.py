@@ -24,7 +24,7 @@ The checks, each a plain rule a reviewer can disagree with:
                 "ΔT" pass), and free of instruction-like text, read across line breaks and with look-alike letters
                 made plain (Week 8's sanitizer patterns, so there is one definition of "instruction-like"). The
                 signals a tool-poisoning payload is made of (an order to hide it from the user, an order to act
-                first, a path to a secret, a tag such as <system>) are counted over the WHOLE definition, so a payload
+                first, a path to a secret, a tag such as <system>) are counted over the WHOLE definition of one tool, so a payload
                 split between the description and a parameter is still one payload: two different signals refuse
                 the tool, and a tag such as <important> counts as two
   schema        an object with a modest number of well-named parameters and a modest total size
@@ -49,7 +49,7 @@ MAX_PARAMETERS = 12
 RESERVED_NAMES = frozenset({"remember"})                        # the agent loop adds its memory tool under this name
 _OTHER_ALPHABETS = ("CYRILLIC", "GREEK", "ARMENIAN", "CHEROKEE", "COPTIC")
 _UNIT_SYMBOLS = frozenset("\u03bc\u03a9\u0394\u03c0")           # micro, ohm, delta and pi as NFKC leaves them: the symbols of "µs", "kΩ", "ΔT", "πr"
-_INVISIBLE_LETTERS = frozenset("\u115f\u1160\u3164\uffa0")      # the Hangul fillers: letters that draw nothing, so they can sit between words
+INVISIBLE_LETTERS = frozenset("\u115f\u1160\u3164\uffa0")       # the Hangul fillers: letters that draw nothing, so they can sit between words
 
 # Look-alikes that Unicode compatibility folding does not make plain: Latin letters such as a script g, a dotless i and the
 # small capitals, the commonest Cyrillic, Greek and Armenian letters drawn like Latin ones, and typographic apostrophes. A
@@ -58,12 +58,12 @@ _INVISIBLE_LETTERS = frozenset("\u115f\u1160\u3164\uffa0")      # the Hangul fil
 _CONFUSABLE_LETTERS = {
     "a": "\u0251\u1D00\u0430\u03B1", "b": "\u0299", "c": "\u1D04\u0441\u03F2", "d": "\u1D05\u0501", "e": "\u1D07\u0435\u03B5",
     "f": "\uA730", "g": "\u0261\u0262\u0581", "h": "\u029C\u04BB\u0570", "i": "\u0131\u026A\u0456\u03B9",
-    "j": "\u1D0A\u0458\u03F3", "k": "\u1D0B\u03BA", "l": "\u029F\u04CF", "m": "\u1D0D", "n": "\u0274\u0578",
+    "j": "\u1D0A\u0458\u03F3", "k": "\u1D0B\u03BA", "l": "\u029F\u04CF", "m": "\u1D0D", "n": "\u0274\u0578\u03C0",
     "o": "\u1D0F\u043E\u03BF\u0585", "p": "\u1D18\u0440\u03C1", "q": "\u051B\u0566", "r": "\u0280\u0433", "s": "\uA731\u0455",
-    "t": "\u1D1B\u03C4", "u": "\u1D1C\u03C5\u057D", "v": "\u1D20\u03BD", "w": "\u1D21\u051D", "x": "\u0445\u03C7",
-    "y": "\u028F\u0443", "z": "\u1D22", "A": "\u0410\u0391", "B": "\u0412\u0392", "C": "\u0421\u03F9", "E": "\u0415\u0395",
+    "t": "\u1D1B\u03C4", "u": "\u1D1C\u03C5\u057D\u03BC", "v": "\u1D20\u03BD", "w": "\u1D21\u051D", "x": "\u0445\u03C7",
+    "y": "\u028F\u0443", "z": "\u1D22", "A": "\u0410\u0391\u0394", "B": "\u0412\u0392", "C": "\u0421\u03F9", "E": "\u0415\u0395",
     "H": "\u041D\u0397", "I": "\u0406\u0399", "J": "\u0408\u037F", "K": "\u041A\u039A", "M": "\u041C\u039C", "N": "\u039D",
-    "O": "\u041E\u039F", "P": "\u0420\u03A1", "Q": "\u051A", "S": "\u0405", "T": "\u0422\u03A4", "W": "\u051C",
+    "O": "\u041E\u039F\u03A9", "P": "\u0420\u03A1", "Q": "\u051A", "S": "\u0405", "T": "\u0422\u03A4", "W": "\u051C",
     "X": "\u0425\u03A7", "Y": "\u03A5\u0423", "Z": "\u0396", "'": "\u2018\u2019\u02BC"}
 _CONFUSABLES = {ord(look_alike): plain_letter for plain_letter, look_alikes in _CONFUSABLE_LETTERS.items() for look_alike in look_alikes}
 
@@ -72,11 +72,11 @@ _CONFUSABLES = {ord(look_alike): plain_letter for plain_letter, look_alikes in _
 # DIFFERENT signals together, anywhere in the same definition. A tag such as <important> is not an ordinary phrase in a tool
 # definition, so it counts as two and refuses alone.
 _POISON_SIGNALS = {
-    "a tag such as <important>": re.compile(r"<\s*/?\s*(important|secret|admin)\b", re.I),
+    "a tag such as <important>": re.compile(r"<\s*/?\s*(important|secret|admin)(?![\w-])", re.I),     # a bare tag: <admin-token> is a placeholder
     "a tag such as <system>": re.compile(r"<\s*/?\s*(system|instructions?)\b", re.I),
     "an order to hide it from the user": re.compile(r"\b(do not|don't|never)\s+(tell|mention|reveal|inform|disclose|let)\b.{0,40}\b(user|human|anyone)\b", re.I),
     "an order to act before or first": re.compile(r"\b(before|prior to)\s+(using|calling|you use|you call)\s+this tool\b|\b(call|use)\s+this tool\s+(first|before)\b|\balways\s+call\s+this\s+tool\b", re.I),
-    "a path to a secret": re.compile(r"~/|\.ssh\b|\bid_rsa\b|/etc/passwd|\.env\b|%userprofile%", re.I),
+    "a path to a secret": re.compile(r"~/\.|\.ssh\b|\bid_rsa\b|/etc/passwd|\.env\b|%userprofile%", re.I),     # "~/." is a dot-directory in a home folder
 }
 _STRONG_SIGNALS = frozenset({"a tag such as <important>"})
 
@@ -101,7 +101,7 @@ def _odd_character(text):
     for index, char in enumerate(text):
         if char in "\r\n\t":
             continue
-        if char in _INVISIBLE_LETTERS:
+        if char in INVISIBLE_LETTERS:
             return char
         if unicodedata.category(char) not in ("Cc", "Cf", "Co", "Cn", "Cs"):
             continue
@@ -119,9 +119,10 @@ def _mixed_alphabet_word(text):
     foreign letters are the symbols of units is not judged ("µs", "kΩ", "ΔT"); any other short word is."""
     cleaned = "".join(char for char in unicodedata.normalize("NFKC", text) if unicodedata.category(char) not in ("Mn", "Me"))
     for word in re.findall(r"\w+", cleaned):
-        script_of = {}
+        script_of, letter_count = {}, 0
         for char in word:
             if char.isalpha():
+                letter_count += 1
                 try:
                     script_of[char] = unicodedata.name(char).split()[0]
                 except ValueError:
@@ -129,7 +130,7 @@ def _mixed_alphabet_word(text):
         scripts = set(script_of.values())
         if "LATIN" in scripts and scripts & set(_OTHER_ALPHABETS):
             foreign = {char for char, script in script_of.items() if script in _OTHER_ALPHABETS}
-            if len(script_of) <= 3 and foreign <= _UNIT_SYMBOLS:       # digits do not count: "100µs" is a unit, "ignоre" is a word
+            if letter_count <= 3 and foreign <= _UNIT_SYMBOLS:         # digits do not count: "100µs" is a unit, "ignоre" is a word
                 continue
             return word
     return None

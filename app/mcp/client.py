@@ -34,7 +34,7 @@ from mcp import Client, StdioServerParameters
 
 from app.agent.toolkit import Tool, ToolError
 from app.config import BASE_DIR
-from app.mcp.vetting import RESERVED_NAMES, is_plain_name, plain, vet_tool
+from app.mcp.vetting import INVISIBLE_LETTERS, RESERVED_NAMES, is_plain_name, plain, vet_tool
 
 GUARDED_NAMES = frozenset({"add_days", "calculate", "search_policies"})   # names the agent's prompt and the Week 8 guard key on
 MAX_TOOLS_PER_SERVER = 40      # every accepted definition goes into every model request, so the number is capped
@@ -125,10 +125,14 @@ def _hidden(char):
 def _printable(text):
     """Server text made safe to print and to send on: the hidden characters are written out as text, so a server cannot
     clear the screen or retitle the window through a result or an error message, and the characters in _DROPPED are
-    dropped. A CR or CRLF line break becomes LF."""
+    dropped. A letter that draws nothing (a Hangul filler) is shown as the space it stands for. A CR or CRLF line break
+    becomes LF."""
     shown = []
     for char in text.replace(chr(13) + chr(10), chr(10)).replace(chr(13), chr(10)):
         if ord(char) in _DROPPED:
+            continue
+        if char in INVISIBLE_LETTERS:
+            shown.append(" ")
             continue
         if not _hidden(char):
             shown.append(char)
