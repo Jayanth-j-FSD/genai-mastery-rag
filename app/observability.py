@@ -52,7 +52,7 @@ def guarded(where, function, *args, default=None, **kwargs):
 
 
 def sha12(text):
-    return hashlib.sha256(str(text).encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha256(str(text).encode("utf-8", "replace")).hexdigest()[:12]       # "replace": a lone surrogate must not stop a log line
 
 
 def _iso_ms(moment):
@@ -256,6 +256,6 @@ def record_extras(request, **final):
 
 def snapshot(request):
     """What an error record keeps of a request that failed: its id, when, how it arrived and the spans it finished. No text."""
+    keep = ("span_id", "name", "kind", "start_ms", "duration_ms", "status", "error", "attempts", "provider_ms", "wait_ms")      # numbers and names, never text
     return {"request_id": request.request_id, "started_at": request.started_at, "ts_utc": request.ts_utc, "channel": request.channel,
-            "total_ms": request.total_ms(), "spans": [{key: span.get(key) for key in ("span_id", "name", "kind", "start_ms", "duration_ms", "status", "error")}
-                                                      for span in request.spans]}
+            "total_ms": request.total_ms(), "spans": [{key: span.get(key) for key in keep if key in span} for span in request.spans]}

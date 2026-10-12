@@ -302,5 +302,5 @@ def chat(messages, model: str = "", rpm=None, **kwargs):
                      total_tokens=_count(getattr(counts, "total_tokens", None)),
                      cached_tokens=_count(getattr(prompt_details, "cached_tokens", None)),
                      reasoning_tokens=_count(getattr(completion_details, "reasoning_tokens", None)),
-                     usage_reported=counts is not None)
+                     usage_reported=_count(getattr(counts, "prompt_tokens", None)) is not None and _count(getattr(counts, "completion_tokens", None)) is not None)
         return response

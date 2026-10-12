@@ -67,7 +67,7 @@ def main(argv=None):
         return 1
     try:
         overrides = runner.parse_overrides(args.set)
-        cases = runner.select_cases(args.only)
+        cases = runner.select_cases(args.only, base_only=True)            # the 41 base cases, whatever failures have been converted since
         with runner.overridden(overrides):
             pass                                              # validate now, so a bad value fails before anything runs
     except ValueError as exc:

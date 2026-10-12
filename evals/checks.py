@@ -108,8 +108,8 @@ def forbid_check(case, result):
     Phrases match as whole words, so forbidding "45" does not trip on "145". The known limit: it cannot tell "45 days" from "not 45
     days", because it reads words, not meaning, so a correction that quotes the wrong figure to deny it fails too. Forbid a phrase the
     right answer never needs to say."""
-    answer = _clean(result["answer"])
-    found = [phrase for phrase in case["forbid_contains"] if _contains(answer, phrase, True)]
+    answer = _clean(result["answer"].replace("_", " "))            # an underscore is markdown emphasis here: "_45 calendar days_" must not hide the figure
+    found = [phrase for phrase in case["forbid_contains"] if _contains(answer, phrase.replace("_", " "), True)]
     return _check("avoids_forbidden_phrase", not found, "contains none of the forbidden phrases" if not found else f"contains the forbidden phrase(s): {found}")
 
 

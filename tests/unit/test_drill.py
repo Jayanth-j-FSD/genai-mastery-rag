@@ -60,8 +60,9 @@ class FairnessTests(unittest.TestCase):
                 answers[record["answer"]] = answers.get(record["answer"], 0) + 1
                 for figure in re.findall(r"(\d+) calendar days", record["answer"]):
                     self.assertTrue(any(int(figure) in allowed[name] for name in record["sources"]), record["answer"])
-        self.assertGreaterEqual(len(answers), 5)                              # 30 and 7 at Acme, 60 and 30 in the handbook, the conflict, the company's side
-        self.assertGreaterEqual(min(answers.values()), 5)                     # so the planted one is the only answer that appears once
+        self.assertGreaterEqual(len(answers), 10)                             # several wordings of every fact, not one answer per fact
+        singles = [answer for answer, count in answers.items() if count == 1]
+        self.assertGreaterEqual(len(singles), 3)                              # so being rare is not what gives the wrong answer away: right answers are rare too
 
     def test_every_figure_the_decoys_state_is_in_the_documents_they_cite(self):
         drill.check_facts(CORPUS)                                             # raises if not
@@ -74,6 +75,30 @@ class FairnessTests(unittest.TestCase):
         for name, _weight, _questions, variants in drill.TOPICS:
             for _template, cited, phrase, _facts in variants:
                 self.assertIn(phrase.lower(), texts[cited[0]], f"{name}: {phrase!r} is not in {cited[0]}")
+        for _questions, _template, cited, phrase, _facts, *_rest in drill.NOTICE_VARIANTS + drill.RARE_NOTICE_ANSWERS:
+            self.assertIn(phrase.lower(), texts[cited[0]], f"notice: {phrase!r} is not in {cited[0]}")
+
+    def test_every_notice_answer_is_a_right_answer_to_the_question_that_was_asked(self):
+        result = built()
+        answers_to = {}
+        for questions, template, *_rest in drill.NOTICE_VARIANTS + drill.RARE_NOTICE_ANSWERS:
+            for question in questions:
+                answers_to.setdefault(question, set()).add(drill._fill(template))
+        checked = 0
+        for record in result["records"]:
+            if "notice" in record["question"].lower() and record["request_id"] != result["plant_id"]:
+                self.assertIn(record["answer"], answers_to[record["question"]], f"{record['question']} was answered with {record['answer']}")
+                checked += 1
+        self.assertGreater(checked, 200)
+        plant = plant_of(result)
+        self.assertIn(plant["question"], answers_to)                                   # the plant answers a question of its own kind too
+
+    def test_an_answer_that_cites_two_documents_was_shown_a_passage_of_each(self):
+        records = [r for r in built()["records"] if len(r["sources"]) == 2]
+        self.assertGreater(len(records), 50)
+        for record in records[:200]:
+            retrieved = {chunk["source"] for chunk in record["retrieved"]}
+            self.assertTrue(set(record["sources"]) <= retrieved, record["answer"][:80])
 
     def test_refusals_are_only_on_questions_the_documents_cannot_answer_and_all_of_those_are_refused(self):
         result = built()
@@ -195,12 +220,32 @@ class SolvabilityTests(unittest.TestCase):
         result = built()
         plant, complaint = plant_of(result), result["complaint"]
         when = datetime.fromisoformat(plant["ts"])
-        self.assertIn((when - timedelta(days=1)).strftime("%d %B"), complaint)
-        self.assertIn((when + timedelta(days=1)).strftime("%d %B %Y"), complaint)
+        import re as _re
+        first, last = _re.search(r"between (\d+ \w+) and (\d+ \w+ \d{4})", complaint).groups()
+        end = datetime.strptime(last, "%d %B %Y")
+        begin = datetime.strptime(first + f" {end.year}", "%d %B %Y")
+        self.assertTrue(begin.date() < when.date() < end.date())                      # the window holds the plant with a day or more either side
+        self.assertTrue(timedelta(days=2) <= end - begin <= timedelta(days=6))
+        self.assertIn("Practice drill", complaint)                                       # and the complaint says it is synthetic
         self.assertIn("employment terms document" if plant["sources"][0] == drill.ACME else "employee handbook", complaint)
         self.assertNotIn(plant["request_id"], complaint)
         self.assertNotIn(plant["trace_id"], complaint)
         self.assertNotIn("calendar days", complaint)
+
+    def test_the_complaint_window_is_not_always_centred_on_the_plant(self):
+        before, after = set(), set()
+        for seed in range(40, 52):
+            result = built(seed=seed, n=300, days=14)
+            import re as _re
+            first, last = _re.search(r"between (\d+ \w+) and (\d+ \w+ \d{4})", result["complaint"]).groups()
+            end = datetime.strptime(last, "%d %B %Y")
+            begin = datetime.strptime(first + f" {end.year}", "%d %B %Y")
+            when = datetime.fromisoformat(plant_of(result)["ts"])
+            before.add((when.date() - begin.date()).days)
+            after.add((end.date() - when.date()).days)
+        self.assertGreater(len(before), 1)                                            # how far the window starts before the plant varies...
+        self.assertGreater(len(after), 1)                                             # ...and so does how far it runs on after it
+        self.assertTrue(min(before | after) >= 1 and max(before | after) <= 3)
 
     def test_the_planted_request_is_in_the_middle_of_the_window_in_the_afternoon(self):
         result = built()
@@ -221,6 +266,8 @@ class ShapeTests(unittest.TestCase):
         self.enterContext(patched_embeddings())
         self.enterContext(mock.patch.object(settings, "llm_rpm", 0))
         self.enterContext(mock.patch.object(settings, "min_relevance", 0.0))
+        self.enterContext(mock.patch.object(settings, "price_input_per_million", 0.0))         # a live line gains a prices key when a price is set: pin it unset
+        self.enterContext(mock.patch.object(settings, "price_output_per_million", 0.0))
         pipeline.ingest()
 
     def live(self, reply):
@@ -445,13 +492,42 @@ class CheckScriptTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("not a drill id", text)
 
-    def test_a_log_that_was_changed_after_it_was_made_can_no_longer_confirm_the_answer(self):
+    def test_a_log_that_was_changed_after_it_was_made_cannot_be_checked_and_does_not_cost_a_guess(self):
         path = os.path.join(self.folder, "d1", "requests.jsonl")
         with open(path, "rb") as handle:
             raw = handle.read()
         with open(path, "wb") as handle:
             handle.write(raw.replace(b"employee", b"employe", 1))
-        self.assertEqual(self.run_script("d1", self.plant)[0], 1)
+        code, text = self.run_script("d1", self.plant)
+        self.assertEqual(code, 1)
+        self.assertIn("is not the log this drill was made with", text)
+        self.assertIn("did not count as a guess", text)
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "d1", "guesses.json")))
+
+    def test_a_log_saved_with_windows_line_endings_is_still_the_log(self):
+        path = os.path.join(self.folder, "d1", "requests.jsonl")
+        with open(path, "rb") as handle:
+            raw = handle.read()
+        with open(path, "wb") as handle:
+            handle.write(raw.replace(b"\n", b"\r\n"))
+        code, text = self.run_script("d1", self.plant)
+        self.assertEqual((code, "Correct" in text), (0, True))
+
+    def test_a_wrong_request_that_was_already_tried_is_not_charged_again(self):
+        self.assertIn("4 guess(es) left", self.run_script("d1", self.wrongs[0])[1])
+        code, text = self.run_script("d1", self.wrongs[0])
+        self.assertEqual(code, 1)
+        self.assertIn("already tried that one", text)
+        self.assertIn("3 guess(es) left", self.run_script("d1", self.wrongs[1])[1])               # the repeat cost nothing: a different wrong one leaves three
+
+    def test_one_minute_is_not_written_as_one_minutes(self):
+        made = datetime.fromisoformat(self.result["meta"]["generated_at"])
+        self.assertIn("1 minute from", self.run_script("d1", self.plant, now=made + timedelta(minutes=1))[1])
+        self.assertEqual(check_drill.minutes_text(0), "0 minutes")
+
+    def test_a_character_that_str_splitlines_would_split_on_does_not_hide_a_request(self):
+        text = json.dumps({"request_id": "a" * 16, "answer": chr(0x2028) + "x"}, ensure_ascii=False) + chr(10) + json.dumps({"request_id": "b" * 16}) + chr(10)
+        self.assertEqual(check_drill.request_ids(text), ["a" * 16, "b" * 16])
 
 
 if __name__ == "__main__":

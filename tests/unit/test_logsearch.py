@@ -101,8 +101,11 @@ class LoadTests(LogCase):
         self.assertIsNone(logsearch._parse_time({"ts": "not a time"}))
         self.assertIsNone(logsearch._parse_time({}))
 
-    def test_the_documents_cited_come_from_the_log_or_from_the_tags_in_the_answer(self):
-        self.assertEqual(logsearch.cited_documents({"sources": ["a.md"], "answer": "x [source: b.md]"}), ["a.md"])
+    def test_the_documents_cited_are_the_ones_the_answer_names_in_its_tags_whatever_the_app_listed(self):
+        self.assertEqual(logsearch.cited_documents({"sources": ["a.md"], "answer": "x [source: b.md]"}), ["b.md"])
+        self.assertEqual(logsearch.cited_documents({"sources": ["a.md", "b.md"], "answer": "no tag at all"}), [])
+        self.assertEqual(logsearch.listed_documents({"sources": ["a.md", "b.md"], "answer": "no tag at all"}), ["a.md", "b.md"])
+        self.assertEqual(logsearch.listed_documents({"answer": "x [source: c.md]"}), ["c.md"])           # an old line has no sources key: the tags are all there is
         self.assertEqual(logsearch.cited_documents({"answer": "x [source: A.md, B.md] y [source: A.md]"}), ["A.md", "B.md"])
         self.assertEqual(logsearch.cited_documents({"answer": "no tags"}), [])
         self.assertEqual(logsearch.cited_documents({"answer": None}), [])
@@ -197,6 +200,38 @@ class FilterTests(LogCase):
         self.assertEqual(ordered[-1], "undated")
 
 
+class UncitedAnswerTests(LogCase):
+    """When the model writes no [source: ...] tag the app lists every retrieved document as the sources: a search for what an answer cited must not find those."""
+
+    def setUp(self):
+        super().setUp()
+        self.uncited = self.ask("How many days of annual leave?", "The leave is 18 days.")
+        self.cited = self.ask("How much notice?", "30 days. [source: notice.md]")
+        self.records = {r["id"]: r for r in self.load()}
+
+    def test_an_answer_with_no_tag_cites_nothing_even_though_the_app_listed_documents(self):
+        record = self.records[self.uncited]
+        self.assertEqual(record["cited"], [])
+        self.assertTrue(set(record["listed"]) >= {"leave.md"})
+        self.assertTrue(len(record["listed"]) >= 1)
+
+    def test_searching_by_cited_document_does_not_find_a_request_that_only_listed_it(self):
+        found = [r["id"] for r in logsearch.search(list(self.records.values()), {"cited": "leave.md"})]
+        self.assertEqual(found, [])
+        self.assertEqual([r["id"] for r in logsearch.search(list(self.records.values()), {"cited": "notice.md"})], [self.cited])
+
+    def test_show_says_the_answer_has_no_tag_and_what_the_app_listed_instead(self):
+        text = "\n".join(logsearch.show_lines(self.records[self.uncited]))
+        self.assertIn("(nothing: the answer has no [source: ...] tag)", text)
+        self.assertIn("listed    ", text)
+        self.assertNotIn(" cited leave.md", text)                                          # no passage is marked as cited
+        self.assertNotIn("listed", "\n".join(logsearch.show_lines(self.records[self.cited])).replace("retrieved", ""))
+
+    def test_the_failure_tool_replays_what_the_app_showed_as_sources(self):
+        import failure_to_test
+        self.assertEqual(failure_to_test.result_of(self.records[self.uncited])["sources"], self.records[self.uncited]["listed"])
+
+
 class DistinctAnswerTests(LogCase):
     def test_identical_answers_are_grouped_whitespace_ignored_and_the_odd_one_stands_alone(self):
         for number in range(5):
@@ -248,6 +283,16 @@ class ShowTests(LogCase):
         self.assertNotIn("secret", text)
 
 
+class BomTests(unittest.TestCase):
+    def test_a_log_saved_with_a_byte_order_mark_still_shows_its_first_line(self):
+        folder = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
+        path = os.path.join(folder, "bom.jsonl")
+        with open(path, "wb") as handle:
+            handle.write(chr(0xFEFF).encode("utf-8") + json.dumps(old_line("0a1b2c3d", "2026-09-15T10:00:00", "first?", "a")).encode("utf-8") + b"\n")            # a byte order mark, the three bytes PowerShell 5 puts first in a file
+        records, skipped, _took = logsearch.load([path])
+        self.assertEqual((len(records), skipped), (1, 0))
+
+
 class ScriptTests(LogCase):
     def run_script(self, *argv):
         out = io.StringIO()
@@ -289,6 +334,22 @@ class ScriptTests(LogCase):
         code, text = self.run_script("--costlier-than", "0.001", "--price-in", "1")
         self.assertEqual(code, 1)
         self.assertIn("--price-in and --price-out", text)
+
+    def test_every_malformed_value_is_an_error_line_not_a_traceback(self):
+        for argv in (("--answer-regex", "(unclosed"), ("--price-in", "-1"), ("--price-out", "nan", "--costlier-than", "1", "--price-in", "1"),
+                     ("--since", "9999-12-31T23:59:59-14:00"), ("--since", "last tuesday"), ("--slower-than", "-5")):
+            with self.subTest(argv=argv):
+                code, text = self.run_script(*argv)
+                self.assertEqual(code, 1)
+                self.assertIn("Error:", text)
+
+    def test_a_limit_that_hides_matches_says_so_in_every_view(self):
+        for number in range(4):
+            self.ask(f"Another question {number}?", "18 days " + "x" * number + ". [source: leave.md]")
+        code, text = self.run_script("--distinct-answers", "--limit", "1")
+        self.assertIn("rarer answers not shown", text)
+        code, text = self.run_script("--text", "Another", "--show", "--limit", "1")
+        self.assertIn("older matches not shown", text)
 
     def test_a_bad_date_or_a_negative_limit_is_an_error_not_a_crash(self):
         self.assertEqual(self.run_script("--since", "last tuesday")[0], 1)

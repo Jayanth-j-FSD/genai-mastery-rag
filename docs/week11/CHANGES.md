@@ -48,8 +48,8 @@ the verdict on the prediction, are in `findings.md`; the numbers here are only t
    when a price is set and then carries the prices used; the report scripts compute dollars again from tokens and the prices on the command
    line and never read the `PRICE_*` settings, so one log cannot print two different costs on two machines. A request whose provider
    reported no tokens is left out of token and dollar figures and counted; it is never averaged in as zero.
-6. **The log is safe to write from several places.** Unlocked concurrent appends lost between 5% and 23% of lines on this Windows
-   machine with two to sixteen writers in a test made while the week was designed, and none with a lock. Both logs go through one append function: a thread lock, an
+6. **The log is safe to write from several places.** Unlocked concurrent appends lost lines on this Windows machine when several writers ran at once, in a test made
+   while the week was designed (it was not kept as a script, so no figure is quoted here); with a lock none were lost, and the tests here show that with real processes. Both logs go through one append function: a thread lock, an
    operating-system lock on a side file (`msvcrt` on Windows, `fcntl` elsewhere, with a two second limit after which the line is dropped,
    a warning printed and a counter kept), and a newline repair for a line cut off by a crash. The locking is tested with threads and with
    real processes, including one that holds the lock.
@@ -97,7 +97,7 @@ diagnose runs). `tokens_known` is false, and the totals are lower bounds, when a
 
 | Idea | Why it was left, and what the log already holds toward it |
 |---|---|
-| OpenTelemetry, LangSmith, Phoenix | Each needs a collector or an account, and the lines already carry the shape: a request is a trace, a step is a span with a start and a duration, the model step carries the requested and served model and the input and output tokens. As I know them the OpenTelemetry GenAI conventions name these `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens`; check the current names before relying on this. An exporter would be a short function over the log. |
+| OpenTelemetry and hosted tracers (LangSmith and others) | Each needs a collector or an account, and the lines already carry the shape: a request is a trace, a step is a span with a start and a duration, the model step carries the requested and served model and the input and output tokens. As I know them the OpenTelemetry GenAI conventions name these `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens`; check the current names before relying on this. An exporter would be a short function over the log. |
 | Prompt caching (the provider reuses an identical prefix) | It happens on the provider's side and is not controlled from here; the model step records `cached_tokens` when the provider reports it, so a saving would show in the log without any code. The instructions are a stable prefix; the passages change per question. |
 | Semantic or exact answer caching | Whether it pays depends on how often the same question repeats, which the log answers (`find_requests.py --distinct-answers` groups identical answers). The eval runner already has an exact-input cache for offline runs. Not built until the repeat rate says it is worth the staleness risk. |
 | Model routing (for example through LiteLLM) | Needs two models and evidence that the cheaper one is good enough on some questions; the Week 6 eval is the instrument for that evidence. One model on a free tier. |
@@ -119,6 +119,23 @@ Written when the measurement is done; the generated output is in `findings.md`.
 Written at the tag, with the function names and line numbers of that tag.
 
 ## Left as they are, and said here
+
+- The first step of each kind in a process pays one-time costs (the embedding model, the keyword index in hybrid mode): `--skip-cold` leaves them out of the step table,
+  but `--compare` has no such option, and the flag is per kind, so the first keyword search in hybrid mode is marked cold only if it is the first retrieval step.
+- Cited and listed documents are matched by name; the error view says an error record keeps only the length and a hash of the question but there is no filter on them.
+- A minute-precision `--until` excludes that minute, a reversed window is silently empty, and there is no `--caller` filter. The default of `cost_report.py` reads only the
+  request log (not `errors.jsonl`).
+- `app.tracing` now loads the OpenAI SDK through `app.observability`, so a tool that only reads logs pays for the import. A lock call that fails for a reason other than "held
+  by another process" is treated as busy. A `KeyboardInterrupt` closes the spans but does not write an error record.
+- Only the notice answers of the drill are checked against the corpus; its other topics are right by construction (their templates were written from the documents) and a test
+  checks each phrase they rely on. The commitment can be brute-forced and the salt protects nothing that the log does not already give away: it is an honour system.
+- The shape test of the drill compares keys and value types with a real line, not every number's distribution.
+- P6 of the prediction gives no allowance for noise where P5 does: a wobbling citation on one conflict question fails the whole prediction (that is what the stop rule is for).
+- A passage reduced to its headings by the strip is kept, so "nothing left, refuse without asking" (`context_all_repeated`) fires only for a chunk of nothing but repeats. The repeats are
+  counted once per process and index: an index rebuilt by another process with the same number of chunks is not noticed until this one restarts.
+- The failure tool proves a case against the correct answer you give it; whether the live model would give that answer is shown only by a live run.
+- New log lines are written with LF; Weeks 3 to 10 wrote CRLF on Windows. Readers accept both. A `traces.jsonl.lock` file appears beside each log.
+- `scripts/check_all.py` compiles every file in one command line, which can exceed Windows' limit in a very long checkout path.
 
 - Characters are not tokens. The free screen reports characters; tokens follow them to a first approximation and the measurement reports tokens.
 - The repeats are counted from the stored chunks, not the original documents, so a line in an overlap counts twice.

@@ -171,13 +171,17 @@ def load_logged_failures(path=None):
     return found
 
 
-def all_cases(regressions_path=None):
-    """Every case, Week 4's first, then Week 6's new ones, then the Week 5 regressions, then the failures found in the log (Week 11)."""
+def all_cases(regressions_path=None, base_only=False):
+    """Every case, Week 4's first, then Week 6's new ones, then the Week 5 regressions, then the failures found in the log (Week 11).
+
+    `base_only` leaves out the last two groups: the 41 cases every earlier measurement was made on. The cost measurement and its screen
+    use it, so converting a failure into a test never changes the questions a pre-registered prediction was written for."""
     cases = [_from_week4(case) for case in WEEK4_CASES]
     for case in NEW_CASES:
         cases.append({**case, "origin": "week6"})
-    cases.extend(dict(case) for case in load_regressions(regressions_path))
-    cases.extend(dict(case) for case in load_logged_failures(logged_failures_path(regressions_path)))
+    if not base_only:
+        cases.extend(dict(case) for case in load_regressions(regressions_path))
+        cases.extend(dict(case) for case in load_logged_failures(logged_failures_path(regressions_path)))
     for case in cases:
         case.setdefault("expected_sources", [])
         case.setdefault("expect_contains", [])

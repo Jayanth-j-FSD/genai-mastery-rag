@@ -45,21 +45,59 @@ PLANT_CANDIDATES = (14, 15, 21, 28, 35, 40, 45, 50, 75, 90, 120)
 _DAYS = re.compile(r"(?<!\d)(\d+)\s+calendar\s+days?", re.IGNORECASE)
 
 # (name, weight, [question phrasings], [(answer template, [cited documents], phrase that must be in the first cited document, facts it states)]).
-# A template's {figure} slots are filled from `facts`, which are checked against the corpus at generation, so a decoy cannot be wrong.
+# A template's {figure} slots are checked against the corpus at generation, so a decoy cannot be wrong.
 NOTICE = "notice"
+NOTICE_WEIGHT = 9.0
+
+# The notice answers. Each carries the questions it really answers, so a decoy is right on common sense and not only by the rule, and a weight
+# for how often it is drawn: (questions, answer template, cited documents, a phrase the first cited document must hold, the figures stated per document, weight).
+RESIGN_PERMANENT = ["How much notice must a permanent employee give before resigning?", "I am a permanent employee and want to resign: how much notice do I owe?",
+                    "What notice does a permanent employee at Acme have to serve?"]
+RESIGN_PROBATION = ["How much notice do I give if I resign during probation?", "What is the notice period while I am still on probation?"]
+HANDBOOK_CONFIRMED = ["What is the notice period for confirmed employees in the handbook?", "How long is the notice period for a confirmed employee?"]
+HANDBOOK_PROBATION = ["What is the notice period during probation according to the handbook?"]
+RESIGN_ANY = ["What is the notice period if I resign?", "How long is the resignation notice period?", "I want to quit, how many days of notice do I owe?",
+              "What notice do I have to serve when I resign?"]
+COMPANY_ENDS = ["How much notice does the company give when it ends my employment without cause?", "If Acme terminates me without cause how much notice do I get?"]
+
+NOTICE_VARIANTS = [
+    (RESIGN_PERMANENT, "A permanent employee must give {30} calendar days of written notice before resigning. [source: " + ACME + "]",
+     [ACME], "30 calendar days of written notice", {ACME: [30]}, 3.0),
+    (RESIGN_PERMANENT, "A permanent employee gives {30} calendar days of written notice, counted from the day People Operations receives the resignation. [source: " + ACME + "]",
+     [ACME], "30 calendar days of written notice", {ACME: [30]}, 2.0),
+    (RESIGN_PROBATION, "An employee still within the probationary period must give {7} calendar days of written notice. [source: " + ACME + "]",
+     [ACME], "7 calendar days of written notice", {ACME: [7]}, 3.0),
+    (HANDBOOK_CONFIRMED, "The standard notice period is {60} calendar days for confirmed employees. [source: " + HANDBOOK + "]",
+     [HANDBOOK], "60 calendar days", {HANDBOOK: [60]}, 3.0),
+    (HANDBOOK_PROBATION, "During probation the notice period is {30} calendar days. [source: " + HANDBOOK + "]",
+     [HANDBOOK], "30 calendar days", {HANDBOOK: [30]}, 2.0),
+    (RESIGN_ANY, "The documents disagree: the Acme employment terms say {30} calendar days for permanent employees, while the handbook says {60} calendar days "
+                 "for confirmed employees. [source: " + ACME + ", " + HANDBOOK + "]",
+     [ACME, HANDBOOK], "30 calendar days of written notice", {ACME: [30], HANDBOOK: [60]}, 3.0),
+    (COMPANY_ENDS, "For a company-initiated termination without cause, Acme provides {30} calendar days of notice or pay in lieu of notice. [source: " + ACME + "]",
+     [ACME], "30 calendar days of notice or pay in lieu", {ACME: [30]}, 2.0),
+]
+
+# Right answers that are as rare as the planted wrong one (each is put in the log once to three times), so being rare is not what gives the wrong answer away:
+# only a figure checked against a document does. Same shape without the weight.
+RARE_NOTICE_ANSWERS = [
+    (RESIGN_PERMANENT, "Once you are permanent the notice you give is {30} calendar days, in writing. [source: " + ACME + "]",
+     [ACME], "30 calendar days of written notice", {ACME: [30]}),
+    (RESIGN_PROBATION, "During probation you give {7} calendar days of written notice, which Acme may waive in whole or in part. [source: " + ACME + "]",
+     [ACME], "7 calendar days of written notice", {ACME: [7]}),
+    (RESIGN_ANY, "It depends on your status: at Acme {30} calendar days once permanent and {7} during probation; the handbook says {60} calendar days for confirmed "
+                 "employees and {30} during probation. [source: " + ACME + ", " + HANDBOOK + "]",
+     [ACME, HANDBOOK], "30 calendar days of written notice", {ACME: [30, 7], HANDBOOK: [60, 30]}),
+    (HANDBOOK_CONFIRMED, "Confirmed employees give {60} calendar days of notice unless the employment agreement says otherwise. [source: " + HANDBOOK + "]",
+     [HANDBOOK], "60 calendar days", {HANDBOOK: [60]}),
+    (HANDBOOK_PROBATION, "While on probation the notice period is {30} calendar days, unless the employment agreement states otherwise. [source: " + HANDBOOK + "]",
+     [HANDBOOK], "30 calendar days", {HANDBOOK: [30]}),
+    (COMPANY_ENDS, "When Acme ends employment without cause it gives {30} calendar days of notice, or pay instead of notice. [source: " + ACME + "]",
+     [ACME], "30 calendar days of notice or pay in lieu", {ACME: [30]}),
+]
+RARE_COUNTS = (1, 1, 1, 1, 2, 3)                      # shuffled over RARE_NOTICE_ANSWERS: at least four of them appear exactly once
+
 TOPICS = [
-    (NOTICE, 8.0, ["How much notice must a permanent employee give before resigning?", "What is the notice period if I resign?", "How long is the resignation notice period?",
-                   "I want to quit, how many days of notice do I owe?", "What notice do I have to serve when I resign?"], [
-        ("A permanent employee must give {30} calendar days of written notice before resigning. [source: " + ACME + "]", [ACME], "30 calendar days of written notice", {ACME: [30]}),
-        ("A permanent employee must give {30} calendar days of written notice before resigning. [source: " + ACME + "]", [ACME], "30 calendar days of written notice", {ACME: [30]}),
-        ("An employee still within the probationary period must give {7} calendar days of written notice. [source: " + ACME + "]", [ACME], "7 calendar days of written notice", {ACME: [7]}),
-        ("The standard notice period is {60} calendar days for confirmed employees. [source: " + HANDBOOK + "]", [HANDBOOK], "60 calendar days", {HANDBOOK: [60]}),
-        ("During probation the notice period is {30} calendar days. [source: " + HANDBOOK + "]", [HANDBOOK], "30 calendar days", {HANDBOOK: [30]}),
-        ("The documents disagree: the Acme employment terms say {30} calendar days for permanent employees, while the handbook says {60} calendar days for confirmed "
-         "employees. [source: " + ACME + ", " + HANDBOOK + "]", [ACME, HANDBOOK], "30 calendar days of written notice", {ACME: [30], HANDBOOK: [60]}),
-        ("For a company-initiated termination without cause, Acme provides {30} calendar days of notice or pay in lieu of notice. [source: " + ACME + "]", [ACME],
-         "30 calendar days of notice or pay in lieu", {ACME: [30]}),
-    ]),
     ("annual-leave", 9.0, ["How many days of annual leave do I get?", "What is my annual leave entitlement?", "How much paid leave do I have each year?"], [
         ("Acme employees receive 18 days of annual leave a year. [source: " + ACME_LEAVE + "]", [ACME_LEAVE], "18 days", {}),
         ("The documents disagree: the Acme leave policy gives 18 days a year, while the handbook and benefits.md say 24. [source: " + ACME_LEAVE + ", " + BENEFITS + "]",
@@ -131,15 +169,12 @@ def violations(records, corpus_dir):
 def check_facts(corpus_dir):
     """Refuse to build a drill whose decoys state something the corpus no longer says."""
     allowed = notice_figures_by_document(corpus_dir)
-    for name, _weight, _questions, variants in TOPICS:
-        if name != NOTICE:
-            continue
-        for _template, _cited, _phrase, facts in variants:
-            for document, figures in facts.items():
-                missing = [figure for figure in figures if figure not in allowed.get(document, set())]
-                if missing:
-                    raise RuntimeError(f"the drill's notice answers say {missing} calendar days for {document}, but that document no longer says so; "
-                                       "update the templates in evals/drill.py before building a drill")
+    for variant in NOTICE_VARIANTS + RARE_NOTICE_ANSWERS:
+        for document, figures in variant[4].items():
+            missing = [figure for figure in figures if figure not in allowed.get(document, set())]
+            if missing:
+                raise RuntimeError(f"the drill's notice answers say {missing} calendar days for {document}, but that document no longer says so; "
+                                   "update the templates in evals/drill.py before building a drill")
 
 
 # ---------------------------------------------------------------------------- building the log
@@ -156,24 +191,29 @@ def _corpus_fingerprint(corpus_dir):
 
 
 class _Corpus:
-    """The corpus cut into the same chunks the app indexes, so a retrieved passage in the log is a real passage."""
+    """The corpus cut with the app's chunker settings (it does not use the app's index), so a retrieved passage in the log is a real passage of the corpus."""
 
     def __init__(self, corpus_dir):
         self.chunks = chunker.chunk_documents(loader.load_documents(corpus_dir), settings.chunk_size, settings.chunk_overlap)
         self.fillers = [c for c in self.chunks if c["source"] == HANDBOOK]                # what crowds the real passage out in the real app
 
     def holding(self, document, phrase, rng):
-        matching = [c for c in self.chunks if c["source"] == document and phrase.lower() in c["text"].lower()]
+        matching = [c for c in self.chunks if c["source"] == document and phrase and phrase.lower() in c["text"].lower()]
         return rng.choice(matching or [c for c in self.chunks if c["source"] == document] or self.chunks)
 
-    def retrieved(self, document, phrase, rng, top_k=4, has_answer=True):
-        """Four passages as dense retrieval returns them: the one with the answer (unless the question has none) and handbook passages
-        that crowd in, best score first."""
-        chosen = [self.holding(document, phrase, rng)] if has_answer else []
+    def retrieved(self, holders, rng, top_k=4):
+        """Four passages as dense retrieval returns them: one holding passage for each (document, phrase) in `holders` (none for a question the
+        documents cannot answer), then handbook passages that crowd in, best score first."""
+        chosen = []
+        for document, phrase in holders:
+            passage = self.holding(document, phrase, rng)
+            if passage["chunk_id"] not in {c["chunk_id"] for c in chosen}:
+                chosen.append(passage)
         taken = {c["chunk_id"] for c in chosen}
+        wanted = len(chosen)
         chosen += rng.sample([c for c in self.fillers if c["chunk_id"] not in taken], top_k - len(chosen))
-        scores = [round(rng.uniform(0.42, 0.72), 4)] if has_answer else []
-        scores += sorted((round(rng.uniform(0.16, 0.24), 4) for _ in range(top_k - len(scores))), reverse=True)
+        scores = sorted((round(rng.uniform(0.42, 0.72), 4) for _ in range(wanted)), reverse=True)
+        scores += sorted((round(rng.uniform(0.16, 0.24), 4) for _ in range(top_k - wanted)), reverse=True)
         return [{"source": chunk["source"], "score": score, "retrievers": ["dense"], "dense_rank": rank, "keyword_rank": None, "keyword_score": None,
                  "rrf_score": None, "text": chunk["text"]} for rank, (chunk, score) in enumerate(zip(chosen, scores), start=1)]
 
@@ -259,11 +299,12 @@ def generate(seed=None, n=3000, days=28, end=None, corpus_dir=None):
     start = end - timedelta(days=days)
     index_id = f"{len(corpus.chunks)}:{_sha12(str(_corpus_fingerprint(corpus_dir)))}"
 
-    names = [t[0] for t in TOPICS] + ["refusal"]
-    weights = [t[1] for t in TOPICS] + [REFUSAL_WEIGHT]
+    names = [t[0] for t in TOPICS] + [NOTICE, "refusal"]
+    weights = [t[1] for t in TOPICS] + [NOTICE_WEIGHT, REFUSAL_WEIGHT]
     by_name = {t[0]: t for t in TOPICS}
+    rare_counts = rng.sample(RARE_COUNTS, len(RARE_NOTICE_ANSWERS))
     plan = []
-    for _ in range(n - 1):
+    for _ in range(n - 1 - sum(rare_counts)):
         topic = rng.choices(names, weights)[0]
         plan.append(topic)
 
@@ -272,18 +313,35 @@ def generate(seed=None, n=3000, days=28, end=None, corpus_dir=None):
     def new_id():
         return _unique_id(rng, taken)
 
-    def one(topic, when, cold=False):
+    def holders(cited, phrase, facts):
+        """What the retrieval would hold for this answer: the passage with its phrase from the first document and, for each other cited document,
+        the passage with its own figure (or any passage of it)."""
+        found = [(cited[0], phrase)]
+        for document in cited[1:]:
+            figure = (facts.get(document) or [None])[0]
+            found.append((document, f"{figure} calendar days" if figure else None))
+        return found
+
+    def answered(questions, template, cited, phrase, facts, when):
+        channel = rng.choices(["api", "cli", "batch"], [80, 10, 10])[0] if 6 <= when.hour <= 21 else "batch"
+        return _record(rng, when, new_id(), rng.choice(questions), _fill(template), cited, corpus.retrieved(holders(cited, phrase, facts), rng), True, channel, index_id, False)
+
+    def one(topic, when):
         channel = rng.choices(["api", "cli", "batch"], [80, 10, 10])[0] if 6 <= when.hour <= 21 else "batch"
         if topic == "refusal":
-            question = rng.choice(UNANSWERABLE)
-            retrieved = corpus.retrieved(HANDBOOK, "", rng, has_answer=False)
-            return _record(rng, when, new_id(), question, generator.IDK, [], retrieved, False, channel, index_id, cold)
+            return _record(rng, when, new_id(), rng.choice(UNANSWERABLE), generator.IDK, [], corpus.retrieved([], rng), False, channel, index_id, False)
+        if topic == NOTICE:
+            questions, template, cited, phrase, facts, _weight = rng.choices(NOTICE_VARIANTS, [v[5] for v in NOTICE_VARIANTS])[0]
+            return answered(questions, template, cited, phrase, facts, when)
         _name, _weight, questions, variants = by_name[topic]
         template, cited, phrase, facts = rng.choice(variants)
-        return _record(rng, when, new_id(), rng.choice(questions), _fill(template), cited, corpus.retrieved(cited[0], phrase, rng), True, channel, index_id, cold)
+        return answered(questions, template, cited, phrase, facts, when)
 
     for topic in plan:
         records.append(one(topic, _moment(rng, start, days)))
+    for (questions, template, cited, phrase, facts), count in zip(RARE_NOTICE_ANSWERS, rare_counts):
+        for _ in range(count):                                         # right answers that are as rare as the plant
+            records.append(answered(questions, template, cited, phrase, facts, _moment(rng, start, days)))
 
     # The planted request: a notice answer whose figure no document states, in the middle of the window, in the afternoon.
     usable = [figure for figure in PLANT_CANDIDATES if not _whole_word_in(corpus_dir, figure)]
@@ -293,10 +351,10 @@ def generate(seed=None, n=3000, days=28, end=None, corpus_dir=None):
     cited = rng.choice([ACME, HANDBOOK])
     when = start + timedelta(days=rng.randrange(int(days * 0.35), int(days * 0.7)), hours=rng.choice([13, 14, 15, 16]), minutes=rng.randrange(60), seconds=rng.randrange(60),
                              milliseconds=rng.randrange(1000))
-    notice_variants = by_name[NOTICE][3]
-    template = next(v for v in notice_variants if v[1] == [cited] and "disagree" not in v[0] and "probation" not in v[0].lower())
-    plant = _record(rng, when, new_id(), rng.choice(by_name[NOTICE][2]), re.sub(r"\{\d+\}", str(figure), template[0]), [cited],
-                    corpus.retrieved(cited, template[2], rng), True, "api", index_id, False)
+    # the plant is built on the ordinary resignation answer of its document, with the right question for it and a figure no document states
+    base = next(v for v in NOTICE_VARIANTS if v[2] == [cited] and v[0] in (RESIGN_PERMANENT, HANDBOOK_CONFIRMED))
+    plant = _record(rng, when, new_id(), rng.choice(base[0]), re.sub(r"\{\d+\}", str(figure), base[1]), [cited],
+                    corpus.retrieved(holders([cited], base[3], base[4]), rng), True, "api", index_id, False)
     records.append(plant)
     records.sort(key=lambda r: (r["ts_utc"], r["request_id"]))
 
@@ -306,18 +364,20 @@ def generate(seed=None, n=3000, days=28, end=None, corpus_dir=None):
     requests_text = "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records)
     salt = f"{rng.getrandbits(128):032x}"
     drill_id = f"drill-{end.strftime('%Y%m%d')}-{rng.getrandbits(24):06x}"
-    window_start = (when - timedelta(days=1)).date()
+    window_start = (when - timedelta(days=rng.randrange(1, 4))).date()          # a rough window, one to three days either side, not centred on the plant
+    window_end = (when + timedelta(days=rng.randrange(1, 4))).date()
     document = "employment terms document" if cited == ACME else "employee handbook"
-    complaint = (f"Subject: a notice period that did not match the policy\n\n"
-                 f"A colleague in People Operations says that sometime between {window_start.strftime('%d %B')} and {(when + timedelta(days=1)).date().strftime('%d %B %Y')} the assistant "
+    complaint = (f"(Practice drill: this complaint and the log it is about are synthetic.)\n\nSubject: a notice period that did not match the policy\n\n"
+                 f"A colleague in People Operations says that sometime between {window_start.strftime('%d %B')} and {window_end.strftime('%d %B %Y')} the assistant "
                  f"gave them a notice period that did not match the policy documents. They think the answer named the {document}. They did not keep a screenshot and "
                  f"cannot remember the number.\n\nPlease find the request, say what was wrong with the answer, and say what you looked at to be sure.\n")
     meta = {"drill_id": drill_id, "version": VERSION, "synthetic": True, "origin": "drill-kit", "generated_at": datetime.now().isoformat(timespec="seconds"),
             "window": {"start": start.isoformat(timespec="seconds"), "end": end.isoformat(timespec="seconds")}, "n_records": len(records),
             "corpus_fingerprint": _corpus_fingerprint(corpus_dir),
             "real": ["the question wording is the kind of thing people ask", "the passages in each record are real passages of the corpus", "the documents and the figures the correct answers state"],
-            "invented": ["every request, its time, its channel and its timings", "the tokens (a quarter of the characters) and the model name", "which requests were wrong"],
-            "salt": salt, "commitment": hashlib.sha256((salt + plant["request_id"] + hashlib.sha256(requests_text.encode("utf-8")).hexdigest()).encode("utf-8")).hexdigest()}
+            "invented": ["every request, its time, its channel and its timings", "the tokens (a quarter of the characters) and the model name", "which requests were wrong", "the complaint (it is written to read like a real one, with a notice saying it is practice)"],
+            "salt": salt, "log_sha256": hashlib.sha256(requests_text.encode("utf-8")).hexdigest(),
+            "commitment": hashlib.sha256((salt + plant["request_id"] + hashlib.sha256(requests_text.encode("utf-8")).hexdigest()).encode("utf-8")).hexdigest()}
     return {"records": records, "meta": meta, "complaint": complaint, "plant_id": plant["request_id"], "requests_text": requests_text}
 
 

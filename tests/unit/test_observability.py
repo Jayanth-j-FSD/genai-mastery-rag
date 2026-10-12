@@ -175,6 +175,8 @@ class ModelSpanTests(LlmTestCase):
     def setUp(self):
         super().setUp()
         self.request_clock = lambda: self.clock["now"]            # the request reads the same fake time the limiter does
+        self.enterContext(mock.patch.object(settings, "price_input_per_million", 0.0))         # unpriced unless a test says so, whatever a .env holds
+        self.enterContext(mock.patch.object(settings, "price_output_per_million", 0.0))
 
     def span_of(self, request):
         (span,) = request.model_spans()
@@ -300,6 +302,22 @@ class ModelSpanTests(LlmTestCase):
         self.assertEqual(span["attempts"], 2)
         self.assertFalse(span["tokens_known"])
         self.assertIsNone(span["prompt_tokens"])
+
+    def test_a_usage_block_with_no_counts_is_unknown_not_zero(self):
+        from types import SimpleNamespace
+        from app import llm
+        for usage in (SimpleNamespace(), SimpleNamespace(prompt_tokens=None, completion_tokens=None), SimpleNamespace(prompt_tokens=5, completion_tokens=None)):
+            with self.subTest(usage=vars(usage)):
+                reply = _testkit.fake_response("ok")
+                reply.usage = usage
+                self.use(reply)
+                with observability.begin_request(clock=self.request_clock) as request:
+                    with observability.model_span("generate"):
+                        llm.chat([], model="m")
+                span = self.span_of(request)
+                self.assertFalse(span["tokens_known"])
+                self.assertIsNone(span["prompt_tokens"])
+                self.assertIsNone(span["cost_usd"])
 
     def test_a_call_that_never_reaches_the_recorder_leaves_an_honest_unknown(self):
         with observability.begin_request(clock=self.request_clock) as request:

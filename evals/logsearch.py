@@ -40,10 +40,16 @@ def _parse_time(record):
         return None
 
 
-def cited_documents(record):
-    """The documents the answer cited: the logged `sources` when the line has them, else read from the [source: ...] tags."""
+def listed_documents(record):
+    """The documents the app LISTED as sources for the answer: the logged `sources` when the line has them, else what the tags say. When the model
+    wrote no citation tag the app lists every retrieved document, so this is not the same as what the answer cited."""
     if isinstance(record.get("sources"), list):
         return [str(name) for name in record["sources"]]
+    return cited_documents(record)
+
+
+def cited_documents(record):
+    """The documents the answer itself cited: the names in its [source: ...] tags, the same for a line of any age."""
     names = []
     for group in _TAG.findall(record.get("answer") or ""):
         for name in [part.strip() for part in re.split(r"[;,]", group) if part.strip()] or [group.strip()]:
@@ -63,7 +69,7 @@ def normalize(record, path, line_no, kind):
     return {"kind": kind, "path": path, "line_no": line_no, "id": record.get("request_id") or record.get("trace_id") or "",
             "trace_id": record.get("trace_id") or "", "time": _parse_time(record), "question": record.get("question") or "",
             "answer": answer if isinstance(answer, str) else "", "grounded": record.get("grounded"), "status": status,
-            "cited": cited_documents(record) if kind == "trace" else [],
+            "cited": cited_documents(record) if kind == "trace" else [], "listed": listed_documents(record) if kind == "trace" else [],
             "retrieved_sources": [chunk.get("source", "") for chunk in record.get("retrieved") or []],
             "channel": record.get("channel") or "", "caller": record.get("caller") or "", "total_ms": record.get("total_ms"),
             "prompt_tokens": usage.get("prompt_tokens") if usage.get("tokens_known") else None,
@@ -79,7 +85,7 @@ def load(paths):
         kind = "error" if os.path.basename(path).startswith("errors") else "trace"
         if not os.path.exists(path):
             continue
-        with open(path, encoding="utf-8", errors="ignore") as handle:
+        with open(path, encoding="utf-8-sig", errors="ignore") as handle:         # utf-8-sig: a byte order mark must not hide the first line
             for line_no, line in enumerate(handle, start=1):
                 if not line.strip():
                     continue
@@ -211,7 +217,9 @@ def show_lines(record, input_per_million=None, output_per_million=None):
              f"  question  {record['question'] or '(not logged: an error record keeps only its length and a hash)'}"]
     if record["kind"] == "trace":
         lines.append(f"  answer    {record['answer']}")
-        lines.append(f"  cited     {', '.join(record['cited']) or '(nothing)'}")
+        lines.append(f"  cited     {', '.join(record['cited']) or '(nothing: the answer has no [source: ...] tag)'}")
+        if record["listed"] != record["cited"]:
+            lines.append(f"  listed    {', '.join(record['listed']) or '(nothing)'}   (what the app showed the user as sources: it lists every retrieved document when the answer cites none)")
         retrieved = raw.get("retrieved") or []
         lines.append(f"  retrieved {len(retrieved)} passages" + ("" if not retrieved else ":"))
         cited = {name.lower() for name in record["cited"]}

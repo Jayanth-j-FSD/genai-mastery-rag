@@ -86,6 +86,8 @@ def check_prediction(results):
         return {"cannot_check": "this is a dry run: its tokens come from a scripted provider and are not measurements", "rows": [], "verdict": None}
     if tuple(arms) != REGISTERED_ARMS:
         return {"cannot_check": f"the registered arms are {list(REGISTERED_ARMS)} in that order, this measurement has {arms}", "rows": [], "verdict": None}
+    if (meta.get("settings") or {}).get("context_strip_min_repeats"):
+        return {"cannot_check": "the strip was already on in the settings the measurement started from, so `before` stripped too and nothing was compared", "rows": [], "verdict": None}
     overrides = {arm["name"]: arm["overrides"] for arm in meta["arms"]}
     if overrides[BEFORE] or overrides[NOISE] or overrides[AFTER] != {"context_strip_min_repeats": 10}:
         return {"cannot_check": f"the registered arms change nothing, and the strip at 10; this measurement has {overrides}", "rows": [], "verdict": None}

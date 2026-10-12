@@ -18,6 +18,7 @@ Week 11 are found too; they have no steps. Times are your machine's local time. 
 """
 import argparse
 import os
+import re
 import sys
 from datetime import datetime
 
@@ -34,14 +35,22 @@ def parse_when(text, end_of_range=False):
     text = text.strip()
     try:
         moment = datetime.fromisoformat(text)
-    except ValueError:
+        if len(text) <= 10 and end_of_range:
+            moment = moment.replace(hour=23, minute=59, second=59, microsecond=999999)
+        return moment.astimezone().replace(tzinfo=None) if moment.tzinfo else moment
+    except (ValueError, OverflowError, OSError):                # OSError and OverflowError: a year the machine's clock cannot convert
         raise ValueError(f"not a date or a time: {text!r} (use 2026-10-08 or 2026-10-08 14:30)") from None
-    if len(text) <= 10 and end_of_range:
-        moment = moment.replace(hour=23, minute=59, second=59, microsecond=999999)
-    return moment.astimezone().replace(tzinfo=None) if moment.tzinfo else moment
 
 
 def build_criteria(args):
+    if args.answer_regex:
+        try:
+            re.compile(args.answer_regex)
+        except re.error as exc:
+            raise ValueError(f"--answer-regex is not a regular expression ({exc})") from None
+    for name, value in (("--price-in", args.price_in), ("--price-out", args.price_out), ("--costlier-than", args.costlier_than), ("--slower-than", args.slower_than)):
+        if value is not None and not 0 <= value < float("inf"):
+            raise ValueError(f"{name} must be 0 or more")
     criteria = {"text": args.text, "answer_regex": args.answer_regex, "cited": args.cited, "retrieved_from": args.retrieved_from,
                 "status": args.status, "channel": args.channel, "id": args.id, "slower_than": args.slower_than,
                 "costlier_than": args.costlier_than, "input_per_million": args.price_in, "output_per_million": args.price_out,
@@ -109,16 +118,22 @@ def main(argv=None):
         return 0
 
     if args.show:
-        for record in found[-args.limit:] if args.limit else found:
+        shown = found[-args.limit:] if args.limit else found
+        for record in shown:
             print()
             print("\n".join(logsearch.show_lines(record, args.price_in, args.price_out)))
+        if len(shown) < len(found):
+            print(f"\n({len(found) - len(shown)} older matches not shown; narrow the search or use --limit 0)")
         if args.price_in is not None or args.price_out is not None:
             print(f"\nprices: {args.price_source or '(source not stated)'}")
         return 0
     if args.distinct_answers:
         groups = logsearch.distinct_answers(found)
         print(f"{len(groups)} distinct answer(s) among {sum(g['count'] for g in groups)} answered requests\n")
-        print("\n".join(logsearch.distinct_lines(groups[:args.limit] if args.limit else groups, sum(g["count"] for g in groups))))
+        shown_groups = groups[:args.limit] if args.limit else groups
+        print("\n".join(logsearch.distinct_lines(shown_groups, sum(g["count"] for g in groups))))
+        if len(shown_groups) < len(groups):
+            print(f"\n({len(groups) - len(shown_groups)} rarer answers not shown; use --limit 0)")
         return 0
     shown = found[-args.limit:] if args.limit else found
     print()

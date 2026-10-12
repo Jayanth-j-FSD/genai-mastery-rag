@@ -12,6 +12,7 @@ This is an honour system: the commitment can be brute-forced by anyone who wants
 the practice, so write down what you looked at before you ask.
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -37,13 +38,13 @@ def load_drill(drill_id):
     with open(os.path.join(folder, "drill-meta.json"), encoding="utf-8") as handle:
         meta = json.load(handle)
     with open(os.path.join(folder, "requests.jsonl"), "rb") as handle:
-        text = handle.read().decode("utf-8")
+        text = handle.read().decode("utf-8").replace("\r\n", "\n")          # an editor that saved it with Windows line endings has not changed the log
     return folder, meta, text
 
 
 def request_ids(text):
     ids = []
-    for line in text.splitlines():
+    for line in text.split("\n"):                      # split on newlines only: str.splitlines also splits on characters that can sit inside a JSON string
         try:
             ids.append(json.loads(line)["request_id"])
         except (ValueError, KeyError, TypeError):
@@ -68,6 +69,10 @@ def minutes_since(meta, now=None):
     return max(0, round(((now or datetime.now()) - datetime.fromisoformat(meta["generated_at"])).total_seconds() / 60))
 
 
+def minutes_text(count):
+    return f"{count} minute" + ("" if count == 1 else "s")
+
+
 def main(argv=None, now=None):
     parser = argparse.ArgumentParser(description="Check whether the request you found is the planted one.")
     parser.add_argument("drill_id", help="the drill id printed by make_drill.py")
@@ -88,6 +93,10 @@ def main(argv=None, now=None):
     if wrong >= MAX_WRONG:
         print(f"No guesses left: {MAX_WRONG} wrong guesses were used. A drill is practice; read the log again, or build a new one.")
         return 1
+    if hashlib.sha256(text.encode("utf-8")).hexdigest() != meta.get("log_sha256", hashlib.sha256(text.encode("utf-8")).hexdigest()):
+        print("requests.jsonl is not the log this drill was made with (it was edited, or saved by a tool that changed it), so no guess can be checked against it. "
+              "This did not count as a guess; make a new drill.")
+        return 1
     guess = args.guess.strip().lower()
     if len(guess) < MIN_PREFIX or not re.fullmatch(r"[0-9a-f]+", guess):
         print(f"Give at least the first {MIN_PREFIX} characters of a request id (hexadecimal). This did not count as a guess.")
@@ -96,18 +105,21 @@ def main(argv=None, now=None):
     if not matches:
         print("No request in this drill starts with that. It did not count as a guess.")
         return 1
+    if any(g["guess"] == matches[0] for g in state["guesses"]):
+        print("You already tried that one. It did not count again.")
+        return 1
     correct = drill.commitment(meta["salt"], matches[0], text) == meta["commitment"]
     when = (now or datetime.now()).isoformat(timespec="seconds")
     state["guesses"].append({"at": when, "guess": matches[0], "correct": correct})
     if correct:
         state["solved_at"] = when
         save_guesses(folder, state)
-        print(f"Correct: {matches[0]} is the planted request. It took {minutes_since(meta, now)} minutes from the drill's creation, in {len(state['guesses'])} guess(es).\n"
+        print(f"Correct: {matches[0]} is the planted request. It took {minutes_text(minutes_since(meta, now))} from the drill's creation, in {len(state['guesses'])} guess(es).\n"
               "Now write down what was wrong with the answer, and what you looked at to be sure it was wrong.")
         return 0
     save_guesses(folder, state)
     left = MAX_WRONG - (wrong + 1)
-    print(f"Not that one. {left} guess(es) left. It has been {minutes_since(meta, now)} minutes since the drill was made.")
+    print(f"Not that one. {left} guess(es) left. It has been {minutes_text(minutes_since(meta, now))} since the drill was made.")
     return 1
 
 

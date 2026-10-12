@@ -212,18 +212,20 @@ class RunTests(MeasureCase):
         self.assertIsNone(results["rows"][0]["prompt_tokens"])
         with mock.patch.object(settings, "llm_max_retries", 0):
             again, _ = self.run_with(Citing(fail_with=[refuse(), refuse(), None, refuse(), refuse(), None]))
-        self.assertTrue(again["meta"]["complete"])
+        self.assertEqual(len(again["rows"]), 9)                        # a success between failures keeps the run going to the end
         self.assertEqual([r["status"] == "error" for r in again["rows"]][:6], [True, True, False, True, True, False])
+        self.assertFalse(again["meta"]["complete"])                    # but a measurement with failed requests is not complete: --resume asks those again
+        self.assertIn("--resume", again["meta"]["stopped_because"])
 
     def test_an_error_is_never_averaged_into_the_tokens(self):
         rows = [{"arm": "a", "status": "ok", "tokens_known": True, "prompt_tokens": 100, "completion_tokens": 10, "provider_ms": 5, "wait_ms": 0,
-                 "passed": True, "chars": {"stripped": 4}},
+                 "passed": True, "grounded": True, "chars": {"stripped": 4}},
                 {"arm": "a", "status": "error", "tokens_known": False, "prompt_tokens": None, "completion_tokens": None, "provider_ms": None,
-                 "wait_ms": None, "passed": None, "chars": None},
+                 "wait_ms": None, "passed": None, "grounded": None, "chars": None},
                 {"arm": "a", "status": "ok", "tokens_known": False, "prompt_tokens": None, "completion_tokens": None, "provider_ms": 7, "wait_ms": 0,
-                 "passed": False, "chars": {"stripped": 0}},
+                 "passed": False, "grounded": False, "chars": {"stripped": 0}},
                 {"arm": "a", "status": "ok", "tokens_known": False, "prompt_tokens": None, "completion_tokens": None, "provider_ms": None, "wait_ms": None,
-                 "passed": None, "chars": None}]
+                 "passed": None, "grounded": True, "chars": None}]
         summary = cost_run.summarize_arms(rows)["a"]
         self.assertEqual((summary["requests"], summary["errors"], summary["tokens_known"], summary["mean_prompt_tokens"]), (4, 1, 1, 100))
         self.assertEqual((summary["scored"], summary["passed"], summary["mean_provider_ms"]), (2, 1, 6))        # a missing figure is left out, not counted as 0

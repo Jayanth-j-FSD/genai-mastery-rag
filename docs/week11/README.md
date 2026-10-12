@@ -23,7 +23,7 @@ alongside; and a failure found in the log is kept as a test so it cannot quietly
 |---|---|---|
 | A request id and one timed record per step (embedding the question, each search, the model call), with the model step's time split into time at the provider and time waiting for the rate limit, and the tokens the provider reported | `app/observability.py`, hooks in `app/rag/pipeline.py`, `retriever.py`, `generator.py` | 2 |
 | The request log: one JSON line per answered request, now with the request id, the steps, the tokens, the documents cited and why it refused; a failed request goes to `errors.jsonl` (kind of failure and HTTP status, never the message or the question); safe for several threads and several processes | `app/tracing.py` | 1, 2 |
-| The request id on every `/ask` answer and error (`X-Request-ID` header), an optional `X-Caller-ID`, and the id printed by `scripts/ask.py` | `app/main.py`, `scripts/ask.py`, `scripts/ask_batch.py` | 1 |
+| The request id on every `/ask` answer and on every error the API maps to a status (400, 429, 502) in an `X-Request-ID` header, an optional `X-Caller-ID`, and the id printed by `scripts/ask.py` | `app/main.py`, `scripts/ask.py`, `scripts/ask_batch.py` | 1 |
 | Finding a request: by words, an answer pattern, a time window, the document cited or retrieved from, status, channel, id prefix, how slow, how costly; groups identical answers; reads one request step by step | `scripts/find_requests.py`, `evals/logsearch.py` | 1, 2 |
 | The cost report: per step across many requests (time, provider time apart from waiting, tokens), per request (tokens first, then time, then dollars at prices you state), two logs side by side, a saved measurement | `scripts/cost_report.py`, `evals/costreport.py` | 2, 3 |
 | The support drill: a synthetic log with one wrong notice answer planted in it, a vague complaint, and a five-guess checker | `scripts/make_drill.py`, `scripts/check_drill.py`, `evals/drill.py` | 1 |
@@ -51,6 +51,7 @@ is still a complete record and every tool reads it; it just has no steps.
 
 .\.venv\Scripts\python.exe scripts\estimate_context_savings.py --bank 30 --seed 42                         # the free screen, no model calls
 .\.venv\Scripts\python.exe scripts\measure_cost.py --label w11 --model <model> --bank 30 --seed 42         # the measurement (use --dry-run first)
+.\.venv\Scripts\python.exe scripts\measure_cost.py --label w11 --model <model> --bank 30 --seed 42 --resume   # carry it on after a stop or a failed request
 .\.venv\Scripts\python.exe scripts\check_cost_prediction.py w11
 .\.venv\Scripts\python.exe scripts\cost_report.py --show w11 --price-in <usd> --price-out <usd> --price-source "<where>"
 
@@ -60,6 +61,13 @@ is still a complete record and every tool reads it; it just has no steps.
 The free screen needs the local embedding model (`scripts\download_model.py`). The measurement needs a model with free quota; name
 it, never an alias. Every script that can spend quota has a way to look first: `--dry-run` for the measurement, no `--yes` for the
 failure tool.
+
+Two things about the measurement, because its quota cannot be refilled that day. It always asks the 41 base eval questions (plus the bank
+sample you ask for): a failure you convert into a test later is never added to it, so converting one before or after changes nothing about what was
+registered. And it can be carried on: it stops on the daily quota, on three provider failures in a row, on `--max-calls`, or on Ctrl-C, and a
+request that failed is kept as a failed row; `--resume` keeps every answered request, asks the failed ones again and never asks an answered one twice
+(the old result is moved aside, not deleted). A setup problem (no API key, nothing indexed) stops at the first request with the app's own words. The
+measurement and its resume have to fit in the model's day together: about 213 requests for 71 questions under 3 arms.
 
 ## What a request log line holds
 
@@ -73,7 +81,7 @@ One line per answered request in `data/traces/traces.jsonl`. The keys Weeks 3 to
 | `channel`, `caller` | how it arrived (`api`, `cli`, `batch`, `measure`) and the optional `X-Caller-ID` |
 | `spans` | one record per step: `name`, `kind` (`embed`, `retrieve`, `model`), `start_ms`, `duration_ms`, `status`, and for the model step `provider_ms`, `wait_ms`, `attempts`, `model_requested`, `model_served`, `prompt_tokens`, `completion_tokens`, `tokens_known`, `cost_usd` |
 | `usage` | the request's tokens (the sum of its model steps) and `tokens_known`, false when any call reported none: the sums are then lower bounds |
-| `sources`, `status`, `refusal_cause` | the documents the answer cited, `ok` or `refused`, and why it refused (`no_chunks`, `below_min_relevance`, `empty_reply`, `model_idk`, `context_all_repeated`) |
+| `sources`, `status`, `refusal_cause` | the documents the app listed as sources (when the model wrote no `[source: ...]` tag the app lists every retrieved document, so `find_requests.py` reads what an answer CITED from its tags and shows the listed ones apart), `ok` or `refused`, and why it refused (`no_chunks`, `below_min_relevance`, `empty_reply`, `model_idk`, `context_all_repeated`, or `unknown` when a refusal reached the end with no cause noted) |
 | `index_id`, `prompt_sha`, `chars` | which index answered, a hash of the instructions, and how many characters of the prompt were instructions, passages and question, and how many were stripped |
 
 Two rules the log keeps, because a log that gets them wrong is worse than none. Spans are steps, not groups of steps, so they do
@@ -93,8 +101,11 @@ used, labelled an assumption. With no price it is `null`: unknown is not free.
 - `errors.jsonl` (beside the traces) holds, for a request that failed, its id, when, the kind of failure, the HTTP status the API sent and
   the steps it finished. Never the exception's message (a provider error can echo request details) and never the question, only its length
   and a short hash, so a known question can be matched without the log holding it.
-- What is committed from this week holds no passage text and no question text from the log: the saved measurement has numbers and names only,
-  and a failure fixture keeps the question, the two answers, document names and scores.
+- What a measurement commits holds no passage text and no question text from the log: numbers and names only. A failure fixture is different on
+  purpose: it keeps the question and the two answers of the request you convert (real text, written to the files as ASCII escapes), and only document
+  names and scores of the passages. The tool says so when you pass `--yes`: read what it wrote before you commit it.
+- A request that fails with something the API does not map (an HTTP 500) is in `errors.jsonl` with its id but its response carries no `X-Request-ID`
+  (find it with `find_requests.py --status error --since ...`); a request the API rejects before the pipeline (a malformed body, HTTP 422) leaves no record.
 - There is no automatic deletion: logs grow until you delete the file. Writing is thread-safe in one process and, with an operating-system
   lock on a side file, safe across processes; a writer that cannot get the lock within two seconds drops its line, prints a warning and
   counts it, instead of making the user wait.
@@ -104,11 +115,12 @@ used, labelled an assumption. With no price it is `null`: unknown is not free.
 
 `make_drill.py` writes about 3000 synthetic requests over four weeks, shaped like the real ones (the same keys, steps and kinds of numbers,
 real passages of the corpus), a vague complaint, and a hash that lets `check_drill.py` tell whether a guess is the planted request. Among the
-notice-period answers, which differ by company and status (30 or 7 days at Acme, 60 or 30 in the handbook, one that names both because the
-documents disagree), exactly one states a figure that no document states. Rarity alone is not the answer, since other rare answers are
-right: a figure has to be checked against a document. The kit refuses to build if its own decoys state something the corpus no longer says,
-or if it did not plant exactly one wrong answer. Everything in a drill says it is synthetic. It is an honour system, and says so. Finding
-the request and writing down what you looked at is yours.
+notice-period answers, which differ by company and status, exactly one states a figure that no document states. Each question gets answers that really
+answer it, in several wordings, and some right answers are as rare as the planted one: being rare is not what gives it away, only a figure checked against
+the document the answer cites does (and the passages the log shows for that request). The kit refuses to build if its own decoys state something the corpus no
+longer says, or if it did not plant exactly one wrong answer. Every request in a drill says it is synthetic, and so does the complaint. The checker tells a
+log that was edited from a wrong guess and does not charge for it, and does not charge twice for the same wrong id. It is an honour system, and says so.
+Finding the request and writing down what you looked at is yours.
 
 ## The improvement, and how it was chosen
 
@@ -123,7 +135,11 @@ it are in `findings.md`.
 
 `failure_to_test.py` takes one logged request. You say what a correct answer looks like and give a correct answer (quoted from another real
 logged request, or written by hand). It replays both before writing anything: the logged answer must fail the case and the correct answer
-must pass it, or it refuses. It adds one case to `evals/logged_failures.json` and a fixture to `tests/fixtures/log_regressions/`; the
+must pass it, or it refuses. It also refuses a case that names no phrase a correct answer states (a case that only forbids one wording passes every
+other wrong answer), a document that is not in the corpus, and an id that is not a plain file name. It says whether the failure was RETRIEVAL or GENERATION
+using the same whole-word phrase rule the checks use. The test suite replays every fixture against the LIVE case as well as against the fixture's own copy, so
+loosening a case later is caught. What it cannot prove: that a correct answer you typed is one the model would really give; only a live run does
+(`run_evals.py --only <id>`). It adds one case to `evals/logged_failures.json` and a fixture to `tests/fixtures/log_regressions/`; the
 fixture is replayed offline on every run of the test suite, in both directions. A worked example built from a real failure in the log
 (the notice question answered "I don't know" while two documents answer it) ships as a fixture only; it is labelled as drafted by the tool,
 for you to review, and adds no case to the eval set. Converting a failure of your own, and saying why it is real, is yours.
@@ -140,7 +156,7 @@ for you to review, and adds no case to the eval set. Converting a failure of you
 
 ## What is not built
 
-OpenTelemetry, LangSmith or Phoenix export, caching of either kind, model routing, a second-model fallback, fine-tuning, and any automatic
+OpenTelemetry or hosted-tracer export, caching of either kind, model routing, a second-model fallback, fine-tuning, and any automatic
 log retention. `CHANGES.md` says why each was left and what the log already holds toward it.
 
 ## The part that is yours

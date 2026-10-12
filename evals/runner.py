@@ -355,9 +355,9 @@ def load_results(path_or_label):
         return json.load(handle)
 
 
-def select_cases(only=None, types=None, limit=None, regressions_path=None):
-    """The cases to run, optionally narrowed by id, by problem type, or to the first N."""
-    cases = all_cases(regressions_path)
+def select_cases(only=None, types=None, limit=None, regressions_path=None, base_only=False):
+    """The cases to run, optionally narrowed by id, by problem type, or to the first N. `base_only`: just the 41 base cases (see all_cases)."""
+    cases = all_cases(regressions_path, base_only)
     if only:
         wanted = set(only)
         unknown = wanted - {c["id"] for c in cases}
