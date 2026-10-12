@@ -8,7 +8,7 @@ import _testkit
 
 ROOT = _testkit.ROOT
 WEEK_10_NAMES = ("team", "pricing", "llm_scope", "week10", "pilot")          # a file whose name has one of these words is Week 10's
-CHANGED_EXISTING = ("app/agent/display.py", "app/llm.py", "scripts/run_agent.py", "tests/unit/test_agent_scripts.py", ".env.example")
+CHANGED_EXISTING = ("app/agent/display.py", "app/llm.py", "scripts/run_agent.py", "scripts/check_all.py", "tests/unit/test_agent_scripts.py", ".env.example")
 NEW_CODE = ("app/agent/team.py", "app/pricing.py", "evals/team_report.py", "evals/team_prediction.py", "scripts/race_team.py",
             "scripts/pilot_team.py", "scripts/check_team_prediction.py")
 

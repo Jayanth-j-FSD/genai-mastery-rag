@@ -23,6 +23,9 @@ every failed run, and what result would change your mind are blank in `findings.
   subtracting nested global counters, and the split is cross-checked against the process counters. `attempts` is read: the race
   counts every attempt as a request against the day's quota. `started_at` and the error type are groundwork for Week 11 that
   Week 10 does not read.
+- `scripts/check_all.py`, the gate: it does not walk into hidden folders (virtual environments, other working copies), and it compiles in batches of
+  30 files so that a long checkout path cannot overflow the Windows command line (the gate crashed at about 180 characters of path), and a check that
+  cannot start prints a FAIL line instead of a traceback.
 - `app/pricing.py` and the `PRICE_INPUT_PER_MILLION` and `PRICE_OUTPUT_PER_MILLION` settings (default 0, meaning "not stated";
   documented in `.env.example`, which says no Week 10 command reads them): tokens to dollars with prices you state. There is no price table.
 - `evals/race.py`: the team as a third runner (`run_one(task, "team", ...)`), added beside the two Week 7 approaches, which stay
@@ -148,7 +151,7 @@ yet committed (the commit each result records is the Week 9 tip plus uncommitted
 | `pilot-1` (`pilot_team.py`, seed 1) | 6 bank questions | 40 | single agent 2.5 calls and 2,557 tokens a run, team 4.2 calls and 3,029; the team answered "I don't know" to "What do I have to do during my notice period?" that the single agent answered |
 | two runs of `run_agent.py --team` | the notice-period question | 4 and 5 | diagnosis: the researcher searched once and gave up. Prompt changed: never say the documents lack the answer after one search. Second run found the answer |
 | one run of `run_agent.py --team` | "Who approves my leave request?" | 8 | looking at an 8-call team run in `pilot-2`: the manager made two hand-offs because the first answer did not say who approves |
-| `pilot-2` (`pilot_team.py`, seed 2, with the changed prompt) | 6 bank questions and 2 of my own calculation questions | 57 | single agent 2.3 calls and 2,124 tokens a run, team 4.9 calls and 3,572; the calculator was used on both calculation questions |
+| `pilot-2` (`pilot_team.py`, seed 2, with the changed prompt) | 6 bank questions and 2 of my own calculation questions | 57 | single agent 2.2 calls and 2,124 tokens a run, team 4.9 calls and 3,572; the calculator was used on both calculation questions |
 
 Total: 118 model calls. The only change to a prompt was the researcher's second-search sentence, after `pilot-1`.
 

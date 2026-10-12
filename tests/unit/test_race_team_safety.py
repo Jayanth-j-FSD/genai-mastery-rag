@@ -16,6 +16,17 @@ sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))
 import race_team           # noqa: E402
 
 
+class GitProblemTextTests(unittest.TestCase):
+    def test_the_reason_git_could_not_be_read_never_carries_the_project_path_into_the_stamp(self):
+        where = str(race_team.BASE_DIR).replace("\\", "/")                      # git prints forward slashes
+        with mock.patch.dict(race_team.GIT_PROBLEM, {"text": f"fatal: detected dubious ownership in repository at '{where}'"}), \
+                mock.patch.object(race_team, "uncommitted_code", return_value=None), mock.patch.object(race_team, "git", return_value=None):
+            stamp = race_team.code_stamp({})
+        self.assertIn("dubious ownership", stamp["git_problem"])
+        self.assertNotIn(where, stamp["git_problem"])
+        self.assertIn("<project>", stamp["git_problem"])
+
+
 class CtrlC(Racer):
     """Stands in for race.run_one and raises KeyboardInterrupt on its n-th call, as Ctrl-C does in the middle of a run."""
 

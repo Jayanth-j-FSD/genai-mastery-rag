@@ -122,7 +122,7 @@ def code_stamp(files=None):
     paths = uncommitted_code()
     stamp = {"git": git("rev-parse", "--short", "HEAD") or "unknown", "dirty": None if paths is None else bool(paths)}
     if stamp["git"] == "unknown" or paths is None:
-        stamp["git_problem"] = GIT_PROBLEM["text"] or "no reason given"        # why git could not be read: a refusal and a pilot's record both say it
+        stamp["git_problem"] = scrub_text(GIT_PROBLEM["text"] or "no reason given")        # why git could not be read: a refusal and a pilot's record both say it
     if paths:
         stamp["dirty_paths"] = ", ".join(paths)
     stamp.update({os.path.basename(path): files.get(path) for path in STAMPED_FILES})

@@ -164,6 +164,9 @@ PARTIAL banner and no verdict from `check_team_prediction.py`.
   `app/agent/team.py` is a plain summary (name, what it does, its tools) built from the same registry entry as the hand-off
   tool; nothing in the running team calls it, a test checks that the two descriptions are equal, it is served nowhere and it
   is not in any protocol's format.
+- **Task lifecycle**: the other name the brief lists beside the agent card. In A2A a task given to another agent moves through named states
+  (submitted, working, completed, failed and so on; the exact list is the protocol's and is not checked here). Not implemented. Here a hand-off has
+  its own three outcomes, `finished`, `not_finished` and `refused`, recorded per hand-off in the saved run.
 - **MCP versus A2A, in this repository**: Week 9's agent discovers tools over MCP; this week's manager reaches a specialist
   through an ordinary in-process `Tool`, neither MCP nor A2A.
 - **CrewAI, AutoGen**: agent frameworks. This project does not use them: the loop is hand-written, as it has been since

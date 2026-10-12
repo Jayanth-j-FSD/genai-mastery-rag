@@ -311,6 +311,7 @@ class FrozenCodeTests(unittest.TestCase):
         fingerprint = self.fingerprint_of({"top.md": b"x", "nested/deeper/b.txt": b"y", "nested/skipped.json": b"{}", "nested/skipped.png": b"\x00"})
         self.assertEqual(list(fingerprint), ["nested/deeper/b.txt", "top.md"])               # the loader reads .txt .md .pdf, in sub-folders too, and sorted
 
+    @mock.patch.multiple(race_team.settings, agent_max_steps=8, agent_max_total_tokens=40000, agent_max_calls_per_tool=0)    # what the test below expects, whatever .env says
     def test_every_arm_records_what_it_was_run_with_so_the_differences_are_visible(self):
         meta = race_team.make_meta("t", get_tasks(TWO), 3, ["agent", "team", "agent-2"], "m", "now", 300.0)
         self.assertEqual(meta["arms"], meta["approaches"])
@@ -326,6 +327,7 @@ class FrozenCodeTests(unittest.TestCase):
             self.assertRegex(crew[key], r"^[0-9a-f]{12}$")
         self.assertIsNone(race_team.make_meta("t", get_tasks(TWO), 1, ["agent", "team"], "m", "now")["noise_arm"])
 
+    @mock.patch.multiple(race_team.settings, agent_max_steps=8, agent_max_total_tokens=40000, agent_max_calls_per_tool=0)
     def test_the_cap_table_has_a_row_for_every_agent_of_every_arm(self):
         rows = race_team.caps_table(["agent", "team"], 300.0)
         self.assertEqual([(row["arm"], row["agent"], row["steps"]) for row in rows],

@@ -119,7 +119,10 @@ class GuidanceTests(unittest.TestCase):
 
 class SettingTests(unittest.TestCase):
     def test_the_prices_default_to_unpriced(self):
-        fresh = Settings(_env_file=None)
+        with mock.patch.dict(os.environ):                                  # _env_file=None skips .env but not the process environment
+            os.environ.pop("PRICE_INPUT_PER_MILLION", None)
+            os.environ.pop("PRICE_OUTPUT_PER_MILLION", None)
+            fresh = Settings(_env_file=None)
         self.assertEqual((fresh.price_input_per_million, fresh.price_output_per_million), (0.0, 0.0))
 
     def test_a_bad_price_fails_at_startup(self):
