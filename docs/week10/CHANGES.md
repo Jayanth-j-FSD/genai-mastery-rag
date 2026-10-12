@@ -20,8 +20,9 @@ every failed run, and what result would change your mind are blank in `findings.
   them). Scopes nest and an outer scope can total what was done under it. The five usage counters, `chat()`'s retries and its
   limiter keep their meaning: `_wait_for_slot` now also returns the seconds it waited, which nothing else reads.
   *The Week 10 need it serves:* each arm is measured by the same instrument, the team's cost can be split by agent without
-  subtracting nested global counters, and the split is cross-checked against the process counters. `started_at`, `attempts` and
-  the error type are groundwork for Week 11 that Week 10 does not read.
+  subtracting nested global counters, and the split is cross-checked against the process counters. `attempts` is read: the race
+  counts every attempt as a request against the day's quota. `started_at` and the error type are groundwork for Week 11 that
+  Week 10 does not read.
 - `app/pricing.py` and the `PRICE_INPUT_PER_MILLION` and `PRICE_OUTPUT_PER_MILLION` settings (default 0, meaning "not stated";
   documented in `.env.example`, which says no Week 10 command reads them): tokens to dollars with prices you state. There is no price table.
 - `evals/race.py`: the team as a third runner (`run_one(task, "team", ...)`), added beside the two Week 7 approaches, which stay
@@ -67,7 +68,19 @@ every failed run, and what result would change your mind are blank in `findings.
   of them changed. A resume keeps the first stamp, records itself, lists arms added by it as not interleaved, and runs again the runs that
   ended on provider trouble. Everything the pilots found is listed below.
 - **A request is what the quota counts.** `--max-calls` counts every attempt, retries and failed calls included, because a free key's day is
-  spent in requests. The outage stop is kept per arm, so a failure that hits only the team stops the race at the team's third failed run.
+  spent in requests. The cap is checked between runs, so a race can pass it by the requests of the run that was in flight (a team run
+  is several). The outage stop is kept per arm, so a failure that hits only the team stops the race at the team's third failed run.
+- **One race per label at a time, and a Ctrl-C that keeps the runs.** A lock file `race-<label>.lock` beside the result stops a second race
+  (a resume started while the first still runs) from reading half a file and writing over it. A lock is taken as left behind by a crash after
+  ten minutes with no write to it or to the result; `--break-lock` takes it sooner, when you know no race is running. Ctrl-C saves what
+  finished, says so, and leaves a race that `--resume` carries on.
+- **What a resume does after a harmless edit.** `--resume` refuses when a code file changed since the race began. If the change cannot affect a
+  run (a comment, a message), `--accept-changed PATH` (once per file, only for a file that really changed) lets it go on, and the file's history
+  records the paths with the hash before and after, and the report says so in a NOTE. Settings, tasks, the corpus and the prediction cannot be
+  accepted. The report lists every run a resume set aside, with the cause and the start of its answer. A finished race with runs on provider
+  trouble prints how many and the command that runs them again.
+- **One definition of provider trouble.** The race's stop rule, a resume and the report all use `team_report.provider_trouble`: an error, a
+  spent quota or an empty reply, from the manager or from a specialist. Before, the race's own check knew only the error.
 - **A partial race gets no verdict.** The prediction's thresholds are registered for 9 tasks x 3 repeats, 27 units. A race that is incomplete,
   or that leaves another number of usable units, is read and shown but not judged; an empty reply counts as provider trouble.
 - **A crashed specialist keeps its record, and a quota stop starts nothing more.** The hand-off record carries the calls, tokens and steps the

@@ -31,6 +31,7 @@ an older complete race stays in place while the new one is cut short, and moves 
 Name the model: never the alias.
 """
 import argparse
+import contextlib
 import hashlib
 import inspect
 import math
@@ -38,6 +39,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -63,6 +65,7 @@ SETTING_NAMES = ("llm_max_retries", "llm_timeout_seconds", "dense_search", "hybr
 PLAIN = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'})   # typographic marks a model writes, as plain ASCII
 DEFAULT_TIMEOUT = 300.0        # seconds a run may take: wider than the 120 s default because the free tier's rate-limit pauses count, for BOTH arms
 CODE_KEYS = tuple(os.path.basename(path) for path in STAMPED_FILES)
+LOCK_STALE_SECONDS = 600       # a race saves after every run and a run is capped at DEFAULT_TIMEOUT, so a label quiet this long was left behind by a crash
 GIT_PROBLEM = {"text": ""}     # why the latest git command failed, so a refusal can say what went wrong and not only that git was unreadable
 
 
@@ -277,9 +280,9 @@ def make_meta(label, tasks, repeats, arms, model, started, timeout=DEFAULT_TIMEO
 
 
 def provider_trouble(record):
-    """A run that ended on a provider error, either the manager's own or a specialist's (which the manager then had to work around)."""
-    handoffs = (record.get("team") or {}).get("handoffs", [])
-    return record["stop_reason"] == "error" or any(handoff.get("stop_reason") == "error" for handoff in handoffs)
+    """A run that ended on provider trouble (an error, a spent quota or an empty reply), either the manager's own or a specialist's.
+    It is the report's own test, so what stops a race, what a resume runs again and what the report leaves out can never disagree."""
+    return team_report.provider_trouble(record)
 
 
 def usage_cross_check(record, scope):
@@ -315,7 +318,8 @@ def requests_from(call_log, llm_calls, failed=False):
 
 def run_plan(plan, results, tools, options, save, say=print, run_one=None, max_calls=None):
     """Run what the plan lists and the results do not have yet, saving after every run. Stops, keeping what finished, when a
-    quota runs out, when MAX_ERRORS_IN_A_ROW runs in a row (of any arms, or of one arm) hit a provider error, when a run crashes,
+    quota runs out, when MAX_ERRORS_IN_A_ROW runs in a row (of any arms, or of one arm) hit provider trouble (an error, a spent quota or an
+    empty reply), when a run crashes,
     when a run's usage does not add up or a hand-off failed on a bug, or when --max-calls REQUESTS have been sent. Returns the reason, or None."""
     run_one = run_one or race.run_one
     done = {(run["repeat"], run["task_id"], run["approach"]) for run in results["runs"]}
@@ -354,11 +358,30 @@ def run_plan(plan, results, tools, options, save, say=print, run_one=None, max_c
         arm_streaks[arm] = arm_streaks.get(arm, 0) + 1 if trouble else 0
         if errors_in_a_row >= race.MAX_ERRORS_IN_A_ROW or arm_streaks[arm] >= race.MAX_ERRORS_IN_A_ROW:        # one provider error is a run; a string of them is an outage
             steps = record.get("steps") or [{}]
-            last = steps[-1].get("content") or "no detail recorded"
+            last = steps[-1].get("content") or f"stop reason {record['stop_reason']}, no detail recorded"
             if errors_in_a_row >= race.MAX_ERRORS_IN_A_ROW:
                 return scrub_text(f"{errors_in_a_row} runs in a row ended on a provider error (the last: {last})")
             return scrub_text(f"{arm_streaks[arm]} runs in a row ended on a provider error in the {arm} arm, while the other arms were fine (the last: {last})")
     return None
+
+
+def resume_hint(args, results):
+    """Lines for a finished race that has runs on provider trouble: how many, what running them again costs, and the command that does."""
+    bad = [run for run in results["runs"] if team_report.provider_trouble(run)]
+    if not bad:
+        return []
+    good = [requests_from(team_report.calls_of(run), run["llm_calls"]) for run in results["runs"] if not team_report.provider_trouble(run)]
+    cost = f" (about {round(len(bad) * sum(good) / len(good))} requests)" if good else ""
+    command = ["python scripts/race_team.py", "--label", args.label, "--model", args.model]
+    if args.only:
+        command += ["--only", *args.only]
+    if args.repeats != 3:
+        command += ["--repeats", str(args.repeats)]
+    if args.timeout != DEFAULT_TIMEOUT:
+        command += ["--timeout", f"{args.timeout:g}"]
+    return [f"\n{len(bad)} run{' ended' if len(bad) == 1 else 's ended'} on provider trouble (an error, a spent quota or an empty reply). "
+            "The report leaves them out; they say nothing about the design.",
+            f"Run {'it' if len(bad) == 1 else 'them'} again{cost}, once the provider is working, with: {' '.join(command)} --resume"]
 
 
 def estimate_team_calls(saved):
@@ -510,6 +533,27 @@ def changed_files(saved, now):
     return sorted(path for path in set(saved) | set(now) if saved.get(path) != now.get(path))
 
 
+def accept_changes(differences, named, saved_meta, meta):
+    """What a person may accept: a code file that changed since the race began. Returns (the differences that remain, {path: {"was", "now"}},
+    a problem sentence or None). Settings, tasks, the corpus and the prediction cannot be accepted: they are what makes it one race."""
+    saved_files, files = saved_meta.get("code_files"), meta.get("code_files")
+    if saved_files is None or files is None:
+        return differences, {}, ("this race was saved before every code file was hashed, so --accept-changed cannot name what changed. "
+                                 "Race again under a new label; the old file stays as evidence.")
+    changed = changed_files(saved_files, files)
+    wanted = []
+    for name in named:
+        name = name.replace("\\", "/")
+        wanted.append(name[2:] if name.startswith("./") else name)
+    unknown = [name for name in wanted if name not in changed]
+    if unknown:
+        return differences, {}, (f"--accept-changed names {', '.join(unknown)}, which is not among the code files that changed since the race began "
+                                 f"({', '.join(changed) or 'none changed'}).")
+    dropped = set(wanted) | {os.path.basename(name) for name in wanted if name in STAMPED_FILES}        # a stamped file is listed under its bare name
+    return [difference for difference in differences if difference not in dropped], \
+        {name: {"was": saved_files.get(name), "now": files.get(name)} for name in wanted}, None
+
+
 def read_meta(path):
     """The meta of a saved race, or None when the file is missing, unreadable or not a race."""
     try:
@@ -575,12 +619,70 @@ def keep_other_race(path, meta):
         keep_aside(path)
 
 
+class RaceBusy(Exception):
+    """Another process is racing under the label."""
+
+
+def lock_path(path):
+    """The lock file of a label: beside its result, named after it, so two labels never share one."""
+    return path[:-len(".json")] + ".lock"
+
+
+def newest_touch(*paths):
+    """When the newest of these files was last written, in seconds since the epoch (0 when none exists)."""
+    stamps = []
+    for path in paths:
+        try:
+            stamps.append(os.path.getmtime(path))
+        except OSError:
+            pass
+    return max(stamps, default=0.0)
+
+
+@contextlib.contextmanager
+def race_lock(path, break_lock=False, say=print):
+    """Hold a label's lock for as long as the race runs, so a second race (a resume started by hand while the first still runs, or the
+    same command twice) cannot read half a file and write over its runs. A lock is stale when neither it nor the saved race has been
+    written for LOCK_STALE_SECONDS: a race saves after every run, so a crash left it. --break-lock takes it whatever its age."""
+    lock = lock_path(path)
+    beside = (path, path[:-len(".json")] + ".incomplete.json")
+    os.makedirs(os.path.dirname(lock), exist_ok=True)
+    for _attempt in range(2):
+        try:
+            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)       # exclusive: only one process can create the file
+            break
+        except FileExistsError:
+            quiet = time.time() - newest_touch(lock, *beside)
+            if not break_lock and quiet < LOCK_STALE_SECONDS:
+                raise RaceBusy(f"another race may already be running under this label: {os.path.basename(lock)} was written {quiet:.0f}s ago (a lock "
+                               f"counts as left behind after {LOCK_STALE_SECONDS}s of quiet). If no race is running, take the lock with --break-lock.")
+            say(f"{'Breaking the lock' if break_lock else 'Taking over a stale lock'} {os.path.basename(lock)} (last written {quiet:.0f}s ago).")
+            try:
+                os.remove(lock)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                raise RaceBusy(f"could not remove {os.path.basename(lock)} ({exc})") from exc
+    else:
+        raise RaceBusy(f"could not take {os.path.basename(lock)}: another race took it first.")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(f"pid {os.getpid()}\n")
+        yield
+    finally:
+        try:
+            os.remove(lock)
+        except OSError:
+            pass                                      # the race is over either way: a lock that cannot be removed goes stale on its own
+
+
 def why_set_aside(record):
     """Why a run that ended on provider trouble is run again, in the words of the report's own test (team_report.provider_trouble)."""
     if record["stop_reason"] in team_report.TROUBLE_STOPS:
         return f"the run ended on {record['stop_reason']}"
-    if any(h.get("stop_reason") in team_report.TROUBLE_STOPS for h in (record.get("team") or {}).get("handoffs", [])):
-        return "a hand-off ended on a provider error"
+    for handoff in (record.get("team") or {}).get("handoffs", []):
+        if handoff.get("stop_reason") in team_report.TROUBLE_STOPS:
+            return f"a hand-off ended on {handoff['stop_reason']}"
     return "the run recorded a usage warning or a team error"
 
 
@@ -600,10 +702,22 @@ def resume(args, tasks, arms, meta, started, path, source):
         return None, None, 1
     same_arms = make_meta(args.label, tasks, args.repeats, saved_meta["arms"], args.model, started, args.timeout)
     differences = changed_since(saved_meta, same_arms)                        # judged on the arms the saved race has
+    accepted = {}
+    if differences and args.accept_changed:
+        differences, accepted, problem = accept_changes(differences, args.accept_changed, saved_meta, same_arms)
+        if problem:
+            print(f"Error: {problem}")
+            return None, None, 1
     if differences:
+        now_changed = changed_files(saved_meta["code_files"], same_arms["code_files"]) if saved_meta.get("code_files") is not None else []
+        how = (f" If a changed code file cannot affect what a run does (a comment, a message), name it with --accept-changed PATH "
+               f"({', '.join(now_changed)}): the file's history then records that you accepted it. Settings, tasks and the prediction cannot be accepted."
+               if now_changed else "")
         print("Error: the code or settings changed since this race began, so it cannot be resumed as one race (" + ", ".join(differences)
-              + "). Race again under a new label; the old file stays as evidence.")
+              + "). Race again under a new label; the old file stays as evidence." + how)
         return None, None, 1
+    if accepted:
+        print(f"Accepted changes to {', '.join(accepted)}: recorded in the race file's history.")
     merged = list(dict.fromkeys(list(saved_meta["arms"]) + arms))
     trouble = [team_report.provider_trouble(run) for run in results["runs"]]  # the report's own test: such a run measured the provider, not the design
     have = {(run["repeat"], run["task_id"], run["approach"]) for run, bad in zip(results["runs"], trouble) if not bad}
@@ -623,8 +737,10 @@ def resume(args, tasks, arms, meta, started, path, source):
     saved_meta["config"] = {arm: arm_config(arm, args.timeout) for arm in merged}
     saved_meta["caps"] = caps_table(merged, args.timeout)
     saved_meta["code_history"] = list(saved_meta.get("code_history") or []) + [{"at": started, "code": meta["code"]}]    # meta.code stays the stamp the race BEGAN on
-    saved_meta["resumed"] = [entry if isinstance(entry, dict) else {"at": entry} for entry in saved_meta.get("resumed") or []] + [
-        {"at": started, "arms_added": added, "rpm": settings.llm_rpm, "model": args.model, "code": meta["code"]}]
+    session = {"at": started, "arms_added": added, "rpm": settings.llm_rpm, "model": args.model, "code": meta["code"]}
+    if accepted:
+        session["accepted_changes"] = accepted                  # what the person said could not matter, with the hash before and after
+    saved_meta["resumed"] = [entry if isinstance(entry, dict) else {"at": entry} for entry in saved_meta.get("resumed") or []] + [session]
     saved_meta["not_interleaved_arms"] = list(dict.fromkeys(list(saved_meta.get("not_interleaved_arms") or []) + added))   # they ran after the others
     saved_meta.update(complete=False, stopped_because=None)
     return results, merged, None
@@ -645,6 +761,9 @@ def main(argv=None):
     parser.add_argument("--allow-dirty", action="store_true", help="race on an uncommitted tree: only for a label that starts with pilot-")
     parser.add_argument("--resume", action="store_true", help="carry on a saved race that stopped early, under the same label")
     parser.add_argument("--force", action="store_true", help="start over under a label that is already saved")
+    parser.add_argument("--accept-changed", action="append", default=[], metavar="PATH",
+                        help="with --resume: carry on although this code file changed since the race began (repeat for several); for a change that cannot affect a run, such as a comment")
+    parser.add_argument("--break-lock", action="store_true", help="take the label's lock although it looks fresh: only when no other race is running under it")
     parser.add_argument("--show", metavar="LABEL", help="print the report of a saved race (no model calls) instead of racing")
     parser.add_argument("--price-in", type=float, default=None, help="with --show: dollars per million INPUT tokens, a price you state")
     parser.add_argument("--price-out", type=float, default=None, help="with --show: dollars per million OUTPUT tokens, a price you state")
@@ -653,6 +772,10 @@ def main(argv=None):
     parser.add_argument("--save", action="store_true", help="with --show: also write docs/week10/race-results.md")
     args = parser.parse_args(argv)
     make_output_safe()
+    try:
+        sys.stdout.reconfigure(line_buffering=True)        # so a race run in the background shows each run as it ends, not at the end
+    except (AttributeError, ValueError):
+        pass
 
     for flag, value in (("--price-in", args.price_in), ("--price-out", args.price_out)):
         if value is not None and not 0 <= value < math.inf:                 # nan fails every comparison, so it is caught here too
@@ -704,6 +827,9 @@ def main(argv=None):
     if args.resume and args.force:
         print("Error: --resume carries a race on and --force starts it over: pick one.")
         return 1
+    if args.accept_changed and not args.resume:
+        print("Error: --accept-changed goes with --resume: a new race starts on the code as it is.")
+        return 1
     try:
         pipeline.require_index()
     except RuntimeError as exc:
@@ -711,6 +837,16 @@ def main(argv=None):
         return 1
 
     path = runner.results_path("race-" + args.label)
+    try:
+        with race_lock(path, args.break_lock):
+            return run_race(args, tasks, arms, path)
+    except RaceBusy as exc:
+        print(f"Error: {exc}")
+        return 1
+
+
+def run_race(args, tasks, arms, path):
+    """Everything from the checks on the saved files to the report, while this process holds the label's lock."""
     leftover = path[:-len(".json")] + ".incomplete.json"
     source = newer_progress(path, leftover) if args.resume else path               # progress saved beside a complete race may be newer
     started = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -767,7 +903,10 @@ def main(argv=None):
         except OSError as exc:                          # a file another program is holding: say so, the next save writes everything again
             print(f"WARNING: could not save progress ({exc}); the race goes on")
 
-    stopped = run_plan(plan, results, default_tools(), options, save, max_calls=args.max_calls)
+    try:
+        stopped = run_plan(plan, results, default_tools(), options, save, max_calls=args.max_calls)
+    except KeyboardInterrupt:                           # the runs that finished are already saved; the one in flight is lost and runs again
+        stopped = "interrupted by the user (Ctrl-C)"
     results["meta"].update(complete=stopped is None, stopped_because=stopped,
                            finished=datetime.now().astimezone().isoformat(timespec="seconds"))
     if stopped:
@@ -792,6 +931,8 @@ def main(argv=None):
             if mine and all(team_report.provider_trouble(run) for run in mine):
                 print(f"\nWARNING: every run of the {arm} arm ended on provider trouble, so this race measured the provider and not the design. "
                       "Do not quote it: find the cause and race again under a new label.")
+        for line in resume_hint(args, results):
+            print(line)
     print()
     print("\n".join(plain(team_report.format_report(results, 0.0, 0.0))))
     print(f"\nsaved: {display_path(saved_path, BASE_DIR)}")

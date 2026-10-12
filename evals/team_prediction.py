@@ -241,7 +241,11 @@ def format_prediction(rows, failed, dropped, label):
                   f"The thresholds were registered for {REGISTERED_TASKS} tasks x {REGISTERED_REPEATS} repeats = {REGISTERED_UNITS} units, so the rows that "
                   "count runs or tasks (P1's task count, P4, P5, P6, P9) are not decidable on this race, and no verdict is given for the prediction as a whole.", ""]
     lines += [f"read on {dropped['kept']} of {dropped['units']} units ({dropped['dropped_for_provider']} dropped for a provider problem, "
-              f"{dropped['incomplete']} incomplete; units that hit a limit stay in, P9 counts them)", ""]
+              f"{dropped['incomplete']} incomplete; units that hit a limit stay in, P9 counts them)"]
+    if dropped["dropped_for_provider"]:
+        lines.append("A unit dropped for a provider problem can be run again: python scripts/race_team.py --label "
+                     f"{label} --model <the model the race used> --resume (with the same --only, --repeats and --timeout, if it had them).")
+    lines.append("")
     words = {"held": "held", "not held": "NOT HELD", "partial": "PARTIAL", "no data": "NO DATA"}
     for row in rows:
         status = row.get("status") or {True: "held", False: "not held", None: "no data"}[row["held"]]

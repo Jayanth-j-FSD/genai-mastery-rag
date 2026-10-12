@@ -46,6 +46,7 @@ DAILY_REQUESTS = 500               # what a free-tier key allowed per model per 
 LIMIT_STOPS = ("max_steps", "timeout", "token_budget", "repeated_call", "budget")       # a run ended on a limit, not on an answer
 TROUBLE_STOPS = ("error", "quota_exhausted", "empty_reply")                               # a run ended on the provider: a failed call, a spent quota, or a reply with no text and no tool request
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+SET_ASIDE_SHOWN = 12                                                                         # runs listed in the header; the rest are counted and stay in the file
 
 
 # ---------------------------------------------------------------------------- small statistics
@@ -560,6 +561,8 @@ def _describe_resume(entry):
         details.append(f"model {entry['model']}")
     if entry.get("rpm") is not None:
         details.append(f"{entry['rpm']} calls a minute")
+    if entry.get("accepted_changes"):
+        details.append("accepted changes to " + ", ".join(sorted(entry["accepted_changes"])))
     return str(entry.get("at") or "?") + (f" ({'; '.join(details)})" if details else "")
 
 
@@ -587,9 +590,23 @@ def history_lines(meta):
         for entry in resumed:
             if isinstance(entry, dict) and entry.get("model") and requested and entry["model"] not in requested:
                 lines.append(f"WARNING: the session at {entry.get('at') or '?'} used model {entry['model']}, not {' or '.join(requested)}")
-    aside = len(meta.get("set_aside_runs") or [])
+    for entry in resumed:
+        accepted = entry.get("accepted_changes") if isinstance(entry, dict) else None
+        if accepted:
+            lines.append(f"NOTE: the session at {entry.get('at') or '?'} carried on after a change to {', '.join(sorted(accepted))}, which the person who ran it "
+                         "accepted as harmless (--accept-changed); the file records the hash of each before and after, and nothing here shows the change did not matter")
+    aside = meta.get("set_aside_runs") or []
     if aside:
-        lines.append(f"{aside} run{' was' if aside == 1 else 's were'} set aside after a provider outage and run again (kept verbatim in the saved file, outside the runs counted below)")
+        lines.append(f"{len(aside)} run{' was' if len(aside) == 1 else 's were'} set aside after provider trouble (an error, a spent quota or an empty reply) and run "
+                     "again: kept verbatim in the saved file, outside the runs counted below, and listed here")
+        shown = [entry for entry in aside if isinstance(entry, dict)]
+        for entry in shown[:SET_ASIDE_SHOWN]:
+            answer = " ".join(str(entry.get("answer") or "").split())[:60]
+            lines.append(f"  set aside: {entry.get('approach', '?')} {entry.get('task_id', '?')} #{entry.get('repeat', '?')}: "
+                         f"{entry.get('set_aside_because') or 'no reason recorded'}; stopped on {entry.get('stop_reason', '?')}"
+                         + (f"; answer began: {answer}" if answer else "; no answer"))
+        if len(shown) > SET_ASIDE_SHOWN:
+            lines.append(f"  ... and {len(shown) - SET_ASIDE_SHOWN} more, in the saved file under set_aside_runs")
     history = [entry for entry in meta.get("code_history") or [] if isinstance(entry, dict)]
     if history:
         codes = [entry.get("code") or {} for entry in history]

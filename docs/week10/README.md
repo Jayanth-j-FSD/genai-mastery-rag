@@ -56,10 +56,19 @@ A race needs the index (`scripts\ingest.py`) and names its model: an alias such 
 under you, so it is refused. A race on code that is not committed is refused too, and so is a race when git cannot be read or
 when `docs/week10/prediction.md` is not committed and unchanged; only a pilot, whose label starts with `pilot-`, may run
 on an uncommitted tree. The race's own result files and the cache do not count as code. `--max-calls N` stops the race
-before more than N requests have been sent; a request is every attempt, retries and failed calls included, because that is
-what a free key's daily quota counts. `--force` never destroys a saved race: the old file is moved aside to
-`race-<label>.replaced-<time>.json`. Dollars appear only when you pass `--price-in`, `--price-out` and `--price-source`;
-see "Cost" below.
+once N requests have been sent in this session; it checks between runs, so a race can pass N by the requests of the run that was
+in flight. A request is every attempt, retries and failed calls included, because that is what a free key's daily quota counts.
+`--force` never destroys a saved race: the old file is moved aside to `race-<label>.replaced-<time>.json`. Dollars appear only
+when you pass `--price-in`, `--price-out` and `--price-source`; see "Cost" below.
+
+While a race runs, a file `evals/results/race-<label>.lock` stops a second race under the same label (a resume started by hand
+while the first still runs). A lock that nothing has written to for ten minutes counts as left behind by a crash and is taken over;
+`--break-lock` takes it sooner, when you know no race is running. Ctrl-C saves the runs that finished and stops cleanly; the run
+that was in flight is lost and runs again on `--resume`. A race that finishes with runs on provider trouble (an error, a spent quota
+or an empty reply) prints how many and the command that runs them again; the report leaves them out. If `--resume` is refused
+because a code file changed, and the change cannot affect a run (a comment, a message), `--accept-changed PATH` names the file and
+lets it go on; the race file records the path with its hash before and after, and the report says so. Settings, tasks, the corpus
+and the prediction cannot be accepted.
 
 ## How the team is built
 

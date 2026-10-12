@@ -98,6 +98,12 @@ class PartialRaceTests(unittest.TestCase):
         self.assertEqual(statuses(rows)["P6"], "partial")
         self.assertIn("read on 26 of 27 registered units", text_of(race(agent=hit)))
 
+    def test_a_unit_dropped_for_provider_trouble_says_how_to_run_it_again_and_a_clean_race_does_not(self):
+        hit = lambda t, r: {"error": True, "success": False} if (t, r) == ("t7-conflict", 1) else {}    # noqa: E731
+        text = text_of(race(agent=hit), label="wk10")
+        self.assertIn("can be run again: python scripts/race_team.py --label wk10 --model <the model the race used> --resume", text)
+        self.assertNotIn("can be run again", text_of(race(), label="wk10"))
+
     def test_a_race_of_the_wrong_number_of_tasks_is_not_the_registered_design_even_with_27_units(self):
         runs = []
         for repeat in range(1, 10):                          # 3 tasks x 9 repeats is 27 units too

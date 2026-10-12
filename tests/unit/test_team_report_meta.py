@@ -86,9 +86,36 @@ class ArmsAddedLateTests(unittest.TestCase):
 class SetAsideAndHistoryTests(unittest.TestCase):
     def test_runs_set_aside_after_an_outage_are_counted_in_the_header(self):
         runs = [{"task_id": "t1", "approach": "team", "repeat": 1}] * 3
-        self.assertIn("3 runs were set aside after a provider outage and run again", text_of(small_race(set_aside_runs=runs)))
-        self.assertIn("1 run was set aside after a provider outage and run again", text_of(small_race(set_aside_runs=runs[:1])))
+        self.assertIn("3 runs were set aside after provider trouble (an error, a spent quota or an empty reply) and run again", text_of(small_race(set_aside_runs=runs)))
+        self.assertIn("1 run was set aside after provider trouble", text_of(small_race(set_aside_runs=runs[:1])))
         self.assertNotIn("set aside", text_of(small_race(set_aside_runs=[])))
+
+    def test_every_run_set_aside_is_listed_with_its_arm_task_cause_and_the_start_of_its_answer(self):
+        runs = [{"task_id": "t1", "approach": "team", "repeat": 2, "stop_reason": "empty_reply", "answer": "",
+                 "set_aside_because": "the run ended on empty_reply"},
+                {"task_id": "t2", "approach": "agent", "repeat": 1, "stop_reason": "error", "answer": "  partial   answer\nover two lines ",
+                 "set_aside_because": "the run ended on error"}]
+        text = text_of(small_race(set_aside_runs=runs))
+        self.assertIn("set aside: team t1 #2: the run ended on empty_reply; stopped on empty_reply; no answer", text)
+        self.assertIn("set aside: agent t2 #1: the run ended on error; stopped on error; answer began: partial answer over two lines", text)
+
+    def test_a_long_list_of_set_aside_runs_is_cut_and_says_how_many_more_the_file_holds(self):
+        runs = [{"task_id": f"t{n}", "approach": "team", "repeat": 1, "stop_reason": "error"} for n in range(report.SET_ASIDE_SHOWN + 3)]
+        text = text_of(small_race(set_aside_runs=runs))
+        self.assertEqual(text.count("  set aside: "), report.SET_ASIDE_SHOWN)
+        self.assertIn("... and 3 more, in the saved file under set_aside_runs", text)
+
+    def test_a_run_set_aside_by_an_older_script_with_no_reason_still_reads(self):
+        text = text_of(small_race(set_aside_runs=[{"task_id": "t1", "approach": "team", "repeat": 1}]))
+        self.assertIn("set aside: team t1 #1: no reason recorded", text)
+
+    def test_a_session_that_accepted_a_code_change_says_so_with_the_files_and_does_not_claim_it_was_harmless(self):
+        entry = dict(resume("2026-10-12T14:30:00+05:30"), accepted_changes={"app/rag/retriever.py": {"was": "aaa", "now": "bbb"}})
+        text = text_of(small_race(resumed=[entry]))
+        self.assertIn("accepted changes to app/rag/retriever.py", text)
+        self.assertIn("NOTE: the session at 2026-10-12T14:30:00+05:30 carried on after a change to app/rag/retriever.py", text)
+        self.assertIn("nothing here shows the change did not matter", text)
+        self.assertNotIn("NOTE", text_of(small_race(resumed=[resume("2026-10-12T14:30:00+05:30")])))
 
     def test_the_code_history_lists_every_stamp_and_what_changed_between_sessions(self):
         history = [{"at": STARTED, "code": {"git": "aaa1111", "team.py": "h1", "loop.py": "h2"}},
