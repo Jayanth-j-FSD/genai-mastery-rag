@@ -18,9 +18,17 @@ from collections import Counter
 from datetime import datetime
 
 from app import pricing, tracing
+from app.config import BASE_DIR, settings
+from app.console import display_path
 
 _TAG = re.compile(r"\[source:\s*([^\]]+?)\s*\]", re.IGNORECASE)
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")          # everything a terminal could act on, except a tab and a newline
 TEXT_WIDTH = 60
+
+
+def _plain(text):
+    """Text from a log with the control characters taken out: an escape sequence in a question must not reach the terminal."""
+    return _CONTROL.sub("", str(text))
 
 
 # ---------------------------------------------------------------------------- reading
@@ -58,10 +66,21 @@ def cited_documents(record):
     return names
 
 
+def resolve_cited(names, retrieved_sources):
+    """The names a tag gives, as the app matches them to what was retrieved (the same name, or the same file name in another folder)."""
+    resolved = []
+    for name in names:
+        match = next((source for source in retrieved_sources if source == name or os.path.basename(source) == os.path.basename(name)), name)
+        if match not in resolved:
+            resolved.append(match)
+    return resolved
+
+
 def normalize(record, path, line_no, kind):
     """One log line as the flat record the filters read. `raw` keeps the line as written, for --show."""
     usage = record.get("usage") or {}
     answer = record.get("answer")
+    retrieved_sources = [chunk.get("source", "") for chunk in record.get("retrieved") or []]
     if kind == "error":
         status = "error"
     else:
@@ -69,8 +88,8 @@ def normalize(record, path, line_no, kind):
     return {"kind": kind, "path": path, "line_no": line_no, "id": record.get("request_id") or record.get("trace_id") or "",
             "trace_id": record.get("trace_id") or "", "time": _parse_time(record), "question": record.get("question") or "",
             "answer": answer if isinstance(answer, str) else "", "grounded": record.get("grounded"), "status": status,
-            "cited": cited_documents(record) if kind == "trace" else [], "listed": listed_documents(record) if kind == "trace" else [],
-            "retrieved_sources": [chunk.get("source", "") for chunk in record.get("retrieved") or []],
+            "cited": resolve_cited(cited_documents(record), retrieved_sources) if kind == "trace" else [],
+            "listed": listed_documents(record) if kind == "trace" else [], "retrieved_sources": retrieved_sources,
             "channel": record.get("channel") or "", "caller": record.get("caller") or "", "total_ms": record.get("total_ms"),
             "prompt_tokens": usage.get("prompt_tokens") if usage.get("tokens_known") else None,
             "completion_tokens": usage.get("completion_tokens") if usage.get("tokens_known") else None,
@@ -79,36 +98,63 @@ def normalize(record, path, line_no, kind):
 
 
 def load(paths):
-    """Read the given logs. Returns (records, lines that could not be read, milliseconds taken). A missing file is an empty log."""
+    """Read the given logs. Returns (records, lines that could not be read, milliseconds taken). A missing file is an empty log. A path that is not a file, or
+    that cannot be read, raises ValueError saying so; a line that is not JSON or not the shape of a log line is counted, never fatal."""
     began, records, skipped = time.perf_counter(), [], 0
     for path in paths:
         kind = "error" if os.path.basename(path).startswith("errors") else "trace"
         if not os.path.exists(path):
             continue
-        with open(path, encoding="utf-8-sig", errors="ignore") as handle:         # utf-8-sig: a byte order mark must not hide the first line
-            for line_no, line in enumerate(handle, start=1):
-                if not line.strip():
-                    continue
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    skipped += 1                          # a line cut off by a crash: counted, never fatal
-                    continue
-                if isinstance(record, dict):
-                    records.append(normalize(record, path, line_no, kind))
-                else:
-                    skipped += 1
+        if not os.path.isfile(path):
+            raise ValueError(f"{display_path(path, BASE_DIR)} is not a log file (name the file, for example .../traces.jsonl)")
+        try:
+            with open(path, encoding="utf-8-sig", errors="ignore") as handle:         # utf-8-sig: a byte order mark must not hide the first line
+                for line_no, line in enumerate(handle, start=1):
+                    if not line.strip():
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        skipped += 1                          # a line cut off by a crash: counted, never fatal
+                        continue
+                    if not isinstance(record, dict):
+                        skipped += 1
+                        continue
+                    try:
+                        records.append(normalize(record, path, line_no, kind))
+                    except (AttributeError, TypeError, ValueError):
+                        skipped += 1                          # well-formed JSON of a shape no log line has (a number where a block should be)
+        except OSError as exc:
+            raise ValueError(f"{display_path(path, BASE_DIR)} could not be read ({type(exc).__name__})") from None
     return records, skipped, (time.perf_counter() - began) * 1000
 
 
 def default_paths(log=None, drill=None):
     """Which logs to read: the ones named, or the drill's, or the app's own traces and errors logs."""
-    from app.config import BASE_DIR, settings
+    from evals import drill as drill_kit                 # imported here: the drill module reads this one's neighbours, not the other way round
     if log:
         return list(log)
     if drill:
-        return [os.path.join(BASE_DIR, "data", "drill", drill, "requests.jsonl")]
+        return [os.path.join(drill_kit.DRILL_DIR, drill, "requests.jsonl")]
     return [settings.traces_path, tracing.errors_path()]
+
+
+def banners(records):
+    """Lines to print above a result when the log is not real traffic: a synthetic (drill) log, or the log of a dry run (a scripted provider answered)."""
+    lines = []
+    if any(record["synthetic"] for record in records):
+        lines.append("SYNTHETIC LOG: these records were generated by scripts/make_drill.py for practice, so the figures are invented. They are not real requests.")
+    served = {(record["raw"].get("config") or {}).get("llm_model_served") for record in records if record["kind"] == "trace"} - {None}
+    if served and served <= {"scripted-model"}:
+        lines.append("DRY-RUN LOG: a scripted provider answered these, so the tokens and times are NOT measurements (and any dollars are arithmetic on invented tokens).")
+    return lines
+
+
+def no_dollars_reason(input_per_million, output_per_million):
+    """Why no dollars are shown: nothing was stated, or what was stated is not above 0 (a free tier costs $0, which is a fact and not a missing price)."""
+    if input_per_million is None and output_per_million is None:
+        return "no price stated"
+    return "the prices stated are not above 0"
 
 
 # ---------------------------------------------------------------------------- filtering
@@ -182,8 +228,14 @@ def distinct_answers(records):
 # ---------------------------------------------------------------------------- printing
 
 def _clip(text, width):
-    text = " ".join(str(text).split())
-    return text if len(text) <= width else text[:width - 1] + "~"
+    text = " ".join(_plain(text).split())
+    return text if width is None or len(text) <= width else text[:width - 1] + "~"
+
+
+def _field(name, text):
+    """`  name      text` with every later line of the text indented under the text, so a question or an answer with line breaks cannot forge a labelled line."""
+    label = f"  {name:<10}"
+    return label + ("\n" + " " * len(label)).join(_plain(text).replace("\r", "").split("\n"))
 
 
 def _when(record):
@@ -207,25 +259,28 @@ def distinct_lines(groups, total):
     return lines
 
 
-def show_lines(record, input_per_million=None, output_per_million=None):
-    """Everything the log holds about one request, with its steps as a table: what each step took, tokens, and cost at the prices given."""
+def show_lines(record, input_per_million=None, output_per_million=None, full=False):
+    """Everything the log holds about one request, with its steps as a table: what each step took, tokens, and cost at the prices given. A passage is
+    cut to 90 characters unless `full` (the sentence that proves an answer wrong can be further in)."""
     raw = record["raw"]
     lines = [f"request {record['id']}  ({record['kind']} line {record['line_no']} of {os.path.basename(record['path'])})",
              f"  time      {_when(record)}   channel {record['channel'] or '-'}" + (f"   caller {record['caller']}" if record["caller"] else ""),
              f"  status    {record['status']}" + (f"   refusal cause {raw['refusal_cause']}" if raw.get("refusal_cause") else "")
              + (f"   error {raw['error_class']} (HTTP {raw.get('http_status')})" if record["kind"] == "error" else ""),
-             f"  question  {record['question'] or '(not logged: an error record keeps only its length and a hash)'}"]
+             _field("question", record["question"] or (f"(not logged: an error record keeps only its length and a hash) {raw.get('question_chars')} characters, hash {raw.get('question_sha')}"
+                                                        if record["kind"] == "error" else "(not logged)"))]
     if record["kind"] == "trace":
-        lines.append(f"  answer    {record['answer']}")
-        lines.append(f"  cited     {', '.join(record['cited']) or '(nothing: the answer has no [source: ...] tag)'}")
+        lines.append(_field("answer", record["answer"]))
+        lines.append(_field("cited", ", ".join(record["cited"]) or "(nothing: the answer has no [source: ...] tag)"))
         if record["listed"] != record["cited"]:
-            lines.append(f"  listed    {', '.join(record['listed']) or '(nothing)'}   (what the app showed the user as sources: it lists every retrieved document when the answer cites none)")
+            why = ("the app lists every retrieved document when the answer cites none" if not record["cited"] else "what the app showed the user as sources")
+            lines.append(_field("listed", ", ".join(record["listed"]) or "(nothing)") + f"   ({why})")
         retrieved = raw.get("retrieved") or []
         lines.append(f"  retrieved {len(retrieved)} passages" + ("" if not retrieved else ":"))
         cited = {name.lower() for name in record["cited"]}
         for number, chunk in enumerate(retrieved, start=1):
             mark = "cited" if str(chunk.get("source", "")).lower() in cited else "     "
-            lines.append(f"    {number}. {mark} {chunk.get('source', '?')}  score {chunk.get('score')}  {_clip(chunk.get('text', ''), 90)}")
+            lines.append(f"    {number}. {mark} {_clip(chunk.get('source', '?'), None)}  score {chunk.get('score')}  {_clip(chunk.get('text', ''), None if full else 90)}")
         config = raw.get("config") or {}
         lines.append(f"  model     asked {config.get('llm_model')}, answered by {config.get('llm_model_served')}   index {raw.get('index_id') or '-'}")
         if raw.get("chars"):
@@ -233,7 +288,9 @@ def show_lines(record, input_per_million=None, output_per_million=None):
             lines.append(f"  prompt    {chars.get('system')} instructions + {chars.get('context')} passages + {chars.get('question')} question characters, {chars.get('stripped')} stripped")
     spans = raw.get("spans")
     if not spans:
-        lines.append("  steps     no steps recorded (a line written before Week 11 has none)")
+        lines.append("  steps     no steps recorded" + ("" if raw.get("request_id") else " (a line written before Week 11 has none)"))
+        if raw.get("total_ms") is not None:
+            lines.append(f"  took      {raw.get('total_ms')} ms in all")
         return lines
     lines.append(f"  steps     {len(spans)} steps in {raw.get('total_ms')} ms")
     lines.append(f"    {'step':<16}{'kind':<10}{'start':>9}{'took':>9}{'provider':>10}{'waited':>9}{'tokens in/out':>15}{'cost':>12}  status")
@@ -257,5 +314,5 @@ def show_lines(record, input_per_million=None, output_per_million=None):
                      + f", {usage.get('provider_ms')} ms at the provider, {usage.get('wait_ms')} ms waiting")
     priced = pricing.is_priced(stated_price(input_per_million), stated_price(output_per_million))
     lines.append("  cost      " + (pricing.describe_prices(stated_price(input_per_million), stated_price(output_per_million)) if priced
-                                  else "no price stated (pass --price-in and --price-out to see dollars)"))
+                                  else f"{no_dollars_reason(input_per_million, output_per_million)} (pass --price-in and --price-out above 0 to see dollars)"))
     return lines

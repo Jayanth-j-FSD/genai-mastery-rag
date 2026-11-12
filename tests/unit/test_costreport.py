@@ -69,6 +69,16 @@ class PerStepTests(unittest.TestCase):
         self.assertIn("1 older ones did not", "\n".join(costreport.step_lines(report)))
         self.assertIn("no step was recorded", "\n".join(costreport.step_lines(costreport.per_step([old_request()]))))
 
+    def test_when_every_step_was_a_cold_start_and_they_are_left_out_the_table_says_so(self):
+        first = request()
+        for step in first["spans"]:
+            step["cold"] = True
+        report = costreport.per_step([first], skip_cold=True)
+        self.assertEqual(report["rows"], [])
+        text = "\n".join(costreport.step_lines(report))
+        self.assertIn("a cold start", text)
+        self.assertIn("a request that failed before its first step", "\n".join(costreport.step_lines(costreport.per_step([old_request()]))))
+
     def test_cold_start_steps_are_counted_and_can_be_left_out(self):
         records = [request(embed=900.0, cold=True), request(embed=10.0), request(embed=12.0)]
         kept = costreport.per_step(records)
@@ -138,6 +148,13 @@ class CompareTests(unittest.TestCase):
     def test_the_kth_time_a_question_was_asked_is_paired_with_the_kth_time(self):
         result = costreport.compare([request("q", prompt=100), request("q", prompt=300)], [request("q", prompt=200), request("q", prompt=400)])
         self.assertEqual((result["pairs"], result["a"]["prompt_tokens"], result["b"]["prompt_tokens"]), (2, 200, 300))
+
+    def test_pairing_the_first_with_the_first_and_not_with_the_last_decides_which_pairs_are_usable(self):
+        a = [request("q", prompt=100), request("q", known=False)]                         # the second time it was asked in A, the provider reported nothing
+        b = [request("q", prompt=200), request("q", prompt=400)]
+        result = costreport.compare(a, b)
+        self.assertEqual((result["pairs"], result["usable"], result["a"]["prompt_tokens"], result["b"]["prompt_tokens"]), (2, 1, 100, 200))
+        self.assertEqual(result["unmatched"], 0)
 
     def test_a_question_asked_in_only_one_log_is_counted_not_paired(self):
         result = costreport.compare([request("q1"), request("only a")], [request("q1"), request("only b"), request("only b 2")])
@@ -224,6 +241,70 @@ class ScriptTests(unittest.TestCase):
         results["meta"]["dry_run"] = True
         cost_run.save_aggregate(results, cost_run.results_path("dry-t"))
         self.assertIn("no dollars for a dry run", self.run_script("--show", "dry-t", "--price-in", "2", "--price-out", "10")[1])
+
+    def test_a_synthetic_log_read_on_request_carries_its_banner_alone_or_beside_a_real_one(self):
+        drill_log = self.write_log("drill.jsonl", [request(synthetic=True)])
+        code, text = self.run_script("--log", drill_log, "--include-synthetic")
+        self.assertEqual(code, 0)
+        self.assertEqual(text.count("SYNTHETIC LOG"), 1)
+        self.assertIn("invented", text)
+        mixed = self.write_log("mixed.jsonl", [request(synthetic=True), request()])
+        self.assertEqual(self.run_script("--log", mixed, "--include-synthetic")[1].count("SYNTHETIC LOG"), 1)        # one synthetic line is enough to warn
+        real = self.write_log("real.jsonl", [request(), request(prompt=2000)])
+        self.assertNotIn("SYNTHETIC LOG", self.run_script("--log", real)[1])
+        self.assertNotIn("DRY-RUN LOG", self.run_script("--log", real)[1])
+
+    def test_a_scripted_provider_log_carries_the_dry_run_banner_whatever_else_it_holds(self):
+        dry = self.write_log("dry.jsonl", [request(model="scripted-model", served="scripted-model")])
+        code, text = self.run_script("--log", dry, "--price-in", "2", "--price-out", "10")
+        self.assertEqual(code, 0)
+        self.assertEqual(text.count("DRY-RUN LOG"), 1)
+        self.assertIn("NOT measurements", text)
+        mixed = self.write_log("mixed.jsonl", [request(model="scripted-model", served="scripted-model"), request()])
+        self.assertNotIn("DRY-RUN LOG", self.run_script("--log", mixed)[1])             # only a log answered by nothing but the stand-in is a dry run's
+
+    def test_two_logs_compared_print_each_banner_once_not_once_per_log(self):
+        a = self.write_log("a.jsonl", [request("q1", model="scripted-model", served="scripted-model")])
+        b = self.write_log("b.jsonl", [request("q1", prompt=500, model="scripted-model", served="scripted-model")])
+        code, text = self.run_script("--compare", a, b)
+        self.assertEqual(code, 0)
+        self.assertEqual(text.count("DRY-RUN LOG"), 1)
+        sa = self.write_log("sa.jsonl", [request("q1", synthetic=True)])
+        sb = self.write_log("sb.jsonl", [request("q1", synthetic=True, prompt=500)])
+        self.assertEqual(self.run_script("--compare", sa, sb)[0], 1)                      # refused without --include-synthetic
+        code, text = self.run_script("--compare", sa, sb, "--include-synthetic")
+        self.assertEqual((code, text.count("SYNTHETIC LOG")), (0, 1))
+
+    def test_a_log_path_that_is_a_folder_is_an_error_line(self):
+        code, text = self.run_script("--log", self.folder)
+        self.assertEqual(code, 1)
+        self.assertIn("is not a log file", text)
+
+    def test_prices_of_zero_are_not_called_a_missing_price(self):
+        log = self.write_log("traces.jsonl", [request()])
+        text = self.run_script("--log", log, "--price-in", "0", "--price-out", "0")[1]
+        self.assertIn("the prices stated are not above 0", text)
+        self.assertNotIn("no price stated", text)
+        self.assertIn("no price stated", self.run_script("--log", log)[1])
+
+    def test_a_stopped_measurement_kept_beside_an_older_one_is_found_and_the_way_on_is_named(self):
+        results = {"meta": {"label": "inc", "dry_run": False, "complete": False, "model_requested": "m", "models_served": [], "n_questions": 1, "calls_spent": 1,
+                            "arms": [{"name": "before", "overrides": {}}]}, "rows": []}
+        cost_run.save_aggregate(results, os.path.join(runner.RESULTS_DIR, "cost-inc.incomplete.json"))
+        code, text = self.run_script("--show", "inc")
+        self.assertEqual(code, 1)
+        self.assertIn("The measurement is incomplete", text)
+        self.assertIn("measure_cost.py --label inc --resume", text)
+
+    def test_a_saved_measurement_is_priced_only_from_the_prices_given_never_from_the_price_settings(self):
+        rows = [{"question_id": "q", "kind": "eval", "arm": "before", "status": "ok", "tokens_known": True, "prompt_tokens": 1000, "completion_tokens": 100,
+                 "passed": True, "provider_ms": 5.0, "wait_ms": 0.0, "chars": {"stripped": 0}}]
+        results = {"meta": {"label": "p", "dry_run": False, "complete": True, "model_requested": "m", "models_served": ["m"], "n_questions": 1, "calls_spent": 1,
+                            "arms": [{"name": "before", "overrides": {}}]}, "rows": rows}
+        cost_run.save_aggregate(results, cost_run.results_path("p"))
+        with mock.patch.object(settings, "price_input_per_million", 99.0), mock.patch.object(settings, "price_output_per_million", 99.0):
+            text = self.run_script("--show", "p", "--price-in", "2")[1]
+        self.assertIn("$0.002000", text)                                                  # 1000 tokens at $2 per million, and the output left unpriced, not priced at 99
 
     def test_an_unknown_measurement_is_an_error(self):
         code, text = self.run_script("--show", "not-a-label")

@@ -13,7 +13,7 @@ from _testkit import ROOT, fake_response, isolated_index, patched_embeddings
 from app import llm, observability, tracing
 from app.config import settings
 from app.rag import pipeline
-from evals import logsearch
+from evals import costreport, drill, logsearch
 from test_llm import FakeClient
 
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -85,6 +85,36 @@ class LoadTests(LogCase):
         self.assertEqual((len(records), skipped), (1, 2))
         self.assertGreaterEqual(took, 0)
 
+    def test_a_log_path_that_is_a_folder_or_cannot_be_read_is_reported_not_a_traceback(self):
+        self.ask("How much notice?", "30 days. [source: notice.md]")
+        folder = os.path.dirname(self.traces)
+        with self.assertRaises(ValueError) as caught:
+            logsearch.load([folder])
+        self.assertIn("is not a log file", str(caught.exception))
+        with mock.patch("builtins.open", side_effect=PermissionError("denied")), self.assertRaises(ValueError) as caught:
+            logsearch.load([self.traces])
+        self.assertIn("could not be read (PermissionError)", str(caught.exception))
+        self.assertNotIn(str(ROOT), str(caught.exception))
+
+    def test_a_line_that_is_json_but_not_the_shape_of_a_log_line_is_counted_not_fatal(self):
+        self.ask("How much notice?", "30 days. [source: notice.md]")
+        with open(self.traces, "a", encoding="utf-8") as handle:
+            for odd in ({"question": "q", "usage": 5}, {"question": "q", "retrieved": 5}, {"question": "q", "retrieved": [5]}):
+                handle.write(json.dumps(odd) + "\n")
+        records, skipped, _took = logsearch.load([self.traces])
+        self.assertEqual((len(records), skipped), (1, 3))
+
+    def test_a_tag_that_names_a_file_in_another_folder_is_matched_to_the_retrieved_document_as_the_app_matches_it(self):
+        line = dict(old_line("0a1b2c3d", "2026-10-08T10:00:00", "q?", "30 days [source: remote.md]", retrieved=("policies/remote.md",)), sources=["policies/remote.md"])
+        record = logsearch.normalize(line, "t.jsonl", 1, "trace")
+        self.assertEqual((record["cited"], record["listed"]), (["policies/remote.md"], ["policies/remote.md"]))
+        self.assertEqual(len(logsearch.search([record], {"cited": "policies"})), 1)
+        text = "\n".join(logsearch.show_lines(record))
+        self.assertRegex(text, r"1\. cited policies/remote\.md")
+        self.assertNotIn("listed", text.replace("retrieved", ""))                       # listed and cited agree, so there is nothing to explain
+        unmatched = logsearch.normalize(dict(line, answer="x [source: other.md]"), "t.jsonl", 1, "trace")
+        self.assertEqual(unmatched["cited"], ["other.md"])
+
     def test_a_line_from_before_week_11_is_found_by_its_short_trace_id_and_says_it_has_no_steps(self):
         self.write_old(old_line("0a1b2c3d", "2026-09-15T10:00:00", "old question?", "old answer [source: notice.md]"))
         (record,) = self.load()
@@ -98,6 +128,10 @@ class LoadTests(LogCase):
                        {"started_at": local.astimezone().isoformat(timespec="milliseconds")}):
             with self.subTest(fields=list(fields)):
                 self.assertEqual(logsearch._parse_time(fields).replace(second=0, microsecond=0), local)
+        for fixed in ("2026-10-08T14:30:00.000+09:00", "2026-10-08T14:30:00.000-07:00", "2026-10-08T09:00:00.000+00:00"):      # offsets the machine's own cannot equal all at once
+            with self.subTest(fixed=fixed):
+                self.assertEqual(logsearch._parse_time({"started_at": fixed}), datetime.fromisoformat(fixed).astimezone().replace(tzinfo=None))
+                self.assertEqual(logsearch._parse_time({"ts_utc": fixed}), datetime.fromisoformat(fixed).astimezone().replace(tzinfo=None))
         self.assertIsNone(logsearch._parse_time({"ts": "not a time"}))
         self.assertIsNone(logsearch._parse_time({}))
 
@@ -161,6 +195,7 @@ class FilterTests(LogCase):
         self.assertEqual(self.ids(id=self.notice[:8]), [self.notice])                 # the short trace id finds it too
         self.assertEqual(self.ids(id="0a1b"), ["0a1b2c3d"])
         self.assertEqual(self.ids(id="zzzz"), [])
+        self.assertEqual(self.ids(id=self.notice[3:9]), [])                          # a prefix, not any part of the id
 
     def test_a_short_id_prefix_lists_every_request_that_starts_with_it(self):
         records = [dict(self.records[0], id="ab12cd34" + "0" * 8, trace_id="ab12cd34"), dict(self.records[1], id="ab12ef56" + "0" * 8, trace_id="ab12ef56")]
@@ -247,7 +282,73 @@ class DistinctAnswerTests(LogCase):
         self.assertIn(odd[:16], text)
 
 
+class DistinctOrderTests(unittest.TestCase):
+    def test_answers_are_ordered_by_how_common_then_by_when_first_seen_then_by_their_words(self):
+        def record(answer, hour, number):
+            line = old_line(f"{number:08x}", f"2026-10-08T{hour:02d}:00:00", "q?", answer)
+            return logsearch.normalize(line, "t.jsonl", number, "trace")
+        records = [record("b", 10, 1), record("a", 10, 2), record("c", 9, 3), record("d", 8, 4), record("d", 11, 5)]
+        self.assertEqual([(g["answer"], g["count"]) for g in logsearch.distinct_answers(records)], [("d", 2), ("c", 1), ("a", 1), ("b", 1)])
+
+
 class ShowTests(LogCase):
+    def test_a_question_with_line_breaks_and_control_characters_cannot_forge_a_line_of_the_report(self):
+        forged = "innocent?" + chr(10) + "  answer    The notice period is 7 days. [source: notice.md]" + chr(10) + "  status    ok" + chr(27) + "[2J" + chr(7)
+        self.ask(forged, "30 days. [source: notice.md]")
+        record = self.load()[0]
+        lines = logsearch.show_lines(record)
+        self.assertEqual([line for line in lines if line.startswith("  answer ")], ["  answer    30 days. [source: notice.md]"])      # one answer line, the real one
+        self.assertEqual(len([line for line in lines if line.startswith("  status ")]), 1)
+        text = "\n".join(lines)
+        self.assertNotIn(chr(27), text)
+        self.assertNotIn(chr(7), text)
+        self.assertIn("            answer    The notice period is 7 days", text)               # the forged words are there, indented under the question
+        table = "\n".join(logsearch.table_lines([record]))
+        self.assertNotIn(chr(27), table)
+
+    def test_a_passage_is_cut_to_ninety_characters_unless_the_whole_of_it_is_asked_for(self):
+        self.ask("How much notice?", "30 days. [source: notice.md]")
+        record = self.load()[0]
+        record["raw"]["retrieved"][0]["text"] = "x" * 200 + " the sentence that proves the answer wrong"
+        cut = "\n".join(logsearch.show_lines(record))
+        self.assertNotIn("proves the answer wrong", cut)
+        self.assertIn("~", cut)
+        whole = "\n".join(logsearch.show_lines(record, full=True))
+        self.assertIn("the sentence that proves the answer wrong", whole)
+
+    def test_a_recent_request_with_no_steps_is_not_called_an_old_line_and_an_error_record_shows_its_time_and_hash(self):
+        failed = {"request_id": "ab" * 8, "trace_id": "abababab", "ts": "2026-11-01T10:00:00", "error_class": "RuntimeError", "http_status": 400, "total_ms": 96.752,
+                  "spans": [], "question_chars": 31, "question_sha": "0123456789ab"}
+        text = "\n".join(logsearch.show_lines(logsearch.normalize(failed, "errors.jsonl", 1, "error")))
+        self.assertIn("no steps recorded", text)
+        self.assertNotIn("written before Week 11", text)
+        self.assertIn("96.752 ms in all", text)
+        self.assertIn("31 characters, hash 0123456789ab", text)
+        old = "\n".join(logsearch.show_lines(logsearch.normalize(old_line("0a1b2c3d", "2026-09-15T10:00:00", "q?", "a"), "t.jsonl", 1, "trace")))
+        self.assertIn("(a line written before Week 11 has none)", old)
+
+    def test_prices_stated_as_zero_are_said_to_be_zero_not_missing(self):
+        self.ask("How much notice?", "30 days. [source: notice.md]")
+        record = self.load()[0]
+        self.assertIn("no price stated", "\n".join(logsearch.show_lines(record)))
+        self.assertIn("the prices stated are not above 0", "\n".join(logsearch.show_lines(record, 0.0, 0.0)))
+        self.assertEqual(logsearch.no_dollars_reason(None, None), "no price stated")
+        self.assertEqual(logsearch.no_dollars_reason(0.0, None), "the prices stated are not above 0")
+
+    def test_a_request_whose_provider_reported_no_tokens_has_unknown_tokens_all_the_way_to_the_report(self):
+        reply = fake_response("30 days. [source: notice.md]")
+        reply.usage = None
+        with mock.patch.object(llm, "_get_client", return_value=FakeClient([reply])):
+            pipeline.answer("How much notice?")
+        self.ask("How many leave days?", "18 days. [source: leave.md]", prompt_tokens=500, completion_tokens=50)
+        records = self.load()
+        unknown = next(r for r in records if "notice" in r["question"])
+        self.assertEqual((unknown["prompt_tokens"], unknown["completion_tokens"]), (None, None))          # never 0
+        report = costreport.per_request(records, 2.0, 10.0)
+        self.assertEqual((report["requests"], report["tokens_known"]), (2, 1))
+        self.assertEqual(report["prompt_tokens"]["mean"], 500)                                             # the unknown one is not averaged in as zero
+        self.assertEqual(report["cost"]["n"], 1)
+
     def test_a_request_is_shown_with_its_steps_provider_time_apart_from_waiting_tokens_and_cost_at_the_prices_given(self):
         request_id = self.ask("How much notice?", "30 days. [source: notice.md]", prompt_tokens=1000, completion_tokens=100)
         (record,) = self.load()
@@ -377,6 +478,71 @@ class ScriptTests(LogCase):
 
     def test_a_real_log_is_not_labelled_synthetic(self):
         self.assertNotIn("SYNTHETIC", self.run_script("--text", "notice")[1])
+        self.assertNotIn("DRY-RUN", self.run_script("--text", "notice")[1])
+
+    def test_a_dry_run_log_is_labelled_so_dollars_on_it_are_not_read_as_real(self):
+        log = os.path.join(os.path.dirname(self.traces), "dry.jsonl")
+        with open(log, "w", encoding="utf-8") as handle:
+            line = old_line("aabbccdd", "2026-10-01T09:00:00", "q?", "a")
+            line["config"]["llm_model_served"] = "scripted-model"
+            handle.write(json.dumps(line) + "\n")
+        code, text = self.run_script("--log", log, "--id", "aabb", "--show", "--price-in", "1", "--price-out", "2")
+        self.assertEqual(code, 0)
+        self.assertIn("DRY-RUN LOG", text)
+
+    def test_a_log_path_that_is_a_folder_is_an_error_line_without_the_path(self):
+        code, text = self.run_script("--log", os.path.dirname(self.traces))
+        self.assertEqual(code, 1)
+        self.assertIn("is not a log file", text)
+        self.assertNotIn("Traceback", text)
+        self.assertNotIn(str(ROOT), text)
+
+    def test_a_cited_name_that_matches_nothing_lists_the_documents_the_logs_cite(self):
+        code, text = self.run_script("--cited", "handbook")
+        self.assertEqual(code, 0)
+        self.assertIn("0 matched", text)
+        self.assertIn("The documents cited in these logs: leave.md, notice.md", text)
+
+    def test_costlier_than_with_prices_of_zero_says_why_nothing_matched(self):
+        code, text = self.run_script("--costlier-than", "0", "--price-in", "0", "--price-out", "0")
+        self.assertEqual(code, 0)
+        self.assertIn("Prices of 0 give every request a cost of $0", text)
+
+    def test_full_prints_the_whole_passage_and_without_it_the_passage_is_cut(self):
+        with open(self.traces, encoding="utf-8") as handle:
+            lines = [json.loads(line) for line in handle.read().splitlines()]
+        lines[0]["retrieved"][0]["text"] = "y" * 200 + " the distinguishing sentence"
+        with open(self.traces, "w", encoding="utf-8") as handle:
+            handle.write("".join(json.dumps(line) + "\n" for line in lines))
+        self.assertNotIn("distinguishing sentence", self.run_script("--id", self.notice[:8], "--show")[1])
+        self.assertIn("distinguishing sentence", self.run_script("--id", self.notice[:8], "--show", "--full")[1])
+
+    def test_the_drill_option_reads_the_drills_log_from_the_drill_folder(self):
+        folder = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
+        built = drill.generate(seed=2, n=300, days=14, end=datetime(2026, 10, 12, 9), corpus_dir=os.path.join(ROOT, "data", "corpus"))
+        drill.write(built, os.path.join(folder, "d1"))
+        with mock.patch.object(drill, "DRILL_DIR", folder):
+            code, text = self.run_script("--drill", "d1", "--text", "notice", "--distinct-answers")
+        self.assertEqual(code, 0, text)
+        self.assertIn("SYNTHETIC LOG", text)
+        self.assertIn("distinct answer(s)", text)
+        with mock.patch.object(drill, "DRILL_DIR", folder):
+            self.assertEqual(self.run_script("--drill", "nope")[0], 1)                   # a drill that does not exist is "no log lines", not a crash
+
+    def test_only_the_newest_matches_are_the_ones_kept_by_limit(self):
+        ids = [self.ask(f"Another question {number}?", "18 days. [source: leave.md]") for number in range(4)]
+        code, text = self.run_script("--text", "Another", "--limit", "2")
+        self.assertEqual(code, 0)
+        self.assertIn(ids[3][:16], text)
+        self.assertIn(ids[2][:16], text)
+        self.assertNotIn(ids[1][:16], text)
+        self.assertNotIn(ids[0][:16], text)
+        code, text = self.run_script("--text", "Another", "--show", "--limit", "2")                 # the same in the view that prints requests in full
+        self.assertEqual(code, 0)
+        self.assertIn(ids[3], text)
+        self.assertIn(ids[2], text)
+        self.assertNotIn(ids[1], text)
+        self.assertNotIn(ids[0], text)
 
     def test_the_date_parser_means_a_whole_day_for_until(self):
         self.assertEqual(find_requests.parse_when("2026-10-08"), datetime(2026, 10, 8, 0, 0))

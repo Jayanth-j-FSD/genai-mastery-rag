@@ -130,7 +130,9 @@ def _ms(value):
 def step_lines(report):
     """The per-step table. Times are milliseconds."""
     if not report["rows"]:
-        return ["no step was recorded in these logs (a line written before Week 11 has none)"]
+        if report["skipped_cold"] and report["cold_spans"]:
+            return ["every step recorded was the first of its kind in a process (a cold start), which --skip-cold leaves out"]
+        return ["no step was recorded in these logs (a line written before Week 11 has none, nor has a request that failed before its first step)"]
     lines = [f"{report['requests_with_steps']} requests recorded their steps" + (f"; {report['requests_without_steps']} older ones did not" if report["requests_without_steps"] else ""),
              f"{'step':<16}{'kind':<10}{'n':>6}{'mean ms':>10}{'median':>9}{'max':>9}{'p95':>9}{'share':>8}{'provider':>10}{'waited':>9}{'tokens in':>11}{'out':>7}"]
     for row in report["rows"]:
@@ -163,7 +165,7 @@ def request_lines(report, price_source=None, input_per_million=None, output_per_
                   "  " + pricing.describe_prices(logsearch.stated_price(input_per_million), logsearch.stated_price(output_per_million)),
                   f"  prices from: {price_source or '(source not stated)'}"]
     else:
-        lines.append("  no price stated, so no dollars (pass --price-in, --price-out and --price-source)")
+        lines.append(f"  {logsearch.no_dollars_reason(input_per_million, output_per_million)}, so no dollars are shown (pass --price-in and --price-out above 0, and --price-source)")
     return lines
 
 
