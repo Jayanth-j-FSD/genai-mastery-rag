@@ -179,6 +179,11 @@ To be written last, from the final code, with line numbers at the `week-10` tag.
   pins that the manager is told not to ask again); only the remaining hand-offs are refused. Raising from the manager's step would save one request.
 - A model call that returned no choices still counts in the calls and tokens (the report's "total != p+c" and `tokens_in_no_step` show it) but its step
   records 0 tokens, because the loop's `on_step` never sees it; closing that would change `loop.py`.
+- **The race was started twice.** The first start (2026-11-13, commit `0873931`) was stopped by hand after 18 of its 54 runs, so that comments and documents could be
+  tidied first: the prediction check compares the thresholds file with the one the race ran on, so tidying it after the race would have raised a warning. Its 18 runs are
+  kept in `evals/results/race-wk10.stopped-first-start.json` and are not part of any number. The race was then started again from nothing on the committed code
+  (`d3a71d3`; the only executable line that differs from the first start's code is in the gate script `scripts/check_all.py`, which the race does not use) and ran all 54 runs once, from 00:55 to 01:20. The progress lines of the first 18 runs had been seen
+  (which passed, which did not); nothing in the code or the prediction was changed because of them.
 - **A rehearsal ran before the race, on two race tasks.** On 2026-11-13, before the race, `pilot-rehearse` ran `t7-single-lookup` and `t7-notice-end-date` once each
   on `gemini-3.1-flash-lite-preview` (not the race model) to prove the whole path (race, report, prediction check) with real provider answers
   (`evals/results/race-pilot-rehearse.json`). Unlike pilots 1 and 2 it used two race tasks, so one run of each was seen before the race. The prediction document had
