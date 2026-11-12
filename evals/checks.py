@@ -66,6 +66,11 @@ def _contains(answer, phrase, whole_words):
     return re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", answer) is not None
 
 
+def contains_phrase(text, phrase, whole_words=False):
+    """Is the phrase in the text, tidied exactly as the checks tidy an answer? For screens that read passages, not answers."""
+    return _contains(_clean(text), phrase, whole_words)
+
+
 def fact_check(case, result):
     """Does the answer contain the facts it must? Any one of expect_contains, and all of expect_all.
 
@@ -97,6 +102,17 @@ def invented_numbers(result, question):
     return sorted({number.replace(",", "") for number in _NUMBER_RE.findall(body)} - known)
 
 
+def forbid_check(case, result):
+    """Does the answer avoid every phrase the case forbids? (Week 11, for a failure that was a wrong figure or a wrong claim.)
+
+    Phrases match as whole words, so forbidding "45" does not trip on "145". The known limit: it cannot tell "45 days" from "not 45
+    days", because it reads words, not meaning, so a correction that quotes the wrong figure to deny it fails too. Forbid a phrase the
+    right answer never needs to say."""
+    answer = _clean(result["answer"].replace("_", " "))            # an underscore is markdown emphasis here: "_45 calendar days_" must not hide the figure
+    found = [phrase for phrase in case["forbid_contains"] if _contains(answer, phrase.replace("_", " "), True)]
+    return _check("avoids_forbidden_phrase", not found, "contains none of the forbidden phrases" if not found else f"contains the forbidden phrase(s): {found}")
+
+
 def check_case(case, result):
     """Run the checks that apply to this case. Returns (checks, passed, warnings)."""
     checks = [refusal_check(case, result)]
@@ -104,6 +120,8 @@ def check_case(case, result):
         checks.append(source_check(case, result))
         if case["expect_contains"] or case["expect_all"]:
             checks.append(fact_check(case, result))
+    if case.get("forbid_contains"):                      # beside the older checks: a case without this key is scored exactly as before
+        checks.append(forbid_check(case, result))
     warnings = []
     if case.get("needs_expected"):
         warnings.append("no expected facts yet: only the refusal check and the judge apply "

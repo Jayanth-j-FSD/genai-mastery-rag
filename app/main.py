@@ -10,10 +10,10 @@ the chunks that were fetched, and the final answer side by side.
 from html import escape
 
 import openai
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 
-from app import llm
+from app import llm, observability
 from app.config import settings
 from app.models import AskRequest, AskResponse
 from app.rag.pipeline import answer as run_answer, ingest as run_ingest
@@ -22,24 +22,31 @@ from app.tracing import read_traces
 app = FastAPI(title="Ask My Documents", version="1.1.0")
 
 
+def _id_header():
+    """The X-Request-ID header for the request this thread just answered or failed, or None when it made no log (an empty question)."""
+    request_id = observability.last_request_id()
+    return {"X-Request-ID": request_id} if request_id else None
+
+
 def _run(action, *args):
     """Run a pipeline action and turn its expected failures into proper HTTP errors.
 
     Without this a rate-limited or rejected AI call would surface as a bare "500 Internal
-    Server Error" with nothing to act on.
+    Server Error" with nothing to act on. Week 11: an error carries the id of the request that failed, so a support
+    person can find it in errors.jsonl.
     """
     try:
         return action(*args)
     except llm.QuotaExhausted as exc:           # a RuntimeError subclass, so it must come first
-        raise HTTPException(status_code=429, detail=str(exc))
+        raise HTTPException(status_code=429, detail=str(exc), headers=_id_header())
     except RuntimeError as exc:                 # e.g. no key, no documents, nothing indexed yet
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc), headers=_id_header())
     except openai.RateLimitError:
         raise HTTPException(status_code=429, detail="The AI provider's rate limit was hit. "
-                                                    "Wait a minute and try again.")
+                                                    "Wait a minute and try again.", headers=_id_header())
     except (openai.APIStatusError, openai.APIConnectionError) as exc:
         raise HTTPException(status_code=502, detail=f"The AI provider call failed "
-                                                    f"({type(exc).__name__}). Check the key, model and network.")
+                                                    f"({type(exc).__name__}). Check the key, model and network.", headers=_id_header())
 
 
 @app.get("/health")           # quick "is it alive?" check
@@ -53,8 +60,17 @@ def ingest_endpoint():
 
 
 @app.post("/ask", response_model=AskResponse)   # answer a question, with sources
-def ask_endpoint(req: AskRequest):
-    return _run(run_answer, req.question, req.mode)
+def ask_endpoint(req: AskRequest, request: Request, response: Response):
+    """The body is exactly what it was in Week 4 (four keys). Week 11: the id of the request goes in the X-Request-ID header, so a
+    support person can find the logged request from a complaint; an optional X-Caller-ID header says who sent it."""
+    observability.forget_last_request()
+    caller = (request.headers.get("x-caller-id") or "").strip()[:64] or None
+    with observability.channel("api", caller=caller):
+        result = _run(run_answer, req.question, req.mode)
+    request_id = observability.last_request_id()
+    if request_id:
+        response.headers["X-Request-ID"] = request_id
+    return result
 
 
 # --- Week 4: the inspection view ---

@@ -91,6 +91,13 @@ class Settings(BaseSettings):
     price_input_per_million: float = 0.0
     price_output_per_million: float = 0.0
 
+    # --- Week 11: what the model is shown (app/rag/generator.py) ---
+    # Take out of the passages sent to the model every non-heading line that appears at least this many times in the
+    # passage's own document (0 = off). It shortens the prompt, and so what a request costs, without touching the index or
+    # the search: the same chunks are retrieved, the model is just not shown the lines that repeat under every section.
+    # Off by default for the same reason as the two index settings above: a run opts in and the evals measure the difference.
+    context_strip_min_repeats: int = 0
+
     # --- pipeline knobs (the graded chunk-size experiment lives here) ---
     chunk_size: int = 800       # characters per chunk
     chunk_overlap: int = 120    # characters shared between neighbouring chunks
@@ -170,6 +177,14 @@ class Settings(BaseSettings):
         """0 turns it off; 1 would delete every line, so anything below 2 (but 0) is a mistake."""
         if value != 0 and value < 2:
             raise ValueError(f"boilerplate_min_repeats must be 0 (off) or at least 2, got {value}")
+        return value
+
+    @field_validator("context_strip_min_repeats")
+    @classmethod
+    def _check_context_strip_repeats(cls, value: int) -> int:
+        """0 turns it off; 1 would take out every line, so anything below 2 (but 0) is a mistake."""
+        if value != 0 and value < 2:
+            raise ValueError(f"context_strip_min_repeats must be 0 (off) or at least 2, got {value}")
         return value
 
     @field_validator("agent_max_steps", "agent_max_total_tokens")

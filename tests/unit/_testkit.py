@@ -43,15 +43,17 @@ def isolated_index(**setting_overrides):
     """Point the app at an empty temporary index and traces file, then put everything back.
 
     Extra keyword arguments temporarily override other settings, e.g. dense_search="ann".
-    Yields the temporary folder so a test can put files in it.
+    The Week 11 context strip is pinned off (it changes the prompt and the eval cache key, so a value in .env must not decide what a test sees); say
+    context_strip_min_repeats=10 to turn it on. Yields the temporary folder so a test can put files in it.
     """
-    names = ["chroma_dir", "collection", "traces_path", *setting_overrides]
+    names = ["chroma_dir", "collection", "traces_path", "context_strip_min_repeats", *setting_overrides]
     saved = {name: getattr(settings, name) for name in names}
     # ignore_cleanup_errors: on Windows Chroma may still hold its database file open.
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         settings.chroma_dir = os.path.join(tmp, "chroma")
         settings.collection = "unit_test_docs"
         settings.traces_path = os.path.join(tmp, "traces", "traces.jsonl")
+        settings.context_strip_min_repeats = 0
         for name, value in setting_overrides.items():
             setattr(settings, name, value)
         store._client = None              # forget any client opened on the real folder

@@ -27,6 +27,7 @@ ACME_LEAVE = "Acme-Leave-Policy-2026.md"
 NEXORA = "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md"
 
 REGRESSIONS_PATH = os.path.join(BASE_DIR, "evals", "regressions.json")
+LOGGED_FAILURES_NAME = "logged_failures.json"          # Week 11: failures found in the request log; it sits beside the Week 5 regressions file
 
 # What kind of problem each Week 4 case exercises. Written once, here, so a reviewer can disagree.
 PROBLEM_TYPES = {
@@ -142,12 +143,45 @@ def load_regressions(path=None):
         return json.load(handle).get("cases", [])
 
 
-def all_cases(regressions_path=None):
-    """Every case, Week 4's first, then Week 6's new ones, then the Week 5 regressions."""
+def logged_failures_path(regressions_path=None):
+    """Where the logged failures live: beside the regressions file, so a test that points the regressions somewhere else (to switch
+    them off) switches these off with it."""
+    return os.path.join(os.path.dirname(regressions_path or REGRESSIONS_PATH), LOGGED_FAILURES_NAME)
+
+
+def load_logged_failures(path=None):
+    """Cases made from real failures found in the request log (scripts/failure_to_test.py writes them). [] until the file exists.
+
+    Every case must say what a correct answer looks like: expected documents, or an explicit should_refuse. Without that rule a case
+    with nothing filled in would quietly become a REFUSAL case in all_cases, and a refusal-only check would pass the very failure it was
+    made from."""
+    path = path or logged_failures_path()
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8-sig") as handle:            # utf-8-sig: a byte order mark (PowerShell 5 writes one) must not stop every script that reads the cases
+        found = json.load(handle).get("cases", [])
+    for case in found:
+        if not case.get("id") or not str(case.get("question", "")).strip():
+            raise ValueError(f"a logged failure needs an id and a question: {case!r}")
+        if not case.get("expected_sources") and case.get("should_refuse") is not True:
+            raise ValueError(f"logged failure {case['id']!r} has no expected_sources and does not set should_refuse: it would be scored as a refusal")
+        case.setdefault("origin", f"week11:{case['id']}")
+        case.setdefault("problem_type", "logged-failure")
+        case.setdefault("whole_words", True)
+    return found
+
+
+def all_cases(regressions_path=None, base_only=False):
+    """Every case, Week 4's first, then Week 6's new ones, then the Week 5 regressions, then the failures found in the log (Week 11).
+
+    `base_only` leaves out the last two groups: the 41 cases every earlier measurement was made on. The cost measurement and its screen
+    use it, so converting a failure into a test never changes the questions a pre-registered prediction was written for."""
     cases = [_from_week4(case) for case in WEEK4_CASES]
     for case in NEW_CASES:
         cases.append({**case, "origin": "week6"})
-    cases.extend(dict(case) for case in load_regressions(regressions_path))
+    if not base_only:
+        cases.extend(dict(case) for case in load_regressions(regressions_path))
+        cases.extend(dict(case) for case in load_logged_failures(logged_failures_path(regressions_path)))
     for case in cases:
         case.setdefault("expected_sources", [])
         case.setdefault("expect_contains", [])

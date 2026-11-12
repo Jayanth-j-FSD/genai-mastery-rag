@@ -31,45 +31,37 @@ A week is done only when all of these hold. They are the gate before its tag is 
 ## Delivery rules (branches, tags, review)
 
 - **One branch per week**, started from the tip of the previous week:
-  `week-5-hardening`, `week-6-evals`, `week-7-agent-loops`, `week-8-agent-failure-modes`, `week-9-mcp`.
-- **One annotated tag per week**, `week-N`, on the branch tip once the gate above passes. The existing
-  tags `week-3`, `week-4` and `week-5` never move. The hardening branch is tagged `week-5-hardened`.
+  `week-5-hardening`, `week-6-evals`, `week-7-agent-loops`, `week-8-agent-failure-modes`, `week-9-mcp`,
+  `week-10-multi-agent`, `week-11-production`.
+- **One annotated tag per week**, `week-N`, on the branch tip once the gate above passes. The tags `week-3`, `week-4`
+  and `week-5` are the first three weeks. The hardening branch is tagged `week-5-hardened`.
 - **Small commits**, one logical piece each, written as a plain sentence starting with the week
   (`Week 6: add the assertion checks`). Tests land with the code they test.
-- **One pull request per week**, opened against the previous week's branch so it shows only that
-  week's change. Merge in order with merge commits (no squash) so every tag stays reachable from `main`.
+- **Merge in order with merge commits (no squash)**, so every week shows as its own merge in `main` and every tag stays reachable from it.
 - **No force-push** of a branch a reviewer has seen. Fixes go in as new commits.
 - **Secrets** never enter a commit: keys live in the ignored `.env` only.
 - **Documented meanings never change.** A later week adds a new function beside the old one. Week 3's
   `retrieve()` still means what its docstring says.
 
-## When git is signed in: the push plan
+## Where everything is
 
-Nothing here has been run. Git was not signed in while the work was built, and the rule was to push, pull and fetch
-nothing, so what exists is local branches and annotated tags. `main` was never touched.
+`main` holds the code of every week up to Week 11, merged in order with merge commits, so each week shows as its own merge. Each week also keeps its own
+branch and annotated tag:
 
-1. Sign in as the account that owns the repository, not a work account. The remote URL names it (`git remote -v`); a
-   403 on push means the wrong account is signed in. Do not use `gh` for this repository.
-2. Look before pushing: `git status` is clean, `git branch -vv` shows the five branches below, `git tag -n1` shows the
-   annotated tags below, and `python scripts/check_all.py --strict` is green on the tip being pushed.
-3. Push the branches, oldest first, then the tags, never with `--force`:
+| Weeks | Branch | Tag |
+|---|---|---|
+| 3 to 5 | `main` | `week-3`, `week-4`, `week-5` |
+| 5 hardening | `week-5-hardening` | `week-5-hardened` |
+| 6 | `week-6-evals` | `week-6` |
+| 7 | `week-7-agent-loops` | `week-7` |
+| 8 | `week-8-agent-failure-modes` | `week-8` |
+| 9 | `week-9-mcp` | `week-9` |
+| 10 | `week-10-multi-agent` | `week-10` |
+| 11 | `week-11-production` | `week-11` |
 
-   ```
-   git push origin week-5-hardening week-6-evals week-7-agent-loops week-8-agent-failure-modes week-9-mcp
-   git push origin week-5-hardened week-6 week-7 week-8 week-9
-   ```
-
-   The lightweight tags `week-3`, `week-4` and `week-5` are already on GitHub and are never moved.
-4. Open one pull request per week on the GitHub web page, each against the previous week's branch so it shows only
-   that week's change: `week-5-hardening` into `main`, `week-6-evals` into `week-5-hardening`, `week-7-agent-loops`
-   into `week-6-evals`, `week-8-agent-failure-modes` into `week-7-agent-loops`, and `week-9-mcp` into
-   `week-8-agent-failure-modes`. Start each description from that week's `docs/weekN/CHANGES.md`, and take the test
-   counts from the status table below.
-5. Merge in order with merge commits, no squash, so every tag stays reachable from `main`; retarget the next pull
-   request to `main` after each merge.
-6. After the last merge, `git branch -r --contains week-9` should list `origin/main`.
-7. Before the reviewer reads it, the blanks in the status table are still yours: the branches hold tooling and
-   numbers, never your own notes, observations or decisions.
+To look at one week as it was: `git checkout week-7`. To see what one week changed: `git diff week-6..week-7 --stat`. Before each tag the gate is green:
+`python scripts/check_all.py --strict`, also on a clean export without `.env`. The blanks in the status table are still yours: the branches hold tooling and numbers, never
+your own notes, observations or decisions.
 
 ## The plan
 
@@ -119,4 +111,4 @@ Updated as the work lands. `done` means the gate above passed.
 | Week 8 | done: gate green (729 offline tests, also on a clean export without `.env`); a grader of the path an agent takes (eight failure modes), three defence layers, a 15-attack injection suite and a per-tool call budget whose prediction was written before it was measured; measured on 33 runs in each of two arms and a noise run: the four judged predictions held (`over-calling` 7 runs to 0, right answers 29 to 31, mean tokens per run 4,861 to 4,392 against a noise floor of 4.8%), the control on a model that never reaches the cap is identical, the defences refused and withheld nothing in 33 live runs, and 8 of 15 attacks worked with the defences off against 2 of 15 with them on; tag `week-8`. Left for you: what could still get through (`docs/week8/findings.md`, section 4) |
 | Week 9 | done: gate green (847 offline tests, also on a clean export without `.env`); a client that discovers its tools over MCP (6 tools on 3 servers, none of them named in the agent), three servers built with fastmcp, a gate that vets what a server tells the model, a raw-message demo and another agent's code calling our server; a live run of an HR question with and without the Week 8 call budget, on `gemini-3-flash-preview`, ended without an answer both times (the model kept searching: 6 of 7 searches returned a result without the cap, 3 of 7 with it), and `docs/week9/findings.md` shows both; tag `week-9`. Left for you: where the AI runs and where it does not (`docs/week9/findings.md`, section 7) |
 | Week 10 | done: gate green (1,383 offline tests, also on a clean export without `.env`); a manager and two specialists raced against the single agent on the nine tasks, three repeats each (54 runs on `gemini-3.5-flash-lite`), with the prediction committed before the race: P1 to P9 held and P10 did not, so the prediction as a whole did not fail (`python scripts/check_team_prediction.py wk10`); tag `week-10`. Left for you: the verdict, when multi-agent is worth it, the prices you state, your reading of the failed runs (`docs/week10/findings.md`, sections 3 to 6) |
-| Week 11 | in progress |
+| Week 11 | done: gate green (1,864 offline tests, also on a clean export without `.env`); every request logged with an id and timed steps, tools to find a request and to report time and cost per step, a support drill with a five-guess checker, one measured improvement (`CONTEXT_STRIP_MIN_REPEATS=10`: mean prompt tokens per request 683.2 to 581.8 on 71 questions, no eval question went from passing to failing) whose prediction was committed before the measurement and held (P1 to P7, `python scripts/check_cost_prediction.py w11`), and a tool that turns a failure from the log into a test, with a worked example; tag `week-11`. Left for you: the drill write-up, the 10x plan, whether the improvement ships, the prices you state, the failure you convert (`docs/week11/findings.md`, sections 1 to 5) |

@@ -94,7 +94,7 @@ class GuidanceTests(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(_testkit.ROOT, "scripts", "race_team.py")))
         self.assertNotIn("PRICE_", hint)
 
-    def test_no_code_but_the_pricing_module_and_the_settings_reads_the_price_settings_which_is_what_the_readme_says(self):
+    def test_no_week_10_command_reads_the_price_settings_which_is_what_the_readme_says(self):
         readers = []
         for folder in ("app", "evals", "scripts"):
             for directory, _dirs, names in os.walk(os.path.join(_testkit.ROOT, folder)):
@@ -104,7 +104,11 @@ class GuidanceTests(unittest.TestCase):
                         with open(path, encoding="utf-8") as handle:
                             if re.search(r"price_(input|output)_per_million|current_prices", handle.read()):
                                 readers.append(os.path.relpath(path, _testkit.ROOT).replace(os.sep, "/"))
-        self.assertEqual(sorted(readers), ["app/config.py", "app/pricing.py"])
+        week_10_commands = ("scripts/race_team.py", "scripts/pilot_team.py", "scripts/check_team_prediction.py", "scripts/run_agent.py",
+                            "evals/team_report.py", "evals/team_prediction.py", "app/agent/team.py")
+        self.assertEqual([path for path in readers if path in week_10_commands], [])                # the claim is about Week 10: Week 11's cost tools read them
+        self.assertIn("app/config.py", readers)
+        self.assertIn("app/pricing.py", readers)
         with open(os.path.join(_testkit.ROOT, "docs", "week10", "README.md"), encoding="utf-8") as handle:
             self.assertIn("read by no Week 10 command", " ".join(handle.read().split()))
 

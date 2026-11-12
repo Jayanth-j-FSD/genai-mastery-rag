@@ -180,7 +180,13 @@ class JsonCache:
 
 
 def _answer_key(question, chunks):
-    parts = [settings.llm_model, generator.SYSTEM_PROMPT, question, [(c["source"], c["text"]) for c in chunks]]
+    strip = getattr(settings, "context_strip_min_repeats", 0)
+    # With the context strip on the model is shown the chunks without their repeated lines, so the key is made from what it is
+    # shown and the setting joins it. Off, the key is exactly what it was, so every earlier cached answer stays valid.
+    shown = generator.strip_context(chunks, strip)[0] if strip else chunks
+    parts = [settings.llm_model, generator.SYSTEM_PROMPT, question, [(c["source"], c["text"]) for c in shown]]
+    if strip:
+        parts.append(["context_strip_min_repeats", strip])
     if settings.min_relevance > 0:
         # With a relevance floor the generator may refuse WITHOUT calling the model, so the floor and the best
         # score decide the answer. They join the key only when the floor is on, so earlier keys stay valid.
@@ -277,7 +283,8 @@ def run_cases(cases, label="latest", with_judge=True, use_cache=True, overrides=
                      "chunk_overlap": settings.chunk_overlap, "embed_provider": settings.embed_provider,
                      "min_relevance": settings.min_relevance,
                      "dedupe_chunks": getattr(settings, "dedupe_chunks", False),
-                     "boilerplate_min_repeats": getattr(settings, "boilerplate_min_repeats", 0)},
+                     "boilerplate_min_repeats": getattr(settings, "boilerplate_min_repeats", 0),
+                     "context_strip_min_repeats": getattr(settings, "context_strip_min_repeats", 0)},
         "overrides": overrides or {},
         "cache_hits": {"answers": answers.hits, "judge": verdicts.hits},
         "usage": llm.usage_since(usage_start),
@@ -296,6 +303,11 @@ def _replace_with_retries(source, target, attempts=5):
             if attempt == attempts - 1:
                 raise
             time.sleep(0.2 * (attempt + 1))
+
+
+def replace_file(source, target):
+    """Move `source` over `target` in one step, trying again for a moment if another program holds the target (Windows)."""
+    _replace_with_retries(source, target)
 
 
 def kept_older_run(path):
@@ -343,9 +355,9 @@ def load_results(path_or_label):
         return json.load(handle)
 
 
-def select_cases(only=None, types=None, limit=None, regressions_path=None):
-    """The cases to run, optionally narrowed by id, by problem type, or to the first N."""
-    cases = all_cases(regressions_path)
+def select_cases(only=None, types=None, limit=None, regressions_path=None, base_only=False):
+    """The cases to run, optionally narrowed by id, by problem type, or to the first N. `base_only`: just the 41 base cases (see all_cases)."""
+    cases = all_cases(regressions_path, base_only)
     if only:
         wanted = set(only)
         unknown = wanted - {c["id"] for c in cases}
