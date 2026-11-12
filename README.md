@@ -19,7 +19,7 @@ OpenAI-compatible chat model (Google Gemini's free tier by default, so nothing h
 - **Week 10**: multi-agent: a manager and two specialists raced against the single agent on the same nine tasks, with quality,
   speed, tokens and cost reported for both and a prediction committed before the race. See [docs/week10/README.md](docs/week10/README.md).
 - **Week 11**: production: a request log with time and cost per step, a support drill, one measured cost improvement and one failure
-  turned into a permanent test. See [docs/GOAL.md](docs/GOAL.md) for the plan and status.
+  turned into a permanent test. See [docs/week11/README.md](docs/week11/README.md).
 
 ## What you need
 
