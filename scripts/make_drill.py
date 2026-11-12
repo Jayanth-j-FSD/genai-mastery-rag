@@ -31,16 +31,16 @@ from evals import drill                                    # noqa: E402
 
 
 def inside_drill_folder(path):
-    """True when `path` is a folder under data/drill, so a drill can never be written over something else."""
+    """True when `path` names a folder directly under data/drill (on any drive), so a drill can never be written over something else and its name is its id."""
     root, target = os.path.abspath(drill.DRILL_DIR), os.path.abspath(path)
-    return target != root and os.path.commonpath([root, target]) == root
+    return os.path.normcase(os.path.dirname(target)) == os.path.normcase(root) and os.path.normcase(target) != os.path.normcase(root)      # directly under data/drill: its name is the drill id the commands print
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Build a support drill: a synthetic request log with one planted wrong answer.")
     parser.add_argument("--n", type=int, default=3000, help="how many requests (default 3000)")
     parser.add_argument("--days", type=int, default=28, help="how many days they span (default 28)")
-    parser.add_argument("--out", help="the folder to write, which must be under data/drill (default data/drill/<drill id>)")
+    parser.add_argument("--out", help="the folder to write, directly under data/drill (default data/drill/<drill id>)")
     parser.add_argument("--seed", type=int, help="for tests only: makes the drill, and so the answer, reproducible; by default it is random")
     parser.add_argument("--force", action="store_true", help="replace a folder that already exists")
     args = parser.parse_args(argv)
@@ -50,7 +50,10 @@ def main(argv=None):
         print("Error: a drill needs at least 200 requests over at least 7 days, or there is nothing to search.")
         return 1
     if args.out and not inside_drill_folder(args.out):
-        print(f"Error: --out must be a folder under {display_path(drill.DRILL_DIR, BASE_DIR)}.")
+        print(f"Error: --out must be a folder directly under {display_path(drill.DRILL_DIR, BASE_DIR)} (its name is the drill id the other commands take).")
+        return 1
+    if args.out and os.path.exists(args.out) and not os.path.isdir(args.out):
+        print(f"Error: {display_path(args.out, BASE_DIR)} exists and is a file, not a folder.")
         return 1
     try:
         built = drill.generate(seed=args.seed, n=args.n, days=args.days)

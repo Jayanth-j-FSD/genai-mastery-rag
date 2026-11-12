@@ -12,8 +12,12 @@ Three things make it a fair drill and not a trick:
   The wrongness rule is checkable by a machine. An answer to a notice question is wrong when it states a number of calendar days that
   the document(s) it cites do not state in a line about notice. The allowed figures are READ from the corpus, so if the corpus changes
   the rule changes with it, and the generator refuses to run if a figure its decoys state is no longer in the corpus.
-  The decoys are right. Notice answers differ (30 or 7 days at Acme, 60 or 30 in the handbook, an answer that names both documents
-  because they disagree), so "the odd one out" is not enough: you have to check a figure against the document.
+  The decoys are right, and the wrong answer does not stand out by how it is placed or worded. Notice answers differ (30 or 7 days at
+  Acme, 60 or 30 in the handbook, an answer that names both documents because they disagree); some right answers are as rare as the
+  planted one and sit inside the complaint's window and under the document it names; the planted answer is worded like right answers
+  that state a different, right figure; and its time, hour and channel are drawn like everyone else's. What is left is the figure: in
+  some drills it is one no document states, which can stand out among the others, and in the rest it is a figure the OTHER document
+  states. Either way it is wrong only because the document it cites does not say so, and that is settled by reading the document.
   Every record says it is synthetic ("synthetic": true, "origin": "drill-kit", the model "synthetic-model"), so a drill log can never
   be mistaken for real traffic by a script or by a person.
 
@@ -78,8 +82,24 @@ NOTICE_VARIANTS = [
      [ACME], "30 calendar days of notice or pay in lieu", {ACME: [30]}, 2.0),
 ]
 
-# Right answers that are as rare as the planted wrong one (each is put in the log once to three times), so being rare is not what gives the wrong answer away:
-# only a figure checked against a document does. Same shape without the weight.
+# Frames: one wording that is right for two different questions with two different figures (the status is in the question, not in the answer). The planted
+# answer is built on one of these, so its wording is shared with right answers that state another, right figure.
+FRAME_VARIANTS = [
+    (RESIGN_PERMANENT, "The notice you give is {30} calendar days of written notice. [source: " + ACME + "]",
+     [ACME], "30 calendar days of written notice", {ACME: [30]}, 2.0),
+    (RESIGN_PROBATION, "The notice you give is {7} calendar days of written notice. [source: " + ACME + "]",
+     [ACME], "7 calendar days of written notice", {ACME: [7]}, 2.0),
+    (HANDBOOK_CONFIRMED, "The notice period is {60} calendar days. [source: " + HANDBOOK + "]",
+     [HANDBOOK], "60 calendar days", {HANDBOOK: [60]}, 2.0),
+    (HANDBOOK_PROBATION, "The notice period is {30} calendar days. [source: " + HANDBOOK + "]",
+     [HANDBOOK], "30 calendar days", {HANDBOOK: [30]}, 2.0),
+]
+FRAME_COMPANIONS = 3                  # each frame of the planted answer's document appears at least this often, whatever the size of the drill
+CROSS_DOCUMENT_SHARE = 0.4            # how often the planted figure is one the OTHER document states (otherwise one no document states)
+NOTICE_VARIANTS = NOTICE_VARIANTS + FRAME_VARIANTS
+
+# Right answers that are as rare as the planted wrong one (each is put in the log once to three times), so being rare is not what gives the wrong answer away.
+# The ones that cite the planted answer's document and appear once are all placed inside the complaint's window. Same shape without the weight.
 RARE_NOTICE_ANSWERS = [
     (RESIGN_PERMANENT, "Once you are permanent the notice you give is {30} calendar days, in writing. [source: " + ACME + "]",
      [ACME], "30 calendar days of written notice", {ACME: [30]}),
@@ -261,14 +281,23 @@ def _record(rng, when, request_id, question, answer, cited, retrieved, grounded,
     return record
 
 
-def _moment(rng, start, days):
-    """A start time in the window, busier in working hours."""
-    day = rng.randrange(days)
+def _moment_on(rng, start, day):
+    """A start time on day number `day` of the log, busier in working hours."""
     if rng.random() < 0.82:
         hour = rng.choice([9, 10, 10, 11, 11, 12, 13, 14, 14, 15, 15, 16, 17, 18])
     else:
         hour = rng.choice([0, 1, 2, 3, 5, 6, 7, 8, 19, 20, 21, 22, 23])
     return start + timedelta(days=day, hours=hour, minutes=rng.randrange(60), seconds=rng.randrange(60), milliseconds=rng.randrange(1000))
+
+
+def _moment(rng, start, days):
+    """A start time anywhere in the window, busier in working hours."""
+    return _moment_on(rng, start, rng.randrange(days))
+
+
+def _channel(rng, when):
+    """How a request arrived: mostly the API in the day, only batch jobs at night. Every request, the planted one too, is drawn the same way."""
+    return rng.choices(["api", "cli", "batch"], [80, 10, 10])[0] if 6 <= when.hour <= 21 else "batch"
 
 
 def _unique_id(rng, taken):
@@ -285,6 +314,28 @@ def _fill(template):
     return re.sub(r"\{(\d+)\}", lambda match: match.group(1), template)
 
 
+def _plant_figure(rng, corpus_dir, cited):
+    """The figure the planted answer states: in some drills one no document states, in the rest one the OTHER document states and the cited one does not."""
+    usable = [figure for figure in PLANT_CANDIDATES if not _whole_word_in(corpus_dir, figure)]
+    if not usable:
+        raise RuntimeError("every candidate figure for the planted answer appears in the corpus; add candidates to PLANT_CANDIDATES")
+    allowed = notice_figures_by_document(corpus_dir)
+    other = HANDBOOK if cited == ACME else ACME
+    elsewhere = sorted(allowed.get(other, set()) - allowed.get(cited, set()))
+    if elsewhere and rng.random() < CROSS_DOCUMENT_SHARE:
+        return rng.choice(elsewhere)
+    return rng.choice(usable)
+
+
+def _window(rng, when, first_day, last_day):
+    """A rough window for the complaint: up to three days either side of the plant (the plant may be on its first or last day), at least two days wide, and inside the log."""
+    while True:
+        before, after = rng.randrange(4), rng.randrange(4)
+        if before + after >= 2:
+            break
+    return max(first_day, when.date() - timedelta(days=before)), min(last_day, when.date() + timedelta(days=after))
+
+
 def generate(seed=None, n=3000, days=28, end=None, corpus_dir=None):
     """Build a drill: returns {"records", "meta", "complaint", "plant_id", "requests_text"}. `seed` makes it reproducible, which also makes
     the answer reproducible, so only tests pass one; by default it comes from the operating system's randomness."""
@@ -299,12 +350,29 @@ def generate(seed=None, n=3000, days=28, end=None, corpus_dir=None):
     start = end - timedelta(days=days)
     index_id = f"{len(corpus.chunks)}:{_sha12(str(_corpus_fingerprint(corpus_dir)))}"
 
+    # The planted request first: which document it cites, the figure it states, when it was made and the window the complaint will give, so the right answers
+    # that sit beside it can be placed around it. Its day is drawn from most of the log and its hour from the same hours everyone's are.
+    cited = rng.choice([ACME, HANDBOOK])
+    figure = _plant_figure(rng, corpus_dir, cited)
+    margin = min(3, days // 4)
+    when = _moment_on(rng, start, rng.randrange(margin, days - margin))
+    window_start, window_end = _window(rng, when, start.date(), (start + timedelta(days=days - 1)).date())
+
+    # How often each rare right answer appears (1, 1, 1, 1, 2 or 3 times). The ones that cite the plant's document and appear once are put inside the window.
+    matching = [number for number, rare in enumerate(RARE_NOTICE_ANSWERS) if cited in rare[2]]
+    inside = rng.sample(matching, min(3, len(matching)))
+    pool = list(RARE_COUNTS)
+    for _ in inside:
+        pool.remove(1)
+    rng.shuffle(pool)
+    rare_counts = [1 if number in inside else pool.pop() for number in range(len(RARE_NOTICE_ANSWERS))]
+
     names = [t[0] for t in TOPICS] + [NOTICE, "refusal"]
     weights = [t[1] for t in TOPICS] + [NOTICE_WEIGHT, REFUSAL_WEIGHT]
     by_name = {t[0]: t for t in TOPICS}
-    rare_counts = rng.sample(RARE_COUNTS, len(RARE_NOTICE_ANSWERS))
+    frames = [variant for variant in FRAME_VARIANTS if variant[2] == [cited]]
     plan = []
-    for _ in range(n - 1 - sum(rare_counts)):
+    for _ in range(n - 1 - sum(rare_counts) - FRAME_COMPANIONS * len(frames)):
         topic = rng.choices(names, weights)[0]
         plan.append(topic)
 
@@ -323,13 +391,11 @@ def generate(seed=None, n=3000, days=28, end=None, corpus_dir=None):
         return found
 
     def answered(questions, template, cited, phrase, facts, when):
-        channel = rng.choices(["api", "cli", "batch"], [80, 10, 10])[0] if 6 <= when.hour <= 21 else "batch"
-        return _record(rng, when, new_id(), rng.choice(questions), _fill(template), cited, corpus.retrieved(holders(cited, phrase, facts), rng), True, channel, index_id, False)
+        return _record(rng, when, new_id(), rng.choice(questions), _fill(template), cited, corpus.retrieved(holders(cited, phrase, facts), rng), True, _channel(rng, when), index_id, False)
 
     def one(topic, when):
-        channel = rng.choices(["api", "cli", "batch"], [80, 10, 10])[0] if 6 <= when.hour <= 21 else "batch"
         if topic == "refusal":
-            return _record(rng, when, new_id(), rng.choice(UNANSWERABLE), generator.IDK, [], corpus.retrieved([], rng), False, channel, index_id, False)
+            return _record(rng, when, new_id(), rng.choice(UNANSWERABLE), generator.IDK, [], corpus.retrieved([], rng), False, _channel(rng, when), index_id, False)
         if topic == NOTICE:
             questions, template, cited, phrase, facts, _weight = rng.choices(NOTICE_VARIANTS, [v[5] for v in NOTICE_VARIANTS])[0]
             return answered(questions, template, cited, phrase, facts, when)
@@ -337,24 +403,23 @@ def generate(seed=None, n=3000, days=28, end=None, corpus_dir=None):
         template, cited, phrase, facts = rng.choice(variants)
         return answered(questions, template, cited, phrase, facts, when)
 
+    def in_window():
+        """A moment on a day of the complaint's window, at an hour drawn like any other."""
+        return _moment_on(rng, start, (window_start - start.date()).days + rng.randrange((window_end - window_start).days + 1))
+
     for topic in plan:
         records.append(one(topic, _moment(rng, start, days)))
-    for (questions, template, cited, phrase, facts), count in zip(RARE_NOTICE_ANSWERS, rare_counts):
-        for _ in range(count):                                         # right answers that are as rare as the plant
-            records.append(answered(questions, template, cited, phrase, facts, _moment(rng, start, days)))
+    for number, ((questions, template, cited_by, phrase, facts), count) in enumerate(zip(RARE_NOTICE_ANSWERS, rare_counts)):
+        for _ in range(count):                                         # right answers that are as rare as the plant, those of its document inside its window
+            records.append(answered(questions, template, cited_by, phrase, facts, in_window() if number in inside else _moment(rng, start, days)))
+    for questions, template, cited_by, phrase, facts, _weight in frames:
+        for _ in range(FRAME_COMPANIONS):                              # the plant's wording is always shared with right answers that state another, right figure
+            records.append(answered(questions, template, cited_by, phrase, facts, _moment(rng, start, days)))
 
-    # The planted request: a notice answer whose figure no document states, in the middle of the window, in the afternoon.
-    usable = [figure for figure in PLANT_CANDIDATES if not _whole_word_in(corpus_dir, figure)]
-    if not usable:
-        raise RuntimeError("every candidate figure for the planted answer appears in the corpus; add candidates to PLANT_CANDIDATES")
-    figure = rng.choice(usable)
-    cited = rng.choice([ACME, HANDBOOK])
-    when = start + timedelta(days=rng.randrange(int(days * 0.35), int(days * 0.7)), hours=rng.choice([13, 14, 15, 16]), minutes=rng.randrange(60), seconds=rng.randrange(60),
-                             milliseconds=rng.randrange(1000))
-    # the plant is built on the ordinary resignation answer of its document, with the right question for it and a figure no document states
-    base = next(v for v in NOTICE_VARIANTS if v[2] == [cited] and v[0] in (RESIGN_PERMANENT, HANDBOOK_CONFIRMED))
-    plant = _record(rng, when, new_id(), rng.choice(base[0]), re.sub(r"\{\d+\}", str(figure), base[1]), [cited],
-                    corpus.retrieved(holders([cited], base[3], base[4]), rng), True, "api", index_id, False)
+    # The planted request: a notice answer, in the wording of one of the frames, whose figure its cited document does not state.
+    questions, template, _cited_by, phrase, facts, _weight = rng.choice(frames)
+    plant = _record(rng, when, new_id(), rng.choice(questions), re.sub(r"\{\d+\}", str(figure), template), [cited],
+                    corpus.retrieved(holders([cited], phrase, facts), rng), True, _channel(rng, when), index_id, False)
     records.append(plant)
     records.sort(key=lambda r: (r["ts_utc"], r["request_id"]))
 
@@ -364,9 +429,7 @@ def generate(seed=None, n=3000, days=28, end=None, corpus_dir=None):
     requests_text = "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records)
     salt = f"{rng.getrandbits(128):032x}"
     drill_id = f"drill-{end.strftime('%Y%m%d')}-{rng.getrandbits(24):06x}"
-    window_start = (when - timedelta(days=rng.randrange(1, 4))).date()          # a rough window, one to three days either side, not centred on the plant
-    window_end = (when + timedelta(days=rng.randrange(1, 4))).date()
-    document = "employment terms document" if cited == ACME else "employee handbook"
+    document = f"employment terms document ({ACME})" if cited == ACME else f"employee handbook ({HANDBOOK})"
     complaint = (f"(Practice drill: this complaint and the log it is about are synthetic.)\n\nSubject: a notice period that did not match the policy\n\n"
                  f"A colleague in People Operations says that sometime between {window_start.strftime('%d %B')} and {window_end.strftime('%d %B %Y')} the assistant "
                  f"gave them a notice period that did not match the policy documents. They think the answer named the {document}. They did not keep a screenshot and "

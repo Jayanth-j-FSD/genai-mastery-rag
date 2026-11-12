@@ -37,6 +37,31 @@ def plant_of(result):
     return next(r for r in result["records"] if r["request_id"] == result["plant_id"])
 
 
+def complaint_window(result):
+    """The first and last date the complaint names (both inclusive), read from its words the way a person would."""
+    first, last = re.search(r"between (\d+ \w+) and (\d+ \w+ \d{4})", result["complaint"]).groups()
+    end = datetime.strptime(last, "%d %B %Y")
+    return datetime.strptime(first + f" {end.year}", "%d %B %Y"), end
+
+
+def named_document(result):
+    """The file name the complaint gives for the document the answer cited (in parentheses), or None."""
+    found = re.search(r"\(([^()]+\.md)\)", result["complaint"])
+    return found.group(1) if found else None
+
+
+def complaint_search(result):
+    """What the person working the drill is told and can do: the log narrowed by the word notice, the complaint's window and the document it names."""
+    begin, end = complaint_window(result)
+    records = [logsearch.normalize(dict(r), "requests.jsonl", number, "trace") for number, r in enumerate(result["records"], start=1)]
+    return logsearch.search(records, {"text": ["notice"], "cited": named_document(result), "since": datetime.combine(begin.date(), datetime.min.time()),
+                                      "until": datetime.combine(end.date(), datetime.max.time())})
+
+
+def masked(text):
+    return re.sub(r"\d+", "#", text)
+
+
 class FairnessTests(unittest.TestCase):
     def test_exactly_one_notice_answer_is_wrong_by_the_rule_and_it_is_the_planted_one(self):
         result = built()
@@ -181,78 +206,124 @@ class RuleTests(unittest.TestCase):
 
 
 class SolvabilityTests(unittest.TestCase):
-    def test_the_vague_complaint_narrows_three_thousand_requests_to_a_handful_and_the_wrong_answer_is_among_the_rare_ones(self):
-        result = built()
+    def check_window(self, result):
+        """The complaint's window and document narrow the log to a short list that holds the planted answer, and the planted answer is not the only one that is rare in it."""
         plant = plant_of(result)
-        when = datetime.fromisoformat(plant["ts"])
-        cited = plant["sources"][0]
-        records = [logsearch.normalize(dict(r), "requests.jsonl", number, "trace") for number, r in enumerate(result["records"], start=1)]
-        window = {"text": ["notice"], "cited": cited, "since": datetime.combine((when - timedelta(days=1)).date(), datetime.min.time()),
-                  "until": datetime.combine((when + timedelta(days=1)).date(), datetime.max.time())}
-        found = logsearch.search(records, window)
-        self.assertGreaterEqual(len(found), 5)
-        self.assertLessEqual(len(found), 150)
+        found = complaint_search(result)
+        self.assertTrue(5 <= len(found) <= 150, len(found))
         self.assertIn(plant["request_id"], [r["id"] for r in found])
         groups = logsearch.distinct_answers(found)
         self.assertGreaterEqual(len(groups), 2)
         singles = [g for g in groups if g["count"] == 1]
         self.assertIn(plant["request_id"], [g["example"]["id"] for g in singles])
-        self.assertLessEqual(len(singles), 5)                                  # a short list to read, but...
+        right = [g for g in singles if not drill.violations([g["example"]["raw"]], CORPUS)]
+        self.assertGreaterEqual(len(right), 2, "inside the complaint's window and the document it names, right answers that appear once are as rare as the planted one")
+        self.assertLessEqual(len(singles), 9)                                  # still a short list to read
+        return singles, right
+
+    def test_the_vague_complaint_narrows_three_thousand_requests_to_a_handful_and_the_wrong_answer_is_among_the_rare_ones(self):
+        result = built()
+        singles, right = self.check_window(result)
         wrong = [g["example"]["id"] for g in singles if drill.violations([g["example"]["raw"]], CORPUS)]
-        self.assertEqual(wrong, [plant["request_id"]])                         # ...rarity alone is not the answer: the others are right, and only a figure checked against a document tells them apart
+        self.assertEqual(wrong, [plant_of(result)["request_id"]])               # rarity alone is not the answer: the others are right, and only a figure checked against a document tells them apart
 
     def test_it_is_solvable_whatever_the_seed(self):
         for seed in range(20, 32):
             with self.subTest(seed=seed):
                 result = built(seed=seed)
-                plant = plant_of(result)
-                when = datetime.fromisoformat(plant["ts"])
-                records = [logsearch.normalize(dict(r), "requests.jsonl", number, "trace") for number, r in enumerate(result["records"], start=1)]
-                found = logsearch.search(records, {"text": ["notice"], "cited": plant["sources"][0], "since": datetime.combine((when - timedelta(days=1)).date(), datetime.min.time()),
-                                                   "until": datetime.combine((when + timedelta(days=1)).date(), datetime.max.time())})
-                self.assertTrue(5 <= len(found) <= 150, len(found))
-                singles = [g["example"]["id"] for g in logsearch.distinct_answers(found) if g["count"] == 1]
-                self.assertIn(plant["request_id"], singles)
-                self.assertLessEqual(len(singles), 6)
+                self.check_window(result)
                 self.assertEqual(len(drill.violations(result["records"], CORPUS)), 1)
+
+    def test_in_the_complaints_window_the_planted_answer_is_never_the_only_rare_one_whatever_the_seed(self):
+        lone = []
+        for seed in range(200, 240):
+            with self.subTest(seed=seed):
+                result = built(seed=seed, n=1500)
+                self.check_window(result)
+                singles = [g for g in logsearch.distinct_answers(complaint_search(result)) if g["count"] == 1]
+                lone.append(len(singles) == 1)
+        self.assertFalse(any(lone))
+
+    def test_the_wording_of_the_planted_answer_is_shared_with_right_answers_that_state_other_right_figures(self):
+        for seed in range(300, 330):
+            with self.subTest(seed=seed):
+                result = built(seed=seed, n=600)
+                plant = plant_of(result)
+                sharing = [r for r in result["records"] if r is not plant and masked(r["answer"]) == masked(plant["answer"])]
+                figures = {int(re.search(r"(\d+) calendar days", r["answer"]).group(1)) for r in sharing}
+                self.assertGreaterEqual(len(figures), 2, plant["answer"])      # right answers with the same words and two different right figures
+                self.assertGreaterEqual(len(sharing), 6)                              # at least three right answers of each of the two frames of the document
+                self.assertEqual(drill.violations(sharing, CORPUS), [])
+
+    def test_the_planted_figure_is_sometimes_one_no_document_states_and_sometimes_one_the_other_document_does(self):
+        allowed = drill.notice_figures_by_document(CORPUS)
+        other = {drill.ACME: drill.HANDBOOK, drill.HANDBOOK: drill.ACME}
+        kinds = {"no document": 0, "the other document": 0}
+        for seed in range(400, 440):
+            result = built(seed=seed, n=300, days=14)
+            plant = plant_of(result)
+            figure = int(re.search(r"(\d+) calendar days", plant["answer"]).group(1))
+            cited = plant["sources"][0]
+            self.assertNotIn(figure, allowed[cited])
+            if figure in allowed[other[cited]]:
+                kinds["the other document"] += 1
+            else:
+                self.assertFalse(drill._whole_word_in(CORPUS, figure))
+                kinds["no document"] += 1
+        self.assertGreaterEqual(min(kinds.values()), 8, kinds)
 
     def test_the_complaint_names_the_window_and_the_document_but_not_the_number_or_the_request(self):
         result = built()
         plant, complaint = plant_of(result), result["complaint"]
         when = datetime.fromisoformat(plant["ts"])
-        import re as _re
-        first, last = _re.search(r"between (\d+ \w+) and (\d+ \w+ \d{4})", complaint).groups()
-        end = datetime.strptime(last, "%d %B %Y")
-        begin = datetime.strptime(first + f" {end.year}", "%d %B %Y")
-        self.assertTrue(begin.date() < when.date() < end.date())                      # the window holds the plant with a day or more either side
+        begin, end = complaint_window(result)
+        self.assertTrue(begin.date() <= when.date() <= end.date())                    # the window holds the plant, on a day inside it or on an edge
         self.assertTrue(timedelta(days=2) <= end - begin <= timedelta(days=6))
         self.assertIn("Practice drill", complaint)                                       # and the complaint says it is synthetic
         self.assertIn("employment terms document" if plant["sources"][0] == drill.ACME else "employee handbook", complaint)
+        self.assertEqual(named_document(result), plant["sources"][0])                    # and it gives the file name the log cites, so a --cited filter can be written from it
         self.assertNotIn(plant["request_id"], complaint)
         self.assertNotIn(plant["trace_id"], complaint)
         self.assertNotIn("calendar days", complaint)
 
-    def test_the_complaint_window_is_not_always_centred_on_the_plant(self):
-        before, after = set(), set()
-        for seed in range(40, 52):
+    def test_the_complaint_names_the_cited_file_for_every_seed_and_both_documents_occur(self):
+        documents = set()
+        for seed in range(500, 530):
             result = built(seed=seed, n=300, days=14)
-            import re as _re
-            first, last = _re.search(r"between (\d+ \w+) and (\d+ \w+ \d{4})", result["complaint"]).groups()
-            end = datetime.strptime(last, "%d %B %Y")
-            begin = datetime.strptime(first + f" {end.year}", "%d %B %Y")
-            when = datetime.fromisoformat(plant_of(result)["ts"])
+            self.assertEqual(named_document(result), plant_of(result)["sources"][0])
+            documents.add(named_document(result))
+        self.assertEqual(documents, {drill.ACME, drill.HANDBOOK})
+
+    def test_the_planted_requests_day_hour_channel_and_place_in_the_window_are_not_fixed(self):
+        hours, channels, days, before, after, edges = set(), set(), set(), set(), set(), set()
+        for seed in range(40, 100):
+            result = built(seed=seed, n=300, days=14)
+            plant = plant_of(result)
+            when = datetime.fromisoformat(plant["ts"])
+            begin, end = complaint_window(result)
+            hours.add(when.hour)
+            channels.add(plant["channel"])
+            days.add((when - datetime.fromisoformat(result["meta"]["window"]["start"])).days)
             before.add((when.date() - begin.date()).days)
             after.add((end.date() - when.date()).days)
-        self.assertGreater(len(before), 1)                                            # how far the window starts before the plant varies...
-        self.assertGreater(len(after), 1)                                             # ...and so does how far it runs on after it
-        self.assertTrue(min(before | after) >= 1 and max(before | after) <= 3)
+            edges.add("first" if when.date() == begin.date() else "last" if when.date() == end.date() else "inside")
+            self.assertTrue(begin.date() <= when.date() <= end.date())
+            self.assertTrue(timedelta(days=2) <= end - begin <= timedelta(days=6))
+        self.assertGreater(len(hours), 6)                                              # not only the four afternoon hours
+        self.assertGreater(len(channels), 1)                                           # not always the API
+        self.assertGreater(len(days), 6)                                               # not only the middle of the log
+        self.assertEqual((min(before), min(after), max(before | after)), (0, 0, 3))    # the window may start or end on the plant's own day, and is never wider than three days either side
+        self.assertEqual(edges, {"first", "last", "inside"})
 
-    def test_the_planted_request_is_in_the_middle_of_the_window_in_the_afternoon(self):
+    def test_the_plants_hour_and_channel_come_from_the_same_draws_as_everyone_elses(self):
         result = built()
-        when = datetime.fromisoformat(plant_of(result)["ts"])
-        start = datetime.fromisoformat(result["meta"]["window"]["start"])
-        self.assertTrue(timedelta(days=9) <= when - start < timedelta(days=20))
-        self.assertIn(when.hour, (13, 14, 15, 16))
+        everyone = [r for r in result["records"] if r["request_id"] != result["plant_id"]]
+        night = [r for r in everyone if not 6 <= datetime.fromisoformat(r["ts"]).hour <= 21]
+        self.assertTrue(all(r["channel"] == "batch" for r in night))                  # the rule the plant follows too: nobody uses the API at night
+        for seed in range(40, 100):
+            plant = plant_of(built(seed=seed, n=300, days=14))
+            if not 6 <= datetime.fromisoformat(plant["ts"]).hour <= 21:
+                self.assertEqual(plant["channel"], "batch")
 
 
 class ShapeTests(unittest.TestCase):
@@ -348,6 +419,22 @@ class LabellingTests(unittest.TestCase):
                 self.assertEqual(record["retrieved"][0]["source"], record["sources"][0])
 
 
+class MetaTests(unittest.TestCase):
+    def test_the_drill_names_itself_by_its_last_day_and_a_random_suffix_and_records_when_it_was_made(self):
+        meta = built()["meta"]
+        self.assertRegex(meta["drill_id"], r"^drill-20261011-[0-9a-f]{6}$")
+        self.assertIsInstance(datetime.fromisoformat(meta["generated_at"]), datetime)
+        self.assertRegex(meta["salt"], r"^[0-9a-f]{32}$")
+        self.assertRegex(meta["commitment"], r"^[0-9a-f]{64}$")
+
+    def test_the_rare_right_answers_appear_different_numbers_of_times_and_most_only_once(self):
+        self.assertGreaterEqual(drill.RARE_COUNTS.count(1), 4)
+        self.assertGreater(len(set(drill.RARE_COUNTS)), 1)
+        result = built()
+        counts = sorted(sum(1 for r in result["records"] if r["answer"] == drill._fill(template)) for _q, template, *_rest in drill.RARE_NOTICE_ANSWERS)
+        self.assertEqual(counts, sorted(drill.RARE_COUNTS))                                    # each rare answer appears as often as it was given: four once, one twice, one three times
+
+
 class ReproducibilityTests(unittest.TestCase):
     def test_a_seed_gives_the_same_drill_and_no_seed_gives_a_different_one_every_time(self):
         a = drill.generate(seed=5, n=300, end=datetime(2026, 10, 12, 9), corpus_dir=CORPUS)
@@ -423,12 +510,35 @@ class MakeScriptTests(unittest.TestCase):
         outside = os.path.join(self.folder, "..", "elsewhere")
         code, text = self.run_script("--out", outside, "--n", "300", "--seed", "1")
         self.assertEqual(code, 1)
-        self.assertIn("must be a folder under", text)
+        self.assertIn("must be a folder directly under", text)
         self.assertEqual(self.run_script("--out", self.folder, "--n", "300")[0], 1)         # the drill folder itself is not a drill
         code, text = self.run_script("--n", "50")
         self.assertEqual(code, 1)
         self.assertIn("at least 200 requests", text)
         self.assertEqual(self.run_script("--days", "3")[0], 1)
+
+    def test_a_folder_deeper_down_would_print_commands_that_name_the_wrong_drill_so_it_is_refused(self):
+        deeper = os.path.join(self.folder, "sub", "deeper")
+        code, text = self.run_script("--out", deeper, "--n", "300", "--seed", "1")
+        self.assertEqual(code, 1)
+        self.assertIn("directly under", text)
+        self.assertFalse(os.path.exists(deeper))
+
+    def test_a_path_on_another_drive_is_refused_with_a_message_not_a_traceback(self):
+        self.assertFalse(make_drill.inside_drill_folder("Z:" + chr(92) + "elsewhere" + chr(92) + "x"))
+        self.assertFalse(make_drill.inside_drill_folder("Z:/elsewhere/x"))
+        self.assertTrue(make_drill.inside_drill_folder(os.path.join(drill.DRILL_DIR, "mine")))
+        self.assertFalse(make_drill.inside_drill_folder(drill.DRILL_DIR))
+
+    def test_an_output_that_is_an_existing_file_is_refused_even_with_force(self):
+        target = os.path.join(self.folder, "afile")
+        with open(target, "w", encoding="utf-8") as handle:
+            handle.write("not a drill")
+        code, text = self.run_script("--out", target, "--n", "300", "--seed", "1", "--force")
+        self.assertEqual(code, 1)
+        self.assertIn("is a file, not a folder", text)
+        with open(target, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), "not a drill")
 
     def test_it_will_not_overwrite_a_drill_unless_forced(self):
         out = os.path.join(self.folder, "mine")
@@ -519,6 +629,69 @@ class CheckScriptTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("already tried that one", text)
         self.assertIn("3 guess(es) left", self.run_script("d1", self.wrongs[1])[1])               # the repeat cost nothing: a different wrong one leaves three
+
+    def test_a_guesses_file_cut_short_is_an_error_with_the_way_on_not_a_traceback(self):
+        path = os.path.join(self.folder, "d1", "guesses.json")
+        for damaged in ("", "{not json", "[]", '{"guesses": 5}'):
+            with self.subTest(damaged=damaged):
+                with open(path, "w", encoding="utf-8") as handle:
+                    handle.write(damaged)
+                code, text = self.run_script("d1", self.wrongs[0])
+                self.assertEqual(code, 1)
+                self.assertIn("could not be read", text)
+                self.assertIn("Delete it", text)
+                with open(path, encoding="utf-8") as handle:
+                    self.assertEqual(handle.read(), damaged)                              # nothing is rewritten, so the evidence is kept
+
+    def test_an_interrupted_write_of_the_guesses_leaves_the_earlier_count_in_place(self):
+        self.run_script("d1", self.wrongs[0])
+        path = os.path.join(self.folder, "d1", "guesses.json")
+        with open(path, encoding="utf-8") as handle:
+            before = handle.read()
+        with mock.patch.object(check_drill.os, "replace", side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):     # cut short at the last step
+            self.run_script("d1", self.wrongs[1])
+        with mock.patch.object(check_drill.json, "dump", side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):      # and while writing
+            self.run_script("d1", self.wrongs[1])
+        with open(path, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), before)
+        self.assertIn("3 guess(es) left", self.run_script("d1", self.wrongs[1])[1])
+
+    def test_a_byte_order_mark_or_a_blank_line_at_the_end_is_not_an_edit_of_the_log(self):
+        path = os.path.join(self.folder, "d1", "requests.jsonl")
+        with open(path, "rb") as handle:
+            raw = handle.read()
+        for changed in (chr(0xFEFF).encode("utf-8") + raw, raw + b"\n", raw + b"\r\n\r\n", chr(0xFEFF).encode("utf-8") + raw.replace(b"\n", b"\r\n") + b"\r\n"):
+            with self.subTest(extra=len(changed) - len(raw)):
+                with open(path, "wb") as handle:
+                    handle.write(changed)
+                code, text = self.run_script("d1", self.wrongs[0])
+                self.assertEqual(code, 1)
+                self.assertIn("Not that one", text)                                      # a wrong guess is judged, not refused as an edited log
+                self.assertNotIn("is not the log", text)
+                os.remove(os.path.join(self.folder, "d1", "guesses.json"))
+        with open(path, "wb") as handle:
+            handle.write(raw.replace(b"employee", b"employe", 1))
+        self.assertIn("is not the log this drill was made with", self.run_script("d1", self.plant)[1])          # a real edit still is one
+
+    def test_fewer_than_eight_characters_of_an_id_is_not_a_guess_and_does_not_count(self):
+        code, text = self.run_script("d1", self.plant[:check_drill.MIN_PREFIX - 1])
+        self.assertEqual(code, 1)
+        self.assertIn(f"at least the first {check_drill.MIN_PREFIX} characters", text)
+        self.assertFalse(os.path.exists(os.path.join(self.folder, "d1", "guesses.json")))
+        self.assertEqual(self.run_script("d1", self.plant[:check_drill.MIN_PREFIX])[0], 0)
+
+    def test_a_drill_made_before_the_log_hash_was_kept_can_still_be_checked_and_a_clock_set_back_gives_zero_minutes(self):
+        meta_path = os.path.join(self.folder, "d1", "drill-meta.json")
+        with open(meta_path, encoding="utf-8") as handle:
+            meta = json.load(handle)
+        del meta["log_sha256"]
+        with open(meta_path, "w", encoding="utf-8") as handle:
+            json.dump(meta, handle)
+        made = datetime.fromisoformat(meta["generated_at"])
+        code, text = self.run_script("d1", self.plant, now=made - timedelta(minutes=30))
+        self.assertEqual(code, 0, text)
+        self.assertIn("It took 0 minutes", text)
+        self.assertEqual(check_drill.minutes_since(meta, made - timedelta(hours=2)), 0)
 
     def test_one_minute_is_not_written_as_one_minutes(self):
         made = datetime.fromisoformat(self.result["meta"]["generated_at"])

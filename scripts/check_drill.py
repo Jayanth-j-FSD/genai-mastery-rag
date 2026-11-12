@@ -38,8 +38,8 @@ def load_drill(drill_id):
     with open(os.path.join(folder, "drill-meta.json"), encoding="utf-8") as handle:
         meta = json.load(handle)
     with open(os.path.join(folder, "requests.jsonl"), "rb") as handle:
-        text = handle.read().decode("utf-8").replace("\r\n", "\n")          # an editor that saved it with Windows line endings has not changed the log
-    return folder, meta, text
+        text = handle.read().decode("utf-8-sig").replace("\r\n", "\n")      # a byte order mark or Windows line endings added by an editor have not changed the log
+    return folder, meta, text.rstrip("\n") + "\n"                            # nor has a blank line at the end
 
 
 def request_ids(text):
@@ -53,16 +53,26 @@ def request_ids(text):
 
 
 def read_guesses(folder):
+    """The guesses so far. Raises ValueError, saying what to do, when guesses.json is damaged (an interrupted write): guessing again from nothing would
+    hand out five fresh guesses, so that is left to you."""
     path = os.path.join(folder, "guesses.json")
-    if os.path.exists(path):
+    if not os.path.exists(path):
+        return {"guesses": [], "solved_at": None}
+    try:
         with open(path, encoding="utf-8") as handle:
-            return json.load(handle)
-    return {"guesses": [], "solved_at": None}
+            state = json.load(handle)
+        state["guesses"], state["solved_at"]
+        return state
+    except (OSError, ValueError, KeyError, TypeError):
+        raise ValueError("guesses.json in the drill folder could not be read (it may have been cut short). Delete it to start the count again, with five fresh guesses.") from None
 
 
 def save_guesses(folder, state):
-    with open(os.path.join(folder, "guesses.json"), "w", encoding="utf-8") as handle:
+    """Write through a temporary file and one replace, so an interrupted write never leaves a half file where the count was."""
+    path = os.path.join(folder, "guesses.json")
+    with open(path + ".tmp", "w", encoding="utf-8") as handle:
         json.dump(state, handle, indent=1)
+    os.replace(path + ".tmp", path)
 
 
 def minutes_since(meta, now=None):
@@ -85,7 +95,11 @@ def main(argv=None, now=None):
     except (FileNotFoundError, ValueError, OSError) as exc:
         print(f"Error: {exc}")
         return 1
-    state = read_guesses(folder)
+    try:
+        state = read_guesses(folder)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return 1
     wrong = sum(1 for g in state["guesses"] if not g["correct"])
     if state["solved_at"]:
         print(f"Already solved at {state['solved_at']}, in {len(state['guesses'])} guess(es).")
