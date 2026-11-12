@@ -15,7 +15,9 @@ def _flat(text, limit):
 def show_team_step(step):
     """Print one finished step of a team run, led by who took it: "manager", or "researcher #2" for hand-off number 2.
 
-    Steps arrive as they finish, so a manager step that handed work over comes AFTER the specialist steps it caused.
+    Steps arrive as they finish, so a manager step that handed work over comes AFTER the specialist steps it caused. Each
+    step carries the number it has in the saved run, where that manager step comes FIRST, so the numbers printed here can
+    look out of order (2, 3, then 1) and still match the saved file step for step.
     """
     who = step["agent"] if step.get("handoff") is None else f"{step['agent']} #{step['handoff']}"
     print(f"--- {who} ---")

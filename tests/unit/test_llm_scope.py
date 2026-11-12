@@ -1,12 +1,14 @@
 """Week 10: llm.call_scope(), the per-call record that says which piece of work spent what (no network)."""
 import contextvars
 import threading
+import time
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
 import _testkit
 from app import llm
-from test_llm import DAILY_BODY, RATE_LIMIT_BODY, LlmTestCase, status_error
+from test_llm import DAILY_BODY, RATE_LIMIT_BODY, FakeClient, LlmTestCase, status_error
 from openai import BadRequestError, RateLimitError
 
 USAGE_KEYS = {"calls", "prompt_tokens", "completion_tokens", "api_seconds", "wait_seconds"}
@@ -171,6 +173,65 @@ class RetryAndFailureTests(LlmTestCase):
         self.assertEqual(llm._wait_for_slot("m1", 0), 0.0)
         self.assertEqual([llm._wait_for_slot("m2", 2), llm._wait_for_slot("m2", 2)], [0.0, 0.0])
         self.assertGreater(llm._wait_for_slot("m2", 2), 59.0)
+
+
+class TickingClient(FakeClient):
+    """Every attempt takes the next number of seconds on the test's fake clock, then answers or fails as scripted."""
+
+    def __init__(self, case, outcomes, seconds):
+        super().__init__(outcomes)
+        self.case, self.seconds = case, list(seconds)
+
+    def _create(self, **kwargs):
+        self.case.clock["now"] += self.seconds.pop(0)
+        return super()._create(**kwargs)
+
+
+class TimeTests(LlmTestCase):
+    def use_ticking(self, outcomes, seconds):
+        patcher = mock.patch.object(llm, "_get_client", return_value=TickingClient(self, outcomes, seconds))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_a_calls_seconds_are_the_time_inside_the_provider_and_equal_what_the_counters_kept(self):
+        self.use_ticking([reply()], [2.5])
+        with llm.call_scope("x") as scope:
+            llm.chat([], model="m1")
+        self.assertEqual(scope.calls[0]["seconds"], 2.5)
+        self.assertEqual(scope.totals()["api_seconds"], llm.usage_snapshot()["api_seconds"])
+
+    def test_a_retried_calls_seconds_cover_every_attempt_and_its_waiting_covers_every_pause(self):
+        self.use_ticking([status_error(RateLimitError, 429, RATE_LIMIT_BODY), reply()], [1.5, 2.5])
+        with llm.call_scope("x") as scope:
+            llm.chat([], model="m1")
+        record = scope.calls[0]
+        self.assertEqual(record["attempts"], 2)
+        self.assertAlmostEqual(record["seconds"], 4.0, places=6)                              # the failed attempt's 1.5 s and the good one's 2.5 s
+        self.assertAlmostEqual(record["wait_seconds"], 52.14, places=6)
+        counters = llm.usage_snapshot()
+        self.assertEqual((scope.totals()["api_seconds"], scope.totals()["wait_seconds"]), (round(counters["api_seconds"], 3), round(counters["wait_seconds"], 3)))
+
+    def test_a_failed_call_still_records_the_seconds_it_spent_in_the_provider(self):
+        self.use_ticking([status_error(BadRequestError, 400, {"error": {"message": "bad"}})], [3.0])
+        with llm.call_scope("x") as scope:
+            with self.assertRaises(BadRequestError):
+                llm.chat([], model="m1")
+        self.assertEqual(scope.calls[0]["seconds"], 3.0)
+        self.assertEqual(scope.totals()["api_seconds"], llm.usage_snapshot()["api_seconds"])
+
+    def test_the_daily_quota_stop_records_the_seconds_the_failed_request_took(self):
+        self.use_ticking([status_error(RateLimitError, 429, DAILY_BODY)], [4.0])
+        with llm.call_scope("x") as scope:
+            with self.assertRaises(llm.QuotaExhausted):
+                llm.chat([], model="m1")
+        self.assertEqual(scope.calls[0]["seconds"], 4.0)
+
+    def test_a_call_is_stamped_with_the_wall_clock_time_it_began_not_a_stopwatch_reading(self):
+        self.use(reply())
+        before = time.time()
+        with llm.call_scope("x") as scope:
+            llm.chat([], model="m1")
+        self.assertTrue(before <= scope.calls[0]["started_at"] <= time.time(), scope.calls[0]["started_at"])      # seconds since the epoch, as the docstring says
 
 
 class ThreadTests(LlmTestCase):

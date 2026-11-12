@@ -89,6 +89,26 @@ class RunTests(unittest.TestCase):
             pilot_team.run_pair("q?", 0, "model-y", 200.0)
         self.assertEqual(seen, [{"model": "model-y", "timeout_seconds": 200.0, "max_calls_per_tool": 0}] * 2)
 
+    def test_a_pair_counts_the_requests_each_arm_sent_retried_attempts_included(self):
+        def agent(question, tools, **options):
+            llm._record_call(0.1, 0.1, 0.0, 4, "m", "served", 100, 10)                      # one call that took four requests
+            return fake_run(calls=1)
+
+        def crew(question, tools, **options):
+            for _ in range(2):
+                llm._record_call(0.1, 0.1, 0.0, 1, "m", "served", 50, 5)
+            return fake_run(calls=2)
+
+        with mock.patch.object(pilot_team.loop, "run_agent", agent), mock.patch.object(pilot_team.team, "run_team", crew):
+            rows = pilot_team.run_pair("q?", 0, "m", 300.0)
+        self.assertEqual([(row["arm"], row["calls"], row["requests"]) for row in rows], [("agent", 1, 4), ("team", 2, 2)])
+
+    def test_a_run_that_ended_on_a_provider_error_is_at_least_one_request(self):
+        with mock.patch.object(pilot_team.loop, "run_agent", lambda q, t, **o: fake_run(calls=0, stop="error")), \
+                mock.patch.object(pilot_team.team, "run_team", lambda q, t, **o: fake_run(calls=0, stop="error")):
+            rows = pilot_team.run_pair("q?", 0, "m", 300.0)
+        self.assertEqual([row["requests"] for row in rows], [1, 1])
+
     def test_a_refusal_is_noticed(self):
         with mock.patch.object(pilot_team.loop, "run_agent", lambda q, t, **o: fake_run(answer="I don't know based on the provided documents.")), \
                 mock.patch.object(pilot_team.team, "run_team", lambda q, t, **o: fake_run()):
@@ -172,6 +192,25 @@ class MainTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("--max-calls 15 reached", text)
         self.assertEqual(len(runner.load_results("pilot-m")["runs"]), 4)                  # 10 calls a question: two questions then 20 >= 15
+
+    def test_the_call_budget_counts_requests_so_retries_stop_a_pilot_sooner(self):
+        def pair(question, index, model, timeout):
+            rows = self.fake_pair(question, index, model, timeout)
+            rows[0]["requests"], rows[1]["requests"] = 9, 11                                  # 20 requests for what is 10 calls
+            return rows
+
+        with mock.patch.object(pilot_team, "run_pair", side_effect=pair):
+            code, text = captured(pilot_team.main, ["--label", "pilot-r", "--model", "m", "--n", "5", "--max-calls", "15"])
+        self.assertEqual(code, 1)
+        self.assertIn("--max-calls 15 reached (20 requests used)", text)
+        self.assertEqual(len(runner.load_results("pilot-r")["runs"]), 2)                      # one question: by calls (10) it would have run a second
+
+    def test_a_timeout_that_is_not_a_finite_number_is_refused(self):
+        for value in ("nan", "inf"):
+            with self.subTest(timeout=value):
+                code, text = captured(pilot_team.main, ["--label", "pilot-n", "--model", "m", "--timeout", value])
+                self.assertEqual((code, "--timeout greater than 0" in text), (1, True))
+        self.assertEqual(self.pairs, [])
 
     def test_show_prints_a_saved_pilot_and_explains_a_missing_one(self):
         captured(pilot_team.main, ["--label", "pilot-t", "--model", "m", "--n", "1"])

@@ -49,7 +49,8 @@ automated.
 
 ## Later weeks
 - [ ] Weeks 6 to 9: see [GOAL.md](GOAL.md); each gets its own branch, tag and `docs/weekN/` folder
-- [ ] Weeks 10 and 11: waiting for their briefs
+- [x] Week 10: built, raced, findings generated (`docs/week10/findings.md`)
+- [ ] Week 11: in progress
 
 ## Open decisions (yours)
 - [ ] The documents disagree: annual leave is 18 days in the Acme policy and 24 in the handbook and

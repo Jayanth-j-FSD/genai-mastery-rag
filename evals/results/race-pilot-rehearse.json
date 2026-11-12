@@ -1,0 +1,1259 @@
+{
+ "meta": {
+  "label": "pilot-rehearse",
+  "started": "2026-11-13T00:17:22+05:30",
+  "complete": true,
+  "stopped_because": null,
+  "repeats": 1,
+  "approaches": [
+   "agent",
+   "team"
+  ],
+  "arms": [
+   "agent",
+   "team"
+  ],
+  "tasks": [
+   "t7-single-lookup",
+   "t7-notice-end-date"
+  ],
+  "interleaved": true,
+  "models": {
+   "agent": "gemini-3.1-flash-lite-preview",
+   "team": "gemini-3.1-flash-lite-preview"
+  },
+  "noise_arm": null,
+  "limits": {
+   "max_steps": 8,
+   "max_total_tokens": 40000,
+   "timeout_seconds": 300.0,
+   "agent_max_calls_per_tool": 0
+  },
+  "llm_rpm": 12,
+  "retrieval_mode": "dense",
+  "search": {
+   "top_k default": 3,
+   "passage chars": 700,
+   "retrieval mode": "dense"
+  },
+  "config": {
+   "agent": {
+    "memory": "on",
+    "calls per tool cap": 0,
+    "timeout": "300s",
+    "max steps": 8,
+    "prompt sha": "99482a2e3d5f",
+    "tools": "search_policies 33aa382afee4, calculate 98ffc522b8a3, add_days 5e84795660ef"
+   },
+   "team": {
+    "memory": "on",
+    "calls per tool cap": 0,
+    "timeout": "300s",
+    "manager steps": 8,
+    "researcher steps": 8,
+    "calculator steps": 4,
+    "manager prompt sha": "27b4ca0d98e2",
+    "researcher prompt sha": "4f964dab33c1",
+    "calculator prompt sha": "8f08baaba4ce",
+    "hand-off tools": "ask_policy_researcher 034c84e095c1, ask_calculator 35f207763d5a",
+    "researcher tools": "search_policies 33aa382afee4",
+    "calculator tools": "calculate 98ffc522b8a3, add_days 5e84795660ef"
+   }
+  },
+  "caps": [
+   {
+    "arm": "agent",
+    "agent": "agent",
+    "steps": 8,
+    "tokens": 40000,
+    "timeout": "300s",
+    "calls per tool": 0,
+    "memory": "on"
+   },
+   {
+    "arm": "team",
+    "agent": "manager",
+    "steps": 8,
+    "tokens": "shared",
+    "timeout": "shared",
+    "calls per tool": 0,
+    "memory": "on"
+   },
+   {
+    "arm": "team",
+    "agent": "researcher",
+    "steps": 8,
+    "tokens": "shared",
+    "timeout": "shared",
+    "calls per tool": 0,
+    "memory": "on"
+   },
+   {
+    "arm": "team",
+    "agent": "calculator",
+    "steps": 4,
+    "tokens": "shared",
+    "timeout": "shared",
+    "calls per tool": 0,
+    "memory": "on"
+   }
+  ],
+  "code": {
+   "git": "30eb417",
+   "dirty": false,
+   "team.py": "9f36a583bc58",
+   "loop.py": "c89065271920",
+   "llm.py": "1c3149d37e6d",
+   "checks.py": "f27fafcbdc90",
+   "agent_tasks.py": "2f4ee5b7f16a",
+   "race.py": "74e1dfab14b7",
+   "team_prediction.py": "fde36ef02014",
+   "tree": "ed774c40b274"
+  },
+  "code_files": {
+   "app/__init__.py": "3125c86c991d",
+   "app/agent/__init__.py": "f58d4b0ce85a",
+   "app/agent/defense.py": "4c5c261e7cca",
+   "app/agent/display.py": "6763cb4ab9cf",
+   "app/agent/loop.py": "c89065271920",
+   "app/agent/memory.py": "2eade7b43ff9",
+   "app/agent/team.py": "9f36a583bc58",
+   "app/agent/toolkit.py": "c7a85a9dfc11",
+   "app/agent/tools.py": "7b7a3eb8bcc5",
+   "app/agent/workflow.py": "9341e19232a7",
+   "app/config.py": "800cda5c9927",
+   "app/console.py": "136f00783966",
+   "app/llm.py": "1c3149d37e6d",
+   "app/main.py": "94456db38b30",
+   "app/mcp/__init__.py": "e3b0c44298fc",
+   "app/mcp/client.py": "3f0114ffc1b5",
+   "app/mcp/servers/__init__.py": "e3b0c44298fc",
+   "app/mcp/servers/hris_server.py": "54f755c055cc",
+   "app/mcp/servers/policy_server.py": "b6a341c93b10",
+   "app/mcp/servers/utils_server.py": "387ed3a20f69",
+   "app/mcp/vetting.py": "d3237366393e",
+   "app/models.py": "f91e0aab0240",
+   "app/pricing.py": "d07ad2791991",
+   "app/rag/__init__.py": "0e59a34740b0",
+   "app/rag/chunker.py": "acad8fc2567d",
+   "app/rag/diagnose.py": "9834006d4e7b",
+   "app/rag/embedder.py": "a15dc6ecff81",
+   "app/rag/fusion.py": "e7b1a7f1d89a",
+   "app/rag/generator.py": "9795174a9878",
+   "app/rag/keyword.py": "e9c5c61d9e42",
+   "app/rag/loader.py": "d8c73f87b867",
+   "app/rag/local_embedder.py": "d268cf6ea2c1",
+   "app/rag/pipeline.py": "7e3bbc9c36b6",
+   "app/rag/retriever.py": "ea9c0bfe43d5",
+   "app/rag/store.py": "3a5a3f38a19d",
+   "app/tracing.py": "3382e9145257",
+   "app/worksheet.py": "2dcd58ff5f0b",
+   "evals/__init__.py": "5519b6df75fd",
+   "evals/agent_tasks.py": "2f4ee5b7f16a",
+   "evals/agreement.py": "0c770c6c6848",
+   "evals/cases.py": "62e4f6e7fd44",
+   "evals/checks.py": "f27fafcbdc90",
+   "evals/injection.py": "3966887d70dc",
+   "evals/judge.py": "93333813f68d",
+   "evals/prediction.py": "41520ea56cfa",
+   "evals/race.py": "74e1dfab14b7",
+   "evals/replay.py": "896f2753bf99",
+   "evals/report.py": "958b43cb8144",
+   "evals/runner.py": "cc23d65b8dd4",
+   "evals/screen.py": "63f2125c5d88",
+   "evals/team_prediction.py": "fde36ef02014",
+   "evals/team_report.py": "3e01b6d0d59e",
+   "evals/trajectory.py": "2d561732cac3",
+   "evals/validation.py": "59c352170f1d",
+   "scripts/pilot_team.py": "9a6ca4453dfd",
+   "scripts/race_team.py": "9dcc82afeeaa"
+  },
+  "code_history": [],
+  "settings": {
+   "llm_max_retries": 4,
+   "llm_timeout_seconds": 60.0,
+   "dense_search": "exact",
+   "hybrid_candidates": 10,
+   "rrf_k": 60,
+   "bm25_k1": 1.5,
+   "bm25_b": 0.75,
+   "embed_provider": "local",
+   "chunk_count": 432
+  },
+  "prediction_doc": null,
+  "corpus": {
+   "Acme-Employment-Terms-2026.md": "cd7149efaa3e",
+   "Acme-Leave-Policy-2026.md": "88efbcccc912",
+   "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md": "3ced9d1e0b76",
+   "Northstar-Remote-Work-Policy-2026.md": "0a2c56b5556f",
+   "Synthetic_HR_Policy_RAG_Test_Dataset.md": "a26bf5fb4eed",
+   "benefits.md": "82a7f7ed49c0",
+   "expenses.md": "03277fabd58d",
+   "security-policy.md": "5884e8ff33e5",
+   "support-faq.md": "11c1e0ee62da"
+  },
+  "resumed": [],
+  "not_interleaved_arms": [],
+  "finished": "2026-11-13T00:19:11+05:30"
+ },
+ "runs": [
+  {
+   "task_id": "t7-single-lookup",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Employees are eligible for 16 weeks of paid parental leave following the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 4,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "search_policies"
+   ],
+   "llm_calls": 4,
+   "prompt_tokens": 2877,
+   "completion_tokens": 122,
+   "api_seconds": 36.766,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 37.344,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"How many weeks of paid parental leave are available to employees?\"}",
+       "observation": "[source: Acme-Leave-Policy-2026.md] Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 3.594,
+     "tokens": {
+      "prompt": 663,
+      "completion": 30
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid parental leave weeks\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 31.172,
+     "tokens": {
+      "prompt": 506,
+      "completion": 19
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "[source: Acme-Leave-Policy-2026.md] Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child.",
+     "tool_calls": [],
+     "seconds": 1.047,
+     "tokens": {
+      "prompt": 962,
+      "completion": 37
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "Employees are eligible for 16 weeks of paid parental leave following the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 0.953,
+     "tokens": {
+      "prompt": 746,
+      "completion": 36
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 2,
+      "prompt_tokens": 1409,
+      "completion_tokens": 66,
+      "api_seconds": 4.547,
+      "wait_seconds": 0.0,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 2,
+      "prompt_tokens": 1468,
+      "completion_tokens": 56,
+      "api_seconds": 32.219,
+      "wait_seconds": 0.0,
+      "handoffs": 1
+     },
+     "calculator": {
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "api_seconds": 0,
+      "wait_seconds": 0,
+      "handoffs": 0
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "How many weeks of paid parental leave are available to employees?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Acme-Leave-Policy-2026.md] Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child.",
+      "answer_chars": 135,
+      "seconds": 32.797,
+      "api_seconds": 32.219,
+      "wait_seconds": 0.0,
+      "calls": 2,
+      "prompt_tokens": 1468,
+      "completion_tokens": 56
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 1,
+      "started_at": 1794509243.1100948,
+      "seconds": 3.5940000000118744,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 663,
+      "completion_tokens": 30,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 693,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 2,
+      "started_at": 1794509246.704922,
+      "seconds": 31.171999999991385,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 506,
+      "completion_tokens": 19,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 525,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 3,
+      "started_at": 1794509278.448006,
+      "seconds": 1.0469999999913853,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 962,
+      "completion_tokens": 37,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 999,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 4,
+      "started_at": 1794509279.4945257,
+      "seconds": 0.9530000000086147,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 746,
+      "completion_tokens": 36,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 782,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.1-flash-lite-preview"
+  },
+  {
+   "task_id": "t7-single-lookup",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Eligible employees are entitled to 16 weeks of paid parental leave following the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1824,
+   "completion_tokens": 57,
+   "api_seconds": 2.109,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 2.25,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid parental leave weeks\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.094,
+     "tokens": {
+      "prompt": 684,
+      "completion": 19
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Eligible employees are entitled to 16 weeks of paid parental leave following the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.015,
+     "tokens": {
+      "prompt": 1140,
+      "completion": 38
+     }
+    }
+   ],
+   "notes": [],
+   "call_log": [
+    {
+     "seq": 5,
+     "started_at": 1794509280.451823,
+     "seconds": 1.0939999999827705,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.1-flash-lite-preview",
+     "served": "gemini-3.1-flash-lite-preview",
+     "prompt_tokens": 684,
+     "completion_tokens": 19,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 703,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 6,
+     "started_at": 1794509281.6914673,
+     "seconds": 1.0150000000139698,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.1-flash-lite-preview",
+     "served": "gemini-3.1-flash-lite-preview",
+     "prompt_tokens": 1140,
+     "completion_tokens": 38,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1178,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.1-flash-lite-preview"
+  },
+  {
+   "task_id": "t7-notice-end-date",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "For a permanent employee, the notice period is 30 calendar days, which begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md].\n\nGiven that the resignation was received on 3 November 2026, the notice period ends on 3 December 2026 [source: Acme-Employment-Terms-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 3,
+   "tool_calls": [
+    "search_policies",
+    "add_days"
+   ],
+   "llm_calls": 3,
+   "prompt_tokens": 3231,
+   "completion_tokens": 137,
+   "api_seconds": 5.938,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 7.125,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period permanent employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.922,
+     "tokens": {
+      "prompt": 711,
+      "completion": 19
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"days\":30,\"date\":\"2026-11-03\"}",
+       "observation": "2026-12-03 (Thursday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.125,
+     "tokens": {
+      "prompt": 1232,
+      "completion": 30
+     }
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "For a permanent employee, the notice period is 30 calendar days, which begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md].\n\nGiven that the resignation was received on 3 November 2026, the notice period ends on 3 December 2026 [source: Acme-Employment-Terms-2026.md].",
+     "tool_calls": [],
+     "seconds": 3.891,
+     "tokens": {
+      "prompt": 1288,
+      "completion": 88
+     }
+    }
+   ],
+   "notes": [],
+   "call_log": [
+    {
+     "seq": 7,
+     "started_at": 1794509282.747955,
+     "seconds": 0.9219999999913853,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.1-flash-lite-preview",
+     "served": "gemini-3.1-flash-lite-preview",
+     "prompt_tokens": 711,
+     "completion_tokens": 19,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 730,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 8,
+     "started_at": 1794509284.8643422,
+     "seconds": 1.125,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.1-flash-lite-preview",
+     "served": "gemini-3.1-flash-lite-preview",
+     "prompt_tokens": 1232,
+     "completion_tokens": 30,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1262,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 9,
+     "started_at": 1794509285.9847662,
+     "seconds": 3.8910000000032596,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.1-flash-lite-preview",
+     "served": "gemini-3.1-flash-lite-preview",
+     "prompt_tokens": 1288,
+     "completion_tokens": 88,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1376,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.1-flash-lite-preview"
+  },
+  {
+   "task_id": "t7-notice-end-date",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "The notice period for a permanent employee at Acme is 30 calendar days [source: Acme-Employment-Terms-2026.md].\n\nGiven that the written resignation was received on 3 November 2026, adding 30 calendar days results in the notice period ending on **3 December 2026** [source: Acme-Employment-Terms-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 13,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "search_policies",
+    "ask_policy_researcher",
+    "search_policies",
+    "ask_policy_researcher",
+    "search_policies",
+    "ask_calculator",
+    "add_days"
+   ],
+   "llm_calls": 13,
+   "prompt_tokens": 10066,
+   "completion_tokens": 589,
+   "api_seconds": 14.545,
+   "wait_seconds": 45.131,
+   "elapsed_seconds": 61.281,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"What is the notice period for a permanent employee at Acme?\"}",
+       "observation": "[source: Acme-Employment-Terms-2026.md] After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning.\n[source: Synthetic_HR_Policy_RAG_Test_Dataset.md] Standard notice period is 60 calendar days for confirmed employees, unless the employment agreement specifies otherwise.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.937,
+     "tokens": {
+      "prompt": 690,
+      "completion": 30
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period permanent employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.844,
+     "tokens": {
+      "prompt": 506,
+      "completion": 19
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "[source: Acme-Employment-Terms-2026.md] After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning.\n[source: Synthetic_HR_Policy_RAG_Test_Dataset.md] Standard notice period is 60 calendar days for confirmed employees, unless the employment agreement specifies otherwise.",
+     "tool_calls": [],
+     "seconds": 0.906,
+     "tokens": {
+      "prompt": 1027,
+      "completion": 77
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"Which document takes precedence regarding the notice period for a permanent employee at Acme, the Acme-Employment-Terms-2026.md or the Synthetic_HR_Policy_RAG_Test_Dataset.md?\"}",
+       "observation": "I don't know based on the provided documents.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 11.859,
+     "tokens": {
+      "prompt": 813,
+      "completion": 63
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"precedence notice period Acme-Employment-Terms-2026.md Synthetic_HR_Policy_RAG_Test_Dataset.md\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. — Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effective date:** 1 April 2026 **Review date:** 1 April 2027 **Status:** Fictional / testing only > This handbook is entirely fictional and is intended for software testing, retrieval evaluation, chunking, embedding, reranking, and question-answering experiments. ## 1. Employee Handbook Overview\n[3] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 4.25,
+     "tokens": {
+      "prompt": 539,
+      "completion": 45
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 2
+    },
+    {
+     "n": 6,
+     "kind": "final",
+     "content": "I don't know based on the provided documents.",
+     "tool_calls": [],
+     "seconds": 28.907,
+     "tokens": {
+      "prompt": 1072,
+      "completion": 11
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 2
+    },
+    {
+     "n": 7,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"Does the Acme-Employment-Terms-2026.md document specify that it overrides other policies regarding notice periods?\"}",
+       "observation": "[source: Acme-Employment-Terms-2026.md] A separate written agreement may provide a longer notice period, in which case the written agreement controls.\n[source: Acme-Employment-Terms-2026.md] For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.109,
+     "tokens": {
+      "prompt": 903,
+      "completion": 43
+     },
+     "local_n": 3,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 8,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Acme-Employment-Terms-2026.md notice period override\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.719,
+     "tokens": {
+      "prompt": 519,
+      "completion": 31
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 3
+    },
+    {
+     "n": 9,
+     "kind": "final",
+     "content": "[source: Acme-Employment-Terms-2026.md] A separate written agreement may provide a longer notice period, in which case the written agreement controls.\n[source: Acme-Employment-Terms-2026.md] For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement.",
+     "tool_calls": [],
+     "seconds": 1.75,
+     "tokens": {
+      "prompt": 1011,
+      "completion": 90
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 3
+    },
+    {
+     "n": 10,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_calculator",
+       "arguments": "{\"question\":\"add 30 days to 2026-11-03\"}",
+       "observation": "Adding 30 days to 2026-11-03 results in 2026-12-03.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.094,
+     "tokens": {
+      "prompt": 1014,
+      "completion": 32
+     },
+     "local_n": 4,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 11,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"date\":\"2026-11-03\",\"days\":30}",
+       "observation": "2026-12-03 (Thursday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.172,
+     "tokens": {
+      "prompt": 413,
+      "completion": 30
+     },
+     "local_n": 1,
+     "agent": "calculator",
+     "handoff": 4
+    },
+    {
+     "n": 12,
+     "kind": "final",
+     "content": "Adding 30 days to 2026-11-03 results in 2026-12-03.",
+     "tool_calls": [],
+     "seconds": 0.593,
+     "tokens": {
+      "prompt": 469,
+      "completion": 31
+     },
+     "local_n": 2,
+     "agent": "calculator",
+     "handoff": 4
+    },
+    {
+     "n": 13,
+     "kind": "final",
+     "content": "The notice period for a permanent employee at Acme is 30 calendar days [source: Acme-Employment-Terms-2026.md].\n\nGiven that the written resignation was received on 3 November 2026, adding 30 calendar days results in the notice period ending on **3 December 2026** [source: Acme-Employment-Terms-2026.md].",
+     "tool_calls": [],
+     "seconds": 4.563,
+     "tokens": {
+      "prompt": 1090,
+      "completion": 87
+     },
+     "local_n": 5,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 5,
+      "prompt_tokens": 4510,
+      "completion_tokens": 255,
+      "api_seconds": 5.28,
+      "wait_seconds": 14.275,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 6,
+      "prompt_tokens": 4674,
+      "completion_tokens": 273,
+      "api_seconds": 7.578,
+      "wait_seconds": 30.791,
+      "handoffs": 3
+     },
+     "calculator": {
+      "calls": 2,
+      "prompt_tokens": 882,
+      "completion_tokens": 61,
+      "api_seconds": 1.687,
+      "wait_seconds": 0.065,
+      "handoffs": 1
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "What is the notice period for a permanent employee at Acme?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Acme-Employment-Terms-2026.md] After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning.\n[source: Synthetic_HR_Policy_RAG_Test_Dataset.md] Standard notice period is 60 calendar days for confirmed employees, unless the employment agreement specifies otherwise.",
+      "answer_chars": 339,
+      "seconds": 1.797,
+      "api_seconds": 1.75,
+      "wait_seconds": 0.0,
+      "calls": 2,
+      "prompt_tokens": 1533,
+      "completion_tokens": 96
+     },
+     {
+      "handoff": 2,
+      "agent": "researcher",
+      "question": "Which document takes precedence regarding the notice period for a permanent employee at Acme, the Acme-Employment-Terms-2026.md or the Synthetic_HR_Policy_RAG_Test_Dataset.md?",
+      "after_manager_step": 2,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "I don't know based on the provided documents.",
+      "answer_chars": 45,
+      "seconds": 34.657,
+      "api_seconds": 2.609,
+      "wait_seconds": 30.538,
+      "calls": 2,
+      "prompt_tokens": 1611,
+      "completion_tokens": 56
+     },
+     {
+      "handoff": 3,
+      "agent": "researcher",
+      "question": "Does the Acme-Employment-Terms-2026.md document specify that it overrides other policies regarding notice periods?",
+      "after_manager_step": 3,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Acme-Employment-Terms-2026.md] A separate written agreement may provide a longer notice period, in which case the written agreement controls.\n[source: Acme-Employment-Terms-2026.md] For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement.",
+      "answer_chars": 376,
+      "seconds": 3.5,
+      "api_seconds": 3.219,
+      "wait_seconds": 0.253,
+      "calls": 2,
+      "prompt_tokens": 1530,
+      "completion_tokens": 121
+     },
+     {
+      "handoff": 4,
+      "agent": "calculator",
+      "question": "add 30 days to 2026-11-03",
+      "after_manager_step": 4,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "Adding 30 days to 2026-11-03 results in 2026-12-03.",
+      "answer_chars": 51,
+      "seconds": 1.765,
+      "api_seconds": 1.687,
+      "wait_seconds": 0.065,
+      "calls": 2,
+      "prompt_tokens": 882,
+      "completion_tokens": 61
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 10,
+      "started_at": 1794509289.8944757,
+      "seconds": 0.9370000000053551,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 690,
+      "completion_tokens": 30,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 720,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 11,
+      "started_at": 1794509290.818063,
+      "seconds": 0.8439999999827705,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 506,
+      "completion_tokens": 19,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 525,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 12,
+      "started_at": 1794509291.7096498,
+      "seconds": 0.9060000000172295,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 1027,
+      "completion_tokens": 77,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1104,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 13,
+      "started_at": 1794509292.6239707,
+      "seconds": 1.3280000000086147,
+      "wait_seconds": 10.533999999996741,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 813,
+      "completion_tokens": 63,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 876,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 14,
+      "started_at": 1794509304.4745858,
+      "seconds": 1.9839999999967404,
+      "wait_seconds": 2.269000000011874,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 539,
+      "completion_tokens": 45,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 584,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 2
+     },
+     {
+      "seq": 15,
+      "started_at": 1794509310.2377596,
+      "seconds": 0.625,
+      "wait_seconds": 28.269000000011875,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 1072,
+      "completion_tokens": 11,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1083,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 2
+     },
+     {
+      "seq": 16,
+      "started_at": 1794509339.1434066,
+      "seconds": 0.6870000000053551,
+      "wait_seconds": 0.40899999999674036,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 903,
+      "completion_tokens": 43,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 946,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 17,
+      "started_at": 1794509340.2414756,
+      "seconds": 1.4689999999827705,
+      "wait_seconds": 0.2530000000086147,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 519,
+      "completion_tokens": 31,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 550,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 3
+     },
+     {
+      "seq": 18,
+      "started_at": 1794509342.0051715,
+      "seconds": 1.75,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 1011,
+      "completion_tokens": 90,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1101,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 3
+     },
+     {
+      "seq": 19,
+      "started_at": 1794509343.75037,
+      "seconds": 1.0939999999827705,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 1014,
+      "completion_tokens": 32,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1046,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 20,
+      "started_at": 1794509344.8475995,
+      "seconds": 1.0940000000118744,
+      "wait_seconds": 0.06500000001396984,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 413,
+      "completion_tokens": 30,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 443,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "calculator",
+      "handoff": 4
+     },
+     {
+      "seq": 21,
+      "started_at": 1794509346.0082037,
+      "seconds": 0.5929999999934807,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 469,
+      "completion_tokens": 31,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 500,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "calculator",
+      "handoff": 4
+     },
+     {
+      "seq": 22,
+      "started_at": 1794509346.608091,
+      "seconds": 1.2339999999967404,
+      "wait_seconds": 3.332000000006519,
+      "attempts": 1,
+      "model": "gemini-3.1-flash-lite-preview",
+      "served": "gemini-3.1-flash-lite-preview",
+      "prompt_tokens": 1090,
+      "completion_tokens": 87,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1177,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.1-flash-lite-preview"
+  }
+ ]
+}

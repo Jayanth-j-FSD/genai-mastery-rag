@@ -16,7 +16,10 @@ OpenAI-compatible chat model (Google Gemini's free tier by default, so nothing h
   injection and defend it, and fix one failure with a measured before and after
 - **Week 9**: MCP: the agent discovers its tools from servers instead of having them wired in, a gate vets what a server
   tells the model, and the Week 8 screening covers what a server returns. See [docs/week9/README.md](docs/week9/README.md).
-- **Weeks 10 and later**: not built yet. See [docs/GOAL.md](docs/GOAL.md) for the plan and status.
+- **Week 10**: multi-agent: a manager and two specialists raced against the single agent on the same nine tasks, with quality,
+  speed, tokens and cost reported for both and a prediction committed before the race. See [docs/week10/README.md](docs/week10/README.md).
+- **Week 11**: production: a request log with time and cost per step, a support drill, one measured cost improvement and one failure
+  turned into a permanent test. See [docs/GOAL.md](docs/GOAL.md) for the plan and status.
 
 ## What you need
 

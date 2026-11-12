@@ -26,9 +26,9 @@ keep this repository's plain-ASCII style.
 
 | Piece | File | Serves |
 |---|---|---|
-| The team: a manager that hands one question at a time to a researcher (search only) or a calculator (arithmetic and dates only), each an ordinary agent loop; the agents' steps merged in time order and every agent's calls, tokens and seconds counted apart | `app/agent/team.py` | 1, 2 |
+| The team: a manager that hands one question at a time to a researcher (search only) or a calculator (arithmetic and dates only), each an ordinary agent loop; the agents' steps merged into one run in request order (a manager step comes before the hand-off steps it asked for) and every agent's calls, tokens and seconds counted apart | `app/agent/team.py` | 1, 2 |
 | A record of every model call, kept per piece of work, so each arm is measured by the same instrument and the team's cost can be split by agent | `app/llm.py` (`call_scope`) | 2 |
-| Tokens to money with a price YOU state; no price table; a missing price is "not stated", never zero | `app/pricing.py`, `PRICE_*` settings | 2 |
+| Tokens to money with a price YOU state; no price table; a missing price is "not stated", never zero | `app/pricing.py` (its `PRICE_*` settings are read by no Week 10 command) | 2 |
 | The team as a third runner in the Week 7 race harness (the Week 7 race itself is unchanged) | `evals/race.py` | 1 |
 | The race: the same nine tasks, interleaved, saved after every run, resumable, frozen to a commit | `scripts/race_team.py` | 1 |
 | The report: quality, speed, tokens and cost per arm and per agent, with the numbers a reader needs to judge them | `evals/team_report.py` | 2, 3 |
@@ -49,13 +49,26 @@ the single agent's prompt stops being word for word in it.
 .\.venv\Scripts\python.exe scripts\race_team.py --label wk10 --model gemini-3.5-flash-lite              # the race: agent against team
 .\.venv\Scripts\python.exe scripts\race_team.py --label wk10 --model gemini-3.5-flash-lite --resume     # carry on after a quota stop
 .\.venv\Scripts\python.exe scripts\race_team.py --show wk10                          # the report: free
-.\.venv\Scripts\python.exe scripts\check_team_prediction.py wk10                     # the prediction against the numbers: free
+.\.venv\Scripts\python.exe scripts\check_team_prediction.py wk10                     # the prediction against the numbers: free; exit 1 and no verdict while the race is partial
 ```
 
 A race needs the index (`scripts\ingest.py`) and names its model: an alias such as `gemini-flash-lite-latest` can move
-under you, so it is refused. A race on code that is not committed is refused too; only a pilot, whose label starts
-with `pilot-`, may run on an uncommitted tree. Dollars appear only when you pass `--price-in`, `--price-out` and
-`--price-source`; see "Cost" below.
+under you, so it is refused. A race on code that is not committed is refused too, and so is a race when git cannot be read or
+when `docs/week10/prediction.md` is not committed and unchanged; only a pilot, whose label starts with `pilot-`, may run
+on an uncommitted tree. The race's own result files and the cache do not count as code. `--max-calls N` stops the race
+once N requests have been sent in this session; it checks between runs, so a race can pass N by the requests of the run that was
+in flight. A request is every attempt, retries and failed calls included, because that is what a free key's daily quota counts.
+`--force` never destroys a saved race: the old file is moved aside to `race-<label>.replaced-<time>.json`. Dollars appear only
+when you pass `--price-in`, `--price-out` and `--price-source`; see "Cost" below.
+
+While a race runs, a file `evals/results/race-<label>.lock` stops a second race under the same label (a resume started by hand
+while the first still runs). A lock that nothing has written to for ten minutes counts as left behind by a crash and is taken over;
+`--break-lock` takes it sooner, when you know no race is running. Ctrl-C saves the runs that finished and stops cleanly; the run
+that was in flight is lost and runs again on `--resume`. A race that finishes with runs on provider trouble (an error, a spent quota
+or an empty reply) prints how many and the command that runs them again; the report leaves them out. If `--resume` is refused
+because a code file changed, and the change cannot affect a run (a comment, a message), `--accept-changed PATH` names the file and
+lets it go on; the race file records the path with its hash before and after, and the report says so. Settings, tasks, the corpus
+and the prediction cannot be accepted.
 
 ## How the team is built
 
@@ -66,8 +79,8 @@ question --> manager --ask_policy_researcher(question)--> researcher --search_po
             final answer
 ```
 
-- The **manager** has no tool except the two hand-offs. It reads the question, asks a specialist one thing at a time, and
-  writes the final answer, citing what the researcher named.
+- The **manager** has the two hand-off tools and the scratchpad tool (`remember`) that the loop gives every agent. It reads
+  the question, asks a specialist one thing at a time, and writes the final answer, citing what the researcher named.
 - A **specialist** is an ordinary agent loop with its own prompt and a short tool list. It sees ONLY the question the
   manager sent, never the manager's conversation, so that question is the whole hand-off.
 - Every agent runs the loop with the same defaults as the single agent, scratchpad memory included. The defences of
@@ -77,7 +90,9 @@ question --> manager --ask_policy_researcher(question)--> researcher --search_po
   step limits are per agent (manager 8, researcher 8, calculator 4), so the team's total number of model calls is not
   capped the way a single agent's is: the report prints this under CAPS.
 - A specialist that cannot finish comes back to the manager as an error it can react to (ask again, or say it could not
-  find the answer). A daily-quota stop inside a specialist is raised, never swallowed.
+  find the answer). A daily-quota stop inside a specialist is raised, never swallowed, and the manager's remaining
+  hand-offs of that step are refused without a model call. A specialist that crashes keeps its calls, tokens and steps in
+  the record.
 - The registry of the two specialists (`SPECIALISTS`: name, description, tools, step limit) is plain Python data. The
   manager's hand-off tools are worded from it.
 
@@ -92,14 +107,21 @@ almost the same runs and the provider's mood at any hour is shared. `--noise` ad
 What a result records, so a reader can check that the arms differ only where they are meant to: the requested model and the
 model the provider says answered, the limits and call budget in force, what each arm was run with (prompts hashed, tool
 descriptions hashed, memory), a table of what each agent may use, the search settings, the corpus (every document with a
-hash), the git commit, whether the code was committed, and a hash of the files that decide the result. `--resume` refuses to
-carry a race on after any of them changed; the race must then be run again under a new label and the old file stays.
+hash), the git commit, whether the code was committed, a hash of every `.py` file under `app/` and `evals/` and of the two
+race scripts (with one fingerprint of all of them), the settings that change what a run does (retries, timeout, search settings,
+embedding provider, the index's size), and the git blob of `docs/week10/prediction.md`. `--resume` refuses to carry a race on
+after any of them changed; the race must then be run again under a new label and the old file stays. A resume keeps the first
+stamp and records itself (`resumed`, `code_history`), lists an arm added by a resume (`--noise`, `--workflow`) as not interleaved
+with the others, and moves runs that ended on provider trouble to `set_aside_runs` and runs them again, so an outage does not
+leave failures in the numbers. A resume with nothing left to run changes nothing.
 
 ## The four numbers, and how each is measured
 
 - **Quality.** A run succeeds when it finished AND passed the rule checks (the same checks, from `evals/checks.py`). The
   report gives the rate with a 95% interval, and, for the same task and repeat under two arms, the discordant pairs with the
-  exact McNemar p. It also lists every run that did not succeed, with the checks it failed and the start of its answer, so
+  exact McNemar p and, beside it, the tasks on which the arms' pass counts differ with an exact sign test over tasks. The three
+  repeats of a task are near-copies at temperature 0, so the interval and the pair p treat them as independent and are optimistic:
+  the report says so, and the by-task line is the one to read first. It also lists every run that did not succeed, with the checks it failed and the start of its answer, so
   each can be read and judged as a failure of substance or of form. The rule checks match words, so a correct answer worded
   differently can fail them: that is a limit of the instrument, shown, not hidden.
 - **Speed.** Model seconds (time inside model calls) and calls per run, and wall-clock seconds. Wall-clock time mostly
@@ -111,13 +133,20 @@ carry a race on after any of them changed; the race must then be run again under
   re-sent text). Both are counts the provider reported.
 - **Cost.** The free tier bills nothing and this project has no price table, so cost is reported without inventing a price:
   in relative units (an input token is 1 unit, an output token is r units, for r = 1, 2, 4, 8 and 20), as the one claim that
-  holds for any prices (the cost ratio lies between the input-token ratio and the output-token ratio), and as requests (what
+  holds for any one input price and one output price (the cost ratio lies between the input-token ratio and the output-token ratio; a
+  cheaper price for cached input is a third price it does not cover), and as requests (what
   a free key is spent in: requests a run, and runs in a 500-request day). Dollars appear only when you state both prices and
   where you read them, and are labelled as an assumption.
 
 What the report marks **derived** is worked out from recorded numbers, not measured: the extra prompt tokens a hand-off
-that carried the whole conversation would have cost (a lower bound), the prompt tokens the manager spends re-reading the
-specialists' answers, and the seconds saved if hand-offs asked for in one step had overlapped.
+that carried the whole conversation would have cost (an estimate between a floor, the manager's history only, and a ceiling,
+its whole prompt including the tool list, which forwarding would not carry), the prompt tokens the manager spends re-reading the
+specialists' answers (at most, since memory shortens older results), and the elapsed seconds saved if hand-offs asked for in one step
+had overlapped (the model seconds would not change, and the free tier's limiter would serialise the calls).
+
+The report also prints the header lines for a race that was resumed, how each arm stopped (its own limit, any agent's limit, provider
+trouble), and an arm with no runs as n/a. A race that is incomplete, or that leaves other than the registered 27 usable units, gets a
+PARTIAL banner and no verdict from `check_team_prediction.py`.
 
 ## A short glossary (terms, not answers)
 
@@ -132,8 +161,12 @@ specialists' answers, and the seconds saved if hand-offs asked for in one step h
   agent to tools; A2A connects an agent to other agents." A2A is not implemented here. Nothing in this repository speaks it
   and no A2A library is installed.
 - **Agent card**: a name the brief lists for a description an agent publishes of itself. `agent_summary` in
-  `app/agent/team.py` is a plain summary (name, what it does, its tools) used to word the hand-off tools. It is served nowhere
-  and is not in any protocol's format.
+  `app/agent/team.py` is a plain summary (name, what it does, its tools) built from the same registry entry as the hand-off
+  tool; nothing in the running team calls it, a test checks that the two descriptions are equal, it is served nowhere and it
+  is not in any protocol's format.
+- **Task lifecycle**: the other name the brief lists beside the agent card. In A2A a task given to another agent moves through named states
+  (submitted, working, completed, failed and so on; the exact list is the protocol's and is not checked here). Not implemented. Here a hand-off has
+  its own three outcomes, `finished`, `not_finished` and `refused`, recorded per hand-off in the saved run.
 - **MCP versus A2A, in this repository**: Week 9's agent discovers tools over MCP; this week's manager reaches a specialist
   through an ordinary in-process `Tool`, neither MCP nor A2A.
 - **CrewAI, AutoGen**: agent frameworks. This project does not use them: the loop is hand-written, as it has been since

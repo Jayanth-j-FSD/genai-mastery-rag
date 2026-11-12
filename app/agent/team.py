@@ -100,13 +100,15 @@ SPECIALISTS = {
 }
 AGENTS = ("manager",) + tuple(SPECIALISTS)
 USAGE_KEYS = ("calls", "prompt_tokens", "completion_tokens", "api_seconds", "wait_seconds")
+QUOTA_ADVICE = f"Do not ask again: reply exactly: {IDK}"      # what the manager is told once the day's quota is gone
 
 
 def agent_summary(name):
     """A plain summary of one agent: its name, what it does, its tools and what it is given and returns.
 
-    It is the kind of thing the brief calls an agent card, kept as plain data here: it words the hand-off tools the manager
-    sees, and it is served nowhere.
+    It is the kind of thing the brief calls an agent card, kept as plain data here. It is built from the same SPECIALISTS entry
+    as the hand-off tool (a test checks that the two descriptions are equal), nothing in the running team calls it, and it is
+    served nowhere.
     """
     if name == "manager":
         return {"name": "manager", "skills": [spec["tool"] for spec in SPECIALISTS.values()],
@@ -123,9 +125,10 @@ def agent_summary(name):
 class TeamRun(AgentRun):
     """An AgentRun from the team: the manager's answer and stop reason, every agent's steps in time order, and `team`.
 
-    `team` holds `per_agent` (what each agent spent), `handoffs` (one record per hand-off: who, what was asked, how it
-    ended: finished, not_finished or refused) and `call_log` (every model call, tagged with its agent and hand-off number).
-    Figures worked out from those are derived by evals/team_report.py.
+    `team` holds five things: `per_agent` (what each agent spent), `handoffs` (one record per hand-off: who, what was asked,
+    how it ended: finished, not_finished or refused), `call_log` (every model call, tagged with its agent and hand-off
+    number), `warnings` (what did not add up, such as the agents' calls against the process counters) and `errors`
+    (unexpected exceptions in the hand-off code, by type). Figures worked out from those are derived by evals/team_report.py.
     """
     team: dict = field(default_factory=dict)
 
@@ -142,7 +145,7 @@ class _Team:
 
     def __init__(self, tools, model, rpm, max_total_tokens, timeout_seconds, max_calls_per_tool, clock, on_step):
         self.tools = {tool.name: tool for tool in tools}
-        self.model, self.rpm, self.clock, self.on_step, self.told = model, rpm, clock, on_step, 0
+        self.model, self.rpm, self.clock, self.on_step = model, rpm, clock, on_step
         self.max_total_tokens, self.timeout_seconds, self.max_calls_per_tool = max_total_tokens, timeout_seconds, max_calls_per_tool
         self.started, self.usage_before = clock(), llm.usage_snapshot()
         self.scopes = []                  # the llm.CallScope of every agent run, the manager's first; its label is the agent
@@ -150,19 +153,28 @@ class _Team:
         self.handoffs = []                # one record per hand-off, in the order they happened
         self.sub_steps = []               # (manager step it belongs to, hand-off number, agent, step)
         self.manager_steps = 0            # how many manager steps have finished
-        self.quota_error = None           # a daily-quota stop inside a specialist, re-raised by run_team
+        self.slot = 1                     # the number the next manager step has in the saved run
+        self.handed = 0                   # specialist steps told since the last manager step finished
+        self.quota_error = None           # a daily-quota stop inside a specialist: re-raised by run_team, and no later hand-off starts
         self.errors = []                  # unexpected exceptions in hand-off code: the loop would only tell the manager "failed"
 
     def manager_step_done(self, step):
+        number = self.slot                 # in the saved run this step comes BEFORE the specialist steps it caused, which were told first
+        self.slot += 1 + self.handed       # so the next manager step is numbered after them
+        self.handed = 0
         self.manager_steps += 1
-        self.emit(step, "manager", None)
+        self.tell(step, number, "manager", None)
 
-    def emit(self, step, agent, handoff):
-        """Tell the caller about a finished step, as it finishes. `n` counts the steps told so far, so a manager step that
-        handed work over arrives AFTER the specialist steps it caused; the returned `steps` list puts it first."""
-        self.told += 1
+    def specialist_step_done(self, step, agent, handoff):
+        self.handed += 1
+        self.tell(step, self.slot + self.handed, agent, handoff)       # right after the manager step that asked, which is not told yet
+
+    def tell(self, step, number, agent, handoff):
+        """Tell the caller about a finished step, as it finishes, under the number it has in the returned `steps`. A manager
+        step that handed work over arrives AFTER the specialist steps it caused but keeps its earlier number, so what the
+        caller is told is, step for step, what the saved run holds."""
         if self.on_step:
-            self.on_step(_tagged(step, self.told, agent, handoff))
+            self.on_step(_tagged(step, number, agent, handoff))
 
     def tokens_used(self):
         used = llm.usage_since(self.usage_before)
@@ -201,37 +213,50 @@ class _Team:
         spec = SPECIALISTS[name]
         record = self.new_record(name, question)
         number = record["handoff"]
+        if self.quota_error is not None:                   # an earlier hand-off ended on the daily quota: another request would only fail too
+            record.update(state="refused", stop_reason="quota_exhausted")
+            self.handoffs.append(record)
+            raise ToolError(f"the provider's daily quota is used up, so the {name} was not started. {QUOTA_ADVICE}")
         tokens_left = self.max_total_tokens - self.tokens_used()
         seconds_left = self.timeout_seconds - (self.clock() - self.started)
         if tokens_left <= 0 or seconds_left <= 0:          # several hand-offs in one manager step can spend what is left
             record.update(state="refused", stop_reason="budget")
             self.handoffs.append(record)
-            raise ToolError("the team's token or time budget is spent, so nothing more can be handed over. "
-                            f"Answer from what you have, or reply exactly: {IDK}")
+            raise ToolError("the team's token or time budget is spent, so nothing more can be handed over.")
         started = self.clock()
-        try:
-            with llm.call_scope(name, handoff=number) as scope:        # the specialist's own calls, kept apart from the manager's
-                self.scopes.append(scope)                              # counted from now on, however this ends
+        taken = []                                         # the specialist's steps as they finish, so a crash cannot lose them
+
+        def on_specialist_step(step):
+            taken.append(step)                             # kept first: a caller's callback that raises must not lose the step it was told about
+            self.specialist_step_done(step, name, number)
+
+        with llm.call_scope(name, handoff=number) as scope:            # the specialist's own calls, kept apart from the manager's
+            self.scopes.append(scope)                                  # counted from now on, however this ends
+            try:
                 run = loop.run_agent(question, [self.tools[skill] for skill in spec["skills"]], max_steps=spec["max_steps"],
                                      max_total_tokens=tokens_left, timeout_seconds=seconds_left, model=self.model, rpm=self.rpm,
                                      system_prompt=spec["prompt"], clock=self.clock, max_calls_per_tool=self.max_calls_per_tool,
-                                     on_step=lambda step: self.emit(step, name, number))
-        except llm.QuotaExhausted as quota:                # a tool's exception would become an observation: keep this one
-            self.quota_error = quota
-            record.update(state="not_finished", stop_reason="quota_exhausted")
-            self._close(record, scope, started)
-            raise ToolError("the provider's daily quota is used up, so the specialist could not work. Do not ask again: "
-                            f"reply exactly: {IDK}")
-        self.sub_steps.extend((record["after_manager_step"], number, name, step) for step in run.steps)
+                                     on_step=on_specialist_step)
+            except llm.QuotaExhausted as quota:            # a tool's exception would become an observation: keep this one
+                self.quota_error = quota
+                record.update(state="not_finished", stop_reason="quota_exhausted")
+                self._close(record, scope, started)
+                raise ToolError(f"the provider's daily quota is used up, so the specialist could not work. {QUOTA_ADVICE}")
+            except Exception:                              # a bug in the team code, or a step callback that raised: write down what the specialist did
+                record.update(state="not_finished", stop_reason="internal_error")
+                self._close(record, scope, started, taken)
+                raise                                      # the wrapper in handoff_tool counts it by type and tells the manager
         record.update(state="finished" if run.finished else "not_finished", stop_reason=run.stop_reason, answer=run.answer,
                       answer_chars=len(run.answer or ""))
-        self._close(record, scope, started)
+        self._close(record, scope, started, run.steps)
         if not run.finished:
             raise ToolError(f"the {name} could not finish (it stopped on: {run.stop_reason}). "
                             "Ask again more narrowly, or answer from what you already have.")
         return run.answer
 
-    def _close(self, record, scope, started):
+    def _close(self, record, scope, started, steps=()):
+        """Write a hand-off down once it has ended, however it ended: its steps join the run and its calls and seconds come from its scope."""
+        self.sub_steps.extend((record["after_manager_step"], record["handoff"], record["agent"], step) for step in steps)
         totals = scope.totals()
         record.update(seconds=round(self.clock() - started, 3), api_seconds=totals["api_seconds"],
                       wait_seconds=totals["wait_seconds"], calls=totals["calls"],
@@ -246,9 +271,8 @@ class _Team:
         steps = []
         for index, step in enumerate(manager.steps, start=1):          # a hand-off goes right after the step that asked for it
             steps.append(_tagged(step, len(steps) + 1, "manager", None))
-            steps.extend(_tagged(sub, len(steps) + 1, agent, handoff) for handoff, agent, sub in later.pop(index, []))
-        for index in sorted(later):                                    # a hand-off whose manager step never finished: keep it
-            steps.extend(_tagged(sub, len(steps) + 1, agent, handoff) for handoff, agent, sub in later[index])
+            for handoff, agent, sub in later.get(index, []):           # the loop saves a step before it reports it, so every hand-off finds its manager step
+                steps.append(_tagged(sub, len(steps) + 1, agent, handoff))
 
         per_agent = {agent: {**{key: 0 for key in USAGE_KEYS}, "handoffs": 0} for agent in AGENTS}
         for scope in self.scopes:

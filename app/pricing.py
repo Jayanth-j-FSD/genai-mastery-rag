@@ -6,9 +6,10 @@ tokens, and output costs more. An agent run is mostly input, because every step 
 the input price decides most of the bill.
 
 There is no price table in this project on purpose. A table would go stale and would be a guess that looks like a
-fact. Prices come from the settings (PRICE_INPUT_PER_MILLION, PRICE_OUTPUT_PER_MILLION) or from arguments, and any
-saved result records the ones it used, labelled as an assumption. With no price stated a cost is `None`, never 0:
-unknown is not free.
+fact. The functions here take the prices as arguments, and `current_prices()` reads the settings
+(PRICE_INPUT_PER_MILLION, PRICE_OUTPUT_PER_MILLION); no Week 10 command reads those two settings: the race report takes
+--price-in, --price-out and --price-source. A saved report prints the prices it used, labelled as an assumption. With no
+price stated a cost is `None`, never 0: unknown is not free.
 """
 from app.config import settings
 
@@ -40,7 +41,8 @@ def describe_prices(input_per_m=None, output_per_m=None):
     """One line saying which prices a cost used, so a number never travels without them."""
     input_per_m, output_per_m = _resolve(input_per_m, output_per_m)
     if input_per_m <= 0 and output_per_m <= 0:
-        return "no price stated, so cost is not reported (set PRICE_INPUT_PER_MILLION and PRICE_OUTPUT_PER_MILLION)"
+        return ("no price stated, so cost is not reported (pass --price-in, --price-out and --price-source "
+                "to scripts/race_team.py --show)")                      # the PRICE_* settings are not read by the race report
     return (f"${input_per_m:g} per million input tokens and ${output_per_m:g} per million output tokens "
             f"({ASSUMPTION})")
 

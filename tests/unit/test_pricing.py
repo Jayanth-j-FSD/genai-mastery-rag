@@ -1,4 +1,9 @@
 """Week 10: app/pricing.py turns tokens into dollars only with a price you state (no network)."""
+import contextlib
+import io
+import os
+import re
+import sys
 import unittest
 from unittest import mock
 
@@ -7,6 +12,11 @@ from pydantic import ValidationError
 
 from app import pricing
 from app.config import Settings, settings
+
+sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))
+import race_team           # noqa: E402
+
+OPTION = re.compile(r"--[a-z][a-z-]*")
 
 
 class CostTests(unittest.TestCase):
@@ -43,9 +53,76 @@ class CostTests(unittest.TestCase):
         self.assertIn("no price stated", pricing.describe_prices(0.0, 0.0))
 
 
+def race_team_options():
+    """Every option scripts/race_team.py really has, read from its own --help."""
+    shown = io.StringIO()
+    with contextlib.redirect_stdout(shown):
+        try:
+            race_team.main(["--help"])
+        except SystemExit:
+            pass
+    return set(OPTION.findall(shown.getvalue()))
+
+
+def price_paragraph():
+    """The comment lines directly above PRICE_INPUT_PER_MILLION in .env.example."""
+    with open(os.path.join(_testkit.ROOT, ".env.example"), encoding="utf-8") as handle:
+        lines = handle.read().splitlines()
+    index = next(number for number, line in enumerate(lines) if line.startswith("PRICE_INPUT_PER_MILLION="))
+    block = []
+    while index > 0 and lines[index - 1].startswith("#"):
+        index -= 1
+        block.insert(0, lines[index])
+    return "\n".join(block)
+
+
+class GuidanceTests(unittest.TestCase):
+    """No Week 10 command reads the PRICE_* settings: dollars come only from the options of `race_team.py --show`."""
+
+    def test_the_options_the_report_says_to_use_are_real_options_of_the_race_script(self):
+        real = race_team_options()
+        for option in ("--show", "--price-in", "--price-out", "--price-source"):
+            self.assertIn(option, real)
+
+    def test_the_no_price_hint_names_exactly_the_price_options_of_the_race_script_and_no_setting(self):
+        hint = pricing.describe_prices(0.0, 0.0)
+        self.assertTrue(hint.startswith("no price stated, so cost is not reported ("))
+        named = set(OPTION.findall(hint))
+        self.assertEqual(named, {"--show", "--price-in", "--price-out", "--price-source"})
+        self.assertTrue(named <= race_team_options())
+        self.assertIn("scripts/race_team.py", hint)
+        self.assertTrue(os.path.exists(os.path.join(_testkit.ROOT, "scripts", "race_team.py")))
+        self.assertNotIn("PRICE_", hint)
+
+    def test_no_code_but_the_pricing_module_and_the_settings_reads_the_price_settings_which_is_what_the_readme_says(self):
+        readers = []
+        for folder in ("app", "evals", "scripts"):
+            for directory, _dirs, names in os.walk(os.path.join(_testkit.ROOT, folder)):
+                for name in names:
+                    path = os.path.join(directory, name)
+                    if name.endswith(".py"):
+                        with open(path, encoding="utf-8") as handle:
+                            if re.search(r"price_(input|output)_per_million|current_prices", handle.read()):
+                                readers.append(os.path.relpath(path, _testkit.ROOT).replace(os.sep, "/"))
+        self.assertEqual(sorted(readers), ["app/config.py", "app/pricing.py"])
+        with open(os.path.join(_testkit.ROOT, "docs", "week10", "README.md"), encoding="utf-8") as handle:
+            self.assertIn("read by no Week 10 command", " ".join(handle.read().split()))
+
+    def test_the_env_example_says_the_race_report_ignores_the_two_price_settings_and_names_the_real_options(self):
+        paragraph = price_paragraph()
+        self.assertIn("No Week 10 command reads", paragraph)
+        named = set(OPTION.findall(paragraph))
+        self.assertTrue({"--show", "--price-in", "--price-out", "--price-source"} <= named)
+        self.assertTrue(named <= race_team_options())
+        self.assertNotIn("the reports then show tokens only", paragraph)             # the old promise that setting them changes a report
+
+
 class SettingTests(unittest.TestCase):
     def test_the_prices_default_to_unpriced(self):
-        fresh = Settings(_env_file=None)
+        with mock.patch.dict(os.environ):                                  # _env_file=None skips .env but not the process environment
+            os.environ.pop("PRICE_INPUT_PER_MILLION", None)
+            os.environ.pop("PRICE_OUTPUT_PER_MILLION", None)
+            fresh = Settings(_env_file=None)
         self.assertEqual((fresh.price_input_per_million, fresh.price_output_per_million), (0.0, 0.0))
 
     def test_a_bad_price_fails_at_startup(self):

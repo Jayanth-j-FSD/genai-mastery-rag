@@ -121,7 +121,7 @@ class PredictionTests(unittest.TestCase):
     def test_a_unit_where_a_run_ended_on_a_provider_error_is_left_out_and_counted(self):
         rows, _failed, dropped = prediction.check_prediction(race(agent=lambda t, r: {"error": True, "success": False} if (t, r) == ("t7-conflict", 1) else {}))
         self.assertEqual((dropped["units"], dropped["kept"], dropped["dropped_for_provider"]), (27, 26, 1))
-        self.assertTrue(all(row["held"] for row in rows))
+        self.assertTrue(all(row["status"] in ("held", "partial") for row in rows))        # 26 units is not the registered 27: the count rows wait
 
     def test_a_race_without_both_arms_cannot_be_checked(self):
         rows, failed, dropped = prediction.check_prediction({"meta": {"arms": ["agent"]}, "runs": []})
@@ -137,7 +137,7 @@ class PredictionTests(unittest.TestCase):
         for word in ("winner", "better", "worse", "should ship"):
             self.assertNotIn(word, text.lower())
 
-    def test_the_bands_and_margins_are_the_ones_the_module_says_it_copied_from_the_changes_document(self):
+    def test_the_registered_bands_and_margins_have_not_moved(self):
         self.assertEqual(prediction.BANDS, {"calls": (1.3, 3.0), "tokens": (0.8, 2.0), "model_seconds": (1.0, 3.0)})
         self.assertEqual((prediction.MORE_CALLS_ON_AT_LEAST, prediction.PASS_MARGIN_CALCULATION, prediction.PASS_MARGIN_ALL), (7, 2, 5))
         self.assertEqual(prediction.FAILS_IF, ("P1", "P2", "P3", "P6"))

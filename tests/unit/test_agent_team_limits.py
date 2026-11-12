@@ -1,4 +1,5 @@
 """Week 10: what the team does when a specialist fails, when the budget runs out and when it is set up wrongly."""
+import contextlib
 import unittest
 from unittest import mock
 
@@ -13,6 +14,19 @@ from test_agent_loop import FakeClient, asks, call, says
 from test_agent_team import IDK, QUESTION, SEARCH, TOOLS, TeamTestCase, tool_names, to_calculator, to_researcher
 from evals.agent_tasks import PATH_PROBES, TASKS
 from test_llm import DAILY_BODY, status_error
+
+
+@contextlib.contextmanager
+def watching_the_team():
+    """Collect the _Team that run_team makes, so a test can read the log it kept even when the run raised instead of returning."""
+    made, real = [], team._Team
+
+    def make(*args, **kwargs):
+        made.append(real(*args, **kwargs))
+        return made[-1]
+
+    with mock.patch.object(team, "_Team", make):
+        yield made
 
 
 class FailureTests(TeamTestCase):
@@ -66,6 +80,40 @@ class QuotaTests(TeamTestCase):
         told = client.requests[-1]["messages"][-1]
         self.assertEqual(told["role"], "tool")
         self.assertIn("daily quota is used up", told["content"])
+        self.assertIn("Do not ask again", told["content"])
+
+
+class QuotaStopTests(TeamTestCase):
+    def test_a_second_hand_off_in_the_step_where_the_quota_ran_out_is_refused_and_makes_no_provider_request(self):
+        client = FakeClient([asks(to_researcher("m1"), to_calculator("m2")), status_error(RateLimitError, 429, DAILY_BODY),
+                             status_error(RateLimitError, 429, DAILY_BODY), status_error(RateLimitError, 429, DAILY_BODY)])
+        with mock.patch.object(llm, "_get_client", return_value=client), watching_the_team() as made:
+            with self.assertRaises(llm.QuotaExhausted):
+                team.run_team(QUESTION, TOOLS)
+        asked_by = [request["messages"][0]["content"] for request in client.requests]
+        self.assertEqual(asked_by, [team.MANAGER_PROMPT, team.RESEARCHER_PROMPT, team.MANAGER_PROMPT])      # no request from the calculator
+        heard_first, heard_second = [message["content"] for message in client.requests[-1]["messages"][-2:]]
+        self.assertIn("daily quota is used up", heard_first)
+        self.assertIn("calculator was not started", heard_second)
+        self.assertIn("Do not ask again", heard_second)
+        self.assertEqual([(h["handoff"], h["agent"], h["state"], h["stop_reason"], h["calls"]) for h in made[0].handoffs],
+                         [(1, "researcher", "not_finished", "quota_exhausted", 0), (2, "calculator", "refused", "quota_exhausted", 0)])
+
+    def test_the_hand_off_the_quota_stopped_is_closed_with_the_time_it_spent_before_the_run_is_raised(self):
+        now = {"t": 0.0}
+
+        class TickingClient(FakeClient):                 # every model request takes 15 seconds on the fake clock, a failed one too
+            def _create(self, **kwargs):
+                now["t"] += 15.0
+                return super()._create(**kwargs)
+
+        client = TickingClient([asks(to_researcher("m1")), status_error(RateLimitError, 429, DAILY_BODY), status_error(RateLimitError, 429, DAILY_BODY)])
+        with mock.patch.object(llm, "_get_client", return_value=client), watching_the_team() as made:
+            with self.assertRaises(llm.QuotaExhausted):
+                team.run_team(QUESTION, TOOLS, clock=lambda: now["t"])
+        record = made[0].handoffs[0]
+        self.assertEqual((record["state"], record["stop_reason"], record["seconds"]), ("not_finished", "quota_exhausted", 15.0))
+        self.assertEqual(len(made[0].handoffs), 1)
 
 
 class BudgetTests(TeamTestCase):
@@ -88,6 +136,49 @@ class BudgetTests(TeamTestCase):
         self.assertFalse(refused["ok"])
         self.assertTrue(refused["observation"].startswith("ERROR: the team's token or time budget is spent"))
         self.assertEqual(run.team["per_agent"]["calculator"]["handoffs"], 0)                      # it never ran
+
+    def test_a_budget_refusal_is_followed_by_no_model_call_so_it_promises_the_manager_nothing(self):
+        run, client = self.run_team([
+            asks(to_researcher("m1"), to_calculator("m2"), prompt=60, completion=10),
+            says("30 calendar days", prompt=40, completion=5)], max_total_tokens=100)
+        self.assertEqual(len(client.requests), 2)                                                   # the manager never gets to read the refusal
+        self.assertEqual((run.stop_reason, run.answer), ("token_budget", None))
+        self.assertEqual(run.steps[0]["tool_calls"][1]["observation"], "ERROR: the team's token or time budget is spent, so nothing more can be handed over.")
+
+    def test_a_hand_off_asked_for_when_exactly_zero_tokens_are_left_is_refused(self):
+        run, client = self.run_team([asks(to_researcher("m1"), prompt=90, completion=10)], max_total_tokens=100)          # the manager spends all 100
+        self.assertEqual([(h["agent"], h["state"], h["stop_reason"]) for h in run.team["handoffs"]], [("researcher", "refused", "budget")])
+        self.assertEqual(len(client.requests), 1)                                                   # not "left 0, so run it and overspend"
+
+    def test_a_hand_off_asked_for_when_exactly_zero_seconds_are_left_is_refused(self):
+        now = {"t": 0.0}
+
+        class TickingClient(FakeClient):
+            def _create(self, **kwargs):
+                now["t"] += 15.0                                                                    # the manager's one request takes the whole 15 seconds
+                return super()._create(**kwargs)
+
+        client = TickingClient([asks(to_researcher("m1"))])
+        with mock.patch.object(llm, "_get_client", return_value=client), mock.patch.object(llm.time, "monotonic", lambda: now["t"]):
+            run = team.run_team(QUESTION, TOOLS, timeout_seconds=15, clock=lambda: now["t"], max_calls_per_tool=0)
+        self.assertEqual([(h["agent"], h["state"], h["stop_reason"]) for h in run.team["handoffs"]], [("researcher", "refused", "budget")])
+        self.assertEqual(len(client.requests), 1)
+
+    def test_a_hand_off_asked_for_after_the_time_ran_out_is_refused_like_one_asked_for_after_the_tokens_ran_out(self):
+        now = {"t": 0.0}
+
+        def slow_search(query, top_k=3):
+            now["t"] += 100.0
+            return "[1] [source: x.md] text"
+
+        tools = [Tool("search_policies", "s", SEARCH.parameters, slow_search), calculator_tool(), date_tool()]
+        run, client = self.run_team([asks(to_researcher("m1"), to_calculator("m2")), asks(call("r1", "search_policies", {"query": "x"}))],
+                                    tools=tools, timeout_seconds=60, clock=lambda: now["t"])
+        self.assertEqual([(h["agent"], h["state"], h["stop_reason"]) for h in run.team["handoffs"]],
+                         [("researcher", "not_finished", "timeout"), ("calculator", "refused", "budget")])
+        self.assertEqual(client.script, [])
+        self.assertEqual((run.stop_reason, run.answer), ("timeout", None))                         # and the manager makes no further call
+        self.assertEqual(run.team["per_agent"]["calculator"]["handoffs"], 0)
 
     def test_the_specialist_run_is_given_exactly_the_time_and_tokens_that_are_left(self):
         now, given = {"t": 0.0}, []
@@ -159,7 +250,7 @@ class SetupTests(TeamTestCase):
         with self.assertRaises(ValueError):
             team.agent_summary("intern")
 
-    def test_the_manager_is_offered_one_tool_per_specialist_worded_by_that_specialists_card(self):
+    def test_the_manager_is_offered_one_tool_per_specialist_and_each_description_is_the_one_in_that_specialists_card(self):
         _run, client = self.run_team([says(IDK)])
         offered = {spec["function"]["name"]: spec["function"]["description"] for spec in client.requests[0]["tools"]
                    if spec["function"]["name"] != "remember"}

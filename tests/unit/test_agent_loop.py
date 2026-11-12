@@ -68,6 +68,7 @@ class LoopTestCase(unittest.TestCase):
         for patcher in (mock.patch.object(settings, "llm_rpm", 0), mock.patch.object(settings, "llm_max_retries", 0),
                         mock.patch.object(settings, "agent_max_steps", 6),
                         mock.patch.object(settings, "agent_max_total_tokens", 10000),
+                        mock.patch.object(settings, "agent_max_calls_per_tool", 0),     # an AGENT_MAX_CALLS_PER_TOOL set in .env must not change what a test sees
                         mock.patch.object(settings, "agent_timeout_seconds", 60.0)):
             patcher.start()
             self.addCleanup(patcher.stop)

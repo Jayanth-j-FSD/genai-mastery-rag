@@ -85,8 +85,9 @@ class Settings(BaseSettings):
     # --- Week 10: what a token costs (app/pricing.py) ---
     # The free tier bills nothing, so cost is tokens x a price YOU state, in dollars per million tokens. Input and
     # output are priced separately (output costs more). 0 = unpriced: reports then show tokens only and say so.
-    # There is no price table in this project on purpose: it would go stale and read as a fact. Every saved
-    # result records the prices it used, labelled as an assumption.
+    # There is no price table in this project on purpose: it would go stale and read as a fact.
+    # No Week 10 command reads these two settings: the race report takes --price-in, --price-out and --price-source,
+    # and prints the prices it used labelled as your assumption.
     price_input_per_million: float = 0.0
     price_output_per_million: float = 0.0
 
