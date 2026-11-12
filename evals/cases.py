@@ -158,7 +158,7 @@ def load_logged_failures(path=None):
     path = path or logged_failures_path()
     if not os.path.exists(path):
         return []
-    with open(path, encoding="utf-8") as handle:
+    with open(path, encoding="utf-8-sig") as handle:            # utf-8-sig: a byte order mark (PowerShell 5 writes one) must not stop every script that reads the cases
         found = json.load(handle).get("cases", [])
     for case in found:
         if not case.get("id") or not str(case.get("question", "")).strip():

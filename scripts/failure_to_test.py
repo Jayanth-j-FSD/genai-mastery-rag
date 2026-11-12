@@ -42,19 +42,28 @@ def corpus_documents():
     return {doc["source"]: doc["text"] for doc in loader.load_documents(settings.corpus_dir)}
 
 
+def passage_present(case, chunks):
+    """The first of `chunks` that comes from an expected document and holds one of the case's phrases, or None. A phrase is matched the way the checks match one
+    (whole words when the case says so, markdown marks and thousands separators ignored), so "17 calendar days" is not "7 calendar days" and "**60** calendar
+    days" is "60 calendar days". classify() and the offline retrieval guard both ask this one question."""
+    facts = list(case.get("expect_contains") or []) + list(case.get("expect_all") or [])
+    whole = bool(case.get("whole_words"))
+    for chunk in chunks:
+        if chunk["source"] in case["expected_sources"] and any(checks.contains_phrase(chunk["text"], fact, whole) for fact in facts):
+            return chunk
+    return None
+
+
 def classify(case, retrieved):
     """(kind, sentence): RETRIEVAL when no passage of an expected document holding one of the case's phrases was among those the model saw, GENERATION when one was
     and the answer was wrong anyway. The phrase is matched the way the checks match it (whole words, markdown ignored), so a passage holding 17 calendar days is not
     taken for one holding 7. A refusal case has no passage to look for, and a case with no phrase cannot say what the passage should hold."""
     if case["should_refuse"]:
         return None, "a refusal was expected, so there is no passage to look for"
-    facts = list(case.get("expect_contains") or []) + list(case.get("expect_all") or [])
-    if not facts:
+    if not (list(case.get("expect_contains") or []) + list(case.get("expect_all") or [])):
         return None, "unknown: the case has no phrase saying what the passage should hold"
-    whole = bool(case.get("whole_words"))
-    for chunk in retrieved:
-        if chunk["source"] in case["expected_sources"] and any(checks.contains_phrase(chunk["text"], fact, whole) for fact in facts):
-            return "GENERATION", "GENERATION, the passage was there and the answer was still wrong"
+    if passage_present(case, retrieved):
+        return "GENERATION", "GENERATION, the passage was there and the answer was still wrong"
     return "RETRIEVAL", "RETRIEVAL, the passage with the answer was not among those the model saw"
 
 
@@ -122,10 +131,16 @@ def write_json(path, data):
     """Write through a temporary file and one replace, so a crash never leaves half a file where a good one was. ASCII only (non-ASCII characters
     are written as escapes): a real answer with a dash or a curly quote in it must not put one into a committed file."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path + ".tmp", "w", encoding="utf-8", newline="\n") as handle:
-        json.dump(data, handle, indent=1, ensure_ascii=True)
-        handle.write("\n")
-    runner.replace_file(path + ".tmp", path)
+    temporary = path + ".tmp"
+    try:
+        with open(temporary, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(data, handle, indent=1, ensure_ascii=True)
+            handle.write("\n")
+        runner.replace_file(temporary, path)
+    except BaseException:                                          # a failed replace or an interruption leaves no stray .tmp beside the file
+        if os.path.exists(temporary):
+            os.remove(temporary)
+        raise
 
 
 def main(argv=None):
@@ -152,7 +167,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
     make_output_safe()
 
-    records, _skipped, _took = logsearch.load(logsearch.default_paths(args.log, args.drill))
+    try:
+        records, _skipped, _took = logsearch.load(logsearch.default_paths(args.log, args.drill))
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return 1
     record, why_not = find_one(records, args.request, "the failing request")
     if record is None:
         print(f"Error: {why_not}")
@@ -162,6 +181,12 @@ def main(argv=None):
         return 1
     if args.refuse and (args.expect_source or args.expect_contains or args.expect_all):
         print("Error: --refuse means the documents cannot answer it, so there is no document or phrase to expect.")
+        return 1
+    blank = [phrase for phrase in args.expect_contains + args.expect_all if not checks._clean(phrase).strip()] \
+        + [phrase for phrase in args.forbid if not checks._clean(phrase.replace("_", " ")).strip()]
+    if blank:
+        print(f"Error: {blank!r} says nothing once markdown marks and spaces are taken out, and would match any answer (an empty shell variable gives exactly this): "
+              "give a phrase of real words.")
         return 1
     if not args.refuse and not args.expect_source:
         print("Error: say what a correct answer cites: --expect-source DOC (or --refuse if the documents cannot answer it).")
@@ -194,12 +219,16 @@ def main(argv=None):
     cases_path = args.cases or cases.logged_failures_path()
     existing, existing_document = [], {}
     if os.path.exists(cases_path):
-        with open(cases_path, encoding="utf-8") as handle:
+        with open(cases_path, encoding="utf-8-sig") as handle:         # utf-8-sig: PowerShell 5 writes a byte order mark first
             existing_document = json.load(handle)
         existing = existing_document.get("cases", [])
     fixture_path = os.path.join(args.fixtures, f"{case_id}.json")
     if os.path.exists(fixture_path):
-        print(f"Error: a fixture for {case_id!r} already exists ({display_path(fixture_path, BASE_DIR)}); pick another --id.")
+        if case_id not in {existing_case.get("id") for existing_case in existing}:
+            print(f"Error: a fixture for {case_id!r} exists ({display_path(fixture_path, BASE_DIR)}) but no case of that id is in {display_path(cases_path, BASE_DIR)}: "
+                  "it is left over from a run that was cut short. Delete the fixture and run again, or pick another --id.")
+        else:
+            print(f"Error: a fixture for {case_id!r} already exists ({display_path(fixture_path, BASE_DIR)}); pick another --id.")
         return 1
     case, error = normalized_case(raw_case, existing)
     if error:
@@ -265,8 +294,9 @@ def main(argv=None):
     write_json(fixture_path, fixture)                              # the fixture first: a case with no fixture is the worse half-written state
     try:
         write_json(cases_path, {**existing_document, "cases": existing + [raw_case]})
-    except OSError:
-        os.remove(fixture_path)
+    except BaseException:                                          # Ctrl-C between the two writes too: a fixture with no case would block the same id for ever
+        if os.path.exists(fixture_path):
+            os.remove(fixture_path)
         raise
     print(f"\nwritten: {display_path(cases_path, BASE_DIR)} and {display_path(fixture_path, BASE_DIR)}.\n"
           f"Run it live with:  python scripts/run_evals.py --only {case_id} --label w11-{case_id} --no-cache --set llm_model=<the model>")

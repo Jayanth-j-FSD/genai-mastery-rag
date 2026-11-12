@@ -11,7 +11,7 @@ from unittest import mock
 
 from _testkit import ROOT, isolated_index
 from app.config import settings
-from evals import cases, checks, runner, screen
+from evals import cases, checks, runner
 
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import download_model                                       # noqa: E402
@@ -116,6 +116,43 @@ class ChannelTests(unittest.TestCase):
             cases.all_cases(os.path.join(self.folder, "regressions.json"))
 
 
+class PassagePresentTests(unittest.TestCase):
+    """classify() and the offline retrieval guard ask the same question, "is the passage with the answer present?", through one helper, matched the way the checks match."""
+
+    def chunks(self, text, source="notice.md"):
+        return [{"source": source, "text": text}]
+
+    def test_a_longer_number_or_date_is_not_the_one_in_the_phrase(self):
+        for phrase, text in (("7 calendar days", "Notice is 17 calendar days."), ("3 December", "The cut-off is 13 December.")):
+            with self.subTest(phrase=phrase):
+                wanted = case(expect_contains=[phrase])
+                self.assertIsNone(failure_to_test.passage_present(wanted, self.chunks(text)))
+                self.assertEqual(failure_to_test.classify(wanted, self.chunks(text))[0], "RETRIEVAL")
+
+    def test_markdown_marks_and_thousands_separators_do_not_hide_the_phrase(self):
+        for phrase, text in (("60 calendar days", "Notice is **60** calendar days."), ("30000", "The limit is INR 30,000 a year."), ("45 days", "It is **45 days** in all.")):
+            with self.subTest(phrase=phrase):
+                wanted = case(expect_contains=[phrase])
+                self.assertIsNotNone(failure_to_test.passage_present(wanted, self.chunks(text)))
+                self.assertEqual(failure_to_test.classify(wanted, self.chunks(text))[0], "GENERATION")
+
+    def test_only_a_passage_of_an_expected_document_counts_and_the_first_one_is_returned(self):
+        wanted = case(expect_contains=["30 calendar days"])
+        elsewhere = [{"source": "other.md", "text": "30 calendar days"}, {"source": "notice.md", "text": "30 calendar days, first"}, {"source": "notice.md", "text": "30 calendar days, second"}]
+        self.assertEqual(failure_to_test.passage_present(wanted, elsewhere[:1]), None)
+        self.assertEqual(failure_to_test.passage_present(wanted, elsewhere)["text"], "30 calendar days, first")
+
+    def test_every_phrase_of_expect_all_and_expect_contains_is_looked_for(self):
+        wanted = case(expect_contains=["ninety"], expect_all=["30 calendar days"])
+        self.assertIsNotNone(failure_to_test.passage_present(wanted, self.chunks("it says ninety here")))
+        self.assertIsNotNone(failure_to_test.passage_present(wanted, self.chunks("it says 30 calendar days here")))
+        self.assertIsNone(failure_to_test.passage_present(wanted, self.chunks("it says nothing useful")))
+
+    def test_without_whole_word_matching_a_longer_number_does_match_as_the_older_weeks_scored_it(self):
+        loose = case(expect_contains=["7 calendar days"], whole_words=False)
+        self.assertIsNotNone(failure_to_test.passage_present(loose, self.chunks("Notice is 17 calendar days.")))
+
+
 DOCS = {"notice.md": "A permanent employee gives 30 calendar days of written notice. The wrong figure is 45 calendar days.", "x.md": "x right and also ninety days"}
 
 
@@ -176,6 +213,95 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual((fixture["why"], fixture["worked_example"]), ("it said it did not know", False))
         self.assertEqual(fixture["drafted_by"], "converted with scripts/failure_to_test.py")
         self.assertFalse(os.path.exists(self.cases_path + ".tmp"))
+
+    def test_a_phrase_that_says_nothing_is_refused_so_the_case_cannot_guard_only_a_refusal_and_a_citation(self):
+        for blank in ("", " ", "**", " * * "):
+            with self.subTest(phrase=blank):
+                code, text = self.run_script("aaaa1111", "--expect-source", "notice.md", "--expect-contains", blank, "--corrected-from", "bbbb2222", "--yes")
+                self.assertEqual(code, 1)
+                self.assertIn("says nothing", text)
+                self.assertFalse(os.path.exists(self.cases_path))
+        code, text = self.run_script("aaaa1111", "--expect-source", "notice.md", "--expect-contains", "30 calendar days", "--forbid", "_", "--corrected-from", "bbbb2222")
+        self.assertEqual(code, 1)
+        code, text = self.run_script("aaaa1111", "--expect-source", "notice.md", "--expect-all", "", "--corrected-from", "bbbb2222")
+        self.assertEqual(code, 1)
+
+    def test_a_fixture_left_over_from_a_run_cut_short_is_said_to_be_safe_to_delete(self):
+        os.makedirs(self.fixtures)
+        with open(os.path.join(self.fixtures, "log-aaaa1111.json"), "w", encoding="utf-8") as handle:
+            handle.write("{}")
+        code, text = self.run_script("aaaa1111", *self.GOOD, "--yes")
+        self.assertEqual(code, 1)
+        self.assertIn("left over from a run that was cut short", text)
+        self.assertIn("Delete the fixture", text)
+
+    def test_a_fixture_whose_case_exists_is_a_duplicate_and_not_a_leftover(self):
+        self.assertEqual(self.run_script("aaaa1111", *self.GOOD, "--yes")[0], 0)
+        code, text = self.run_script("aaaa1111", *self.GOOD, "--yes")
+        self.assertEqual(code, 1)
+        self.assertIn("already exists", text)
+        self.assertNotIn("left over", text)
+
+    def test_an_interruption_between_the_two_writes_leaves_neither_file_and_no_temporary_one(self):
+        real = failure_to_test.write_json
+        calls = []
+
+        def interrupted_second_write(path, data):
+            calls.append(path)
+            if len(calls) == 2:
+                raise KeyboardInterrupt
+            return real(path, data)
+        with mock.patch.object(failure_to_test, "write_json", side_effect=interrupted_second_write), self.assertRaises(KeyboardInterrupt):
+            self.run_script("aaaa1111", *self.GOOD, "--yes")
+        self.assertEqual(os.listdir(self.fixtures), [])                               # the fixture written first is taken back
+        self.assertFalse(os.path.exists(self.cases_path))
+        self.assertEqual(self.run_script("aaaa1111", *self.GOOD, "--yes")[0], 0)      # so the same id can be tried again
+
+    def test_a_failed_replace_leaves_no_temporary_file_beside_the_target(self):
+        target = os.path.join(self.folder, "out.json")
+        with mock.patch.object(failure_to_test.runner, "replace_file", side_effect=PermissionError("locked")), self.assertRaises(PermissionError):
+            failure_to_test.write_json(target, {"a": 1})
+        self.assertEqual([name for name in os.listdir(self.folder) if name.endswith(".tmp")], [])
+
+    def test_a_cases_file_saved_with_a_byte_order_mark_is_read_by_the_tool_and_by_the_loader(self):
+        self.assertEqual(self.run_script("aaaa1111", *self.GOOD, "--yes")[0], 0)
+        with open(self.cases_path, "rb") as handle:
+            raw = handle.read()
+        with open(self.cases_path, "wb") as handle:
+            handle.write(chr(0xFEFF).encode("utf-8") + raw)
+        self.assertEqual([c["id"] for c in cases.load_logged_failures(self.cases_path)], ["log-aaaa1111"])
+        code, text = self.run_script("cccc3333", "--expect-source", "notice.md", "--expect-contains", "30 calendar days", "--forbid", "45 calendar days",
+                                     "--corrected-from", "bbbb2222", "--yes")
+        self.assertEqual(code, 0, text)
+        self.assertEqual([c["id"] for c in cases.load_logged_failures(self.cases_path)], ["log-aaaa1111", "log-cccc3333"])
+
+    def test_an_id_that_a_week_5_regression_uses_is_refused_so_the_eval_set_never_has_two(self):
+        regressions = os.path.join(self.folder, "regressions.json")
+        with open(regressions, "w", encoding="utf-8") as handle:
+            json.dump({"cases": [{"id": "w5-x", "question": "Another?", "problem_type": "t", "origin": "week5", "expected_sources": ["x.md"], "expect_contains": ["x"],
+                                  "expect_all": [], "should_refuse": False, "needs_expected": False}]}, handle)
+        with mock.patch.object(cases, "REGRESSIONS_PATH", regressions):
+            code, text = self.run_script("aaaa1111", *self.GOOD, "--id", "w5-x", "--yes")
+        self.assertEqual(code, 1)
+        self.assertIn("already used by a case of the eval set", text)
+        self.assertFalse(os.path.exists(self.cases_path))
+
+    def test_a_hand_written_refusal_is_a_refusal_with_a_straight_or_a_curly_apostrophe(self):
+        for number, apostrophe in enumerate(("'", chr(0x2019)), start=1):
+            with self.subTest(apostrophe=repr(apostrophe)):
+                answer = f"I don{apostrophe}t know based on the provided documents."
+                code, text = self.run_script("cccc3333", "--id", f"log-refuse-{number}", "--refuse", "--corrected-answer", answer, "--yes")
+                self.assertEqual(code, 0, text)
+                self.assertIs(self.fixture(f"log-refuse-{number}")["corrected_result"]["grounded"], False)
+                self.assertIs(self.fixture(f"log-refuse-{number}")["failing_result"]["grounded"], True)
+
+    def test_the_live_replay_of_a_fixture_runs_on_a_case_the_tool_just_wrote(self):
+        self.assertEqual(self.run_script("aaaa1111", *self.GOOD, "--yes")[0], 0)
+        live = {c["id"]: c for c in cases.all_cases(os.path.join(self.folder, "regressions.json"))}
+        fixture = self.fixture("log-aaaa1111")
+        self.assertEqual(failure_to_test.replay_problems(live["log-aaaa1111"], fixture), [])
+        loosened = dict(live["log-aaaa1111"], expect_contains=["notice"], whole_words=False)
+        self.assertTrue(failure_to_test.replay_problems(loosened, fixture))
 
     def test_nothing_is_written_without_yes(self):
         code, text = self.run_script("aaaa1111", *self.GOOD)
@@ -460,6 +586,12 @@ class FixtureGuardTests(unittest.TestCase):
         self.assertTrue(any("fails the correct answer" in p for p in failure_to_test.replay_problems(dict(live, expect_contains=["ninety"]), fixture)))
         self.assertTrue(any("forbid_contains differs" in p for p in failure_to_test.replay_problems(dict(live, forbid_contains=["46 calendar days"]), fixture)))
         self.assertTrue(any("should_refuse differs" in p for p in failure_to_test.replay_problems(dict(live, should_refuse=True), fixture)))
+        self.assertTrue(any("expected_sources differs" in p for p in failure_to_test.replay_problems(dict(live, expected_sources=["notice.md", "other.md"]), fixture)))
+        self.assertTrue(any("expect_all differs" in p for p in failure_to_test.replay_problems(dict(live, expect_all=["30 calendar days"]), fixture)))
+        self.assertTrue(any("expect_contains differs" in p for p in failure_to_test.replay_problems(dict(live, expect_contains=["30 calendar days", "thirty"]), fixture)))
+
+    def test_a_bare_number_is_found_with_decimals_and_not_when_a_unit_follows_it(self):
+        self.assertEqual(failure_to_test.bare_numbers(["30", " 3.5 ", "1,5", "30 days", "about 30", "ninety", ""]), ["30", " 3.5 ", "1,5"])
 
     def test_the_worked_example_says_it_was_drafted_by_the_tool_and_is_for_you_to_review(self):
         with open(os.path.join(FIXTURES, "log-demo-notice-idk.json"), encoding="utf-8") as handle:
@@ -469,7 +601,8 @@ class FixtureGuardTests(unittest.TestCase):
         self.assertEqual((example["logged"]["request_id"], example["kind"]), ("503834ae", "RETRIEVAL"))
 
 
-@unittest.skipUnless(os.path.exists(os.path.join(download_model.model_dir(), "onnx", "model.onnx")), "the local embedding model is not downloaded (python scripts/download_model.py)")
+@unittest.skipUnless(all(os.path.exists(os.path.join(download_model.model_dir(), *part)) for part in (("onnx", "model.onnx"), ("tokenizer.json",))),
+                     "the local embedding model is not downloaded (python scripts/download_model.py)")
 class RetrievalGuardTests(unittest.TestCase):
     """For a failure of the RETRIEVAL kind: does retrieval, as the app is configured today, put the passage with the answer in front of the model?
     Real local embedding, exact search, the real corpus. It proves the failure is not back; the generation half is the live eval's job."""
@@ -487,7 +620,7 @@ class RetrievalGuardTests(unittest.TestCase):
                 with isolated_index(embed_provider="local", dense_search="exact", retrieval_mode="dense", top_k=4, boilerplate_min_repeats=0, dedupe_chunks=False):
                     with runner.isolated_index():
                         chunks = retriever.retrieve_for_mode(normalized["question"], settings.top_k, settings.retrieval_mode)
-                self.assertIsNotNone(screen.first_useful_rank(chunks, normalized), "the passage with the answer is not among the top results again")
+                self.assertIsNotNone(failure_to_test.passage_present(normalized, chunks), "the passage with the answer is not among the top results again")
 
 
 if __name__ == "__main__":

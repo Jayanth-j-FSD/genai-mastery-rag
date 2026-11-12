@@ -14,6 +14,9 @@ evals/results/*.tmp
 # the copy a resume keeps of the result it carries on, and a stopped run kept beside an older complete one
 evals/results/*.replaced-*.json
 evals/results/*.incomplete.json
+# a temporary file of the failure tool, left only if it was cut short
+evals/*.json.tmp
+tests/fixtures/**/*.json.tmp
 
 # Local secrets — never commit
 free_keys.txt
