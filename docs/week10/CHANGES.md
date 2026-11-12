@@ -157,7 +157,14 @@ Total: 118 model calls. The only change to a prompt was the researcher's second-
 
 ## Requirement to code, check by check
 
-To be written last, from the final code, with line numbers at the `week-10` tag.
+Function names and line numbers at the `week-10` tag. A check that only you can answer says so in the last column.
+
+| Mentor check | Where it is met | What is left |
+|---|---|---|
+| 1. Raced on the SAME tests? | `scripts/race_team.py:219` (`build_plan`: every task gets every arm in every repeat, repeat by repeat, the arm order rotating); `evals/race.py:99` (`run_one` runs the single agent and the team on the same task, with the same tools and limits); `scripts/race_team.py:268` (`make_meta` records the tasks, limits, corpus hashes and the code stamp) and `:320` (`run_plan` saves after every run); `evals/team_report.py:404` (`paired`) and `:421` (`paired_by_task`) compare the two arms run for run; `tests/unit/test_race_team.py:78` | nothing |
+| 2. All four numbers: quality, speed, tokens, cost? | `evals/team_report.py:807` (quality with its interval), `:829` (model seconds, wall seconds, waiting), `:843` (prompt and completion tokens, the opening and the later calls), `:868` (cost in units for any price ratio) and `:890` (dollars, only with a price you state: `app/pricing.py:30`, `cost_of`); each per arm and per agent from `app/llm.py:112` (`CallScope`) and `:153` (`call_scope`) | the price in dollars is yours to state, with its source |
+| 3. Is the verdict backed by the numbers, even if the team lost? | `evals/team_report.py:750` (`format_report` prints both arms whatever the outcome, with every failed run); the prediction is checked as arithmetic by `evals/team_prediction.py:185` (`check_prediction`; the bands at `:44`; it fails if P1, P2, P3 or P6 does not hold, `:53`) through `scripts/check_team_prediction.py:41`, and it warns if the document or the thresholds changed after the race (`evals/team_prediction.py:218`, `drift_notes`) | the verdict: `docs/week10/findings.md`, section 3 |
+| 4. Can they say when multi-agent is worth it, and when it is not? | `evals/team_report.py:924` (the per-task table by task shape: single lookup, independent parts, sequential), `:963` (every failed run with its answer) and the glossary in `docs/week10/README.md` | the answer: `docs/week10/findings.md`, section 4 |
 
 ## Considered and deferred
 
