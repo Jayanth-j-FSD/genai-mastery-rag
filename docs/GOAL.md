@@ -80,7 +80,8 @@ nothing, so what exists is local branches and annotated tags. `main` was never t
 | 7 | Agent loop by hand, with a fixed workflow to race it against | Tool-calling loop with visible steps and stop limits, HR tasks, fixed workflow, race on speed, cost and reliability | The ship decision |
 | 8 | Agent failure modes, trajectory evals, prompt injection | Path-level scoring, failure labels, an injection test and a defence, one measured fix | Naming what could still get through |
 | 9 | MCP: discover tools, build a server | An MCP client that discovers tools, an HRIS server and a policy-search server, a raw-message demo | Explaining where the AI runs |
-| 10, 11 | Not released yet | Same process once the briefs exist | The briefs |
+| 10 | Multi-agent and A2A: a manager and two specialists raced against the single agent, with evidence and not fashion | The team (a manager, a researcher, a calculator), a race of both designs on the same nine tasks, a report of quality, speed, tokens and cost, a prediction committed before the race | The verdict, when multi-agent is worth it, the prices you state, your reading of the failed runs |
+| 11 | Production: logging, a support drill, cost, one failure turned into a test | A request log with time and cost per step, tools to search and report on it, a support drill, a measured cost improvement with a prediction committed before it, a failure-to-test tool | The drill write-up, the 10x plan, whether the improvement ships, the prices you state |
 
 ### Week 5 hardening (before any later week)
 
@@ -98,8 +99,6 @@ make a reviewer's first run fail, so they are fixed on their own branch with the
 
 ## Dependencies and honest limits
 
-- Weeks 10 and 11 cannot be built until their briefs exist. Building to a guess would break the rule
-  of doing exactly what was asked.
 - Week 6 asks for last week's real failures as tests. Those come from your own Week 5
   notes. Until they exist, the converter is tested against a fixture and the regression set is empty.
 - The free Gemini tier limits requests per minute **and per day, per model**. The flagship alias hit a
@@ -119,4 +118,5 @@ Updated as the work lands. `done` means the gate above passed.
 | Week 7 | done: gate green (482 offline tests, also on a clean export without `.env`); agent loop built by hand, memory, three tools, a fixed workflow, nine HR tasks, and a race on 27 runs per approach that is reported both as raced (agent 26 of 27, workflow 27 of 27) and re-scored under the corrected checks (25 and 24); tag `week-7`. Left for you: which approach to ship, and why (`docs/week7/findings.md`, section 5) |
 | Week 8 | done: gate green (729 offline tests, also on a clean export without `.env`); a grader of the path an agent takes (eight failure modes), three defence layers, a 15-attack injection suite and a per-tool call budget whose prediction was written before it was measured; measured on 33 runs in each of two arms and a noise run: the four judged predictions held (`over-calling` 7 runs to 0, right answers 29 to 31, mean tokens per run 4,861 to 4,392 against a noise floor of 4.8%), the control on a model that never reaches the cap is identical, the defences refused and withheld nothing in 33 live runs, and 8 of 15 attacks worked with the defences off against 2 of 15 with them on; tag `week-8`. Left for you: what could still get through (`docs/week8/findings.md`, section 4) |
 | Week 9 | done: gate green (847 offline tests, also on a clean export without `.env`); a client that discovers its tools over MCP (6 tools on 3 servers, none of them named in the agent), three servers built with fastmcp, a gate that vets what a server tells the model, a raw-message demo and another agent's code calling our server; a live run of an HR question with and without the Week 8 call budget, on `gemini-3-flash-preview`, ended without an answer both times (the model kept searching: 6 of 7 searches returned a result without the cap, 3 of 7 with it), and `docs/week9/findings.md` shows both; tag `week-9`. Left for you: where the AI runs and where it does not (`docs/week9/findings.md`, section 7) |
-| Weeks 10, 11 | waiting for briefs |
+| Week 10 | done: gate green (1,383 offline tests, also on a clean export without `.env`); a manager and two specialists raced against the single agent on the nine tasks, three repeats each (54 runs on `gemini-3.5-flash-lite`), with the prediction committed before the race: P1 to P9 held and P10 did not, so the prediction as a whole did not fail (`python scripts/check_team_prediction.py wk10`); tag `week-10`. Left for you: the verdict, when multi-agent is worth it, the prices you state, your reading of the failed runs (`docs/week10/findings.md`, sections 3 to 6) |
+| Week 11 | in progress |
