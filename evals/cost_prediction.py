@@ -5,7 +5,8 @@ improvement (CONTEXT_STRIP_MIN_REPEATS=10) should make a request and what would 
 sentences into arithmetic over the saved measurement (scripts/measure_cost.py), so nobody has to decide afterwards whether it held.
 The numbers below are copied from that document and change only if it does, and it was committed before the first live request.
 
-Whether the improvement ships is your decision and no check here makes it. Every prediction is about a MEASURED quantity.
+Whether the improvement ships is your decision and no check here makes it. Every prediction is about a MEASURED quantity. Each ratio is
+compared to two decimals, as it is printed.
 
 Where the bands come from. The free screen (scripts/estimate_context_savings.py, no model calls) says the strip removes 17.9% of the
 prompt's characters on the 41 eval questions and 27.2% on 30 questions drawn from the Week 5 bank with seed 42 (retrieval dense,
@@ -117,7 +118,7 @@ def _p1(rows):
     low, high = TOKEN_BANDS["eval"]
     if ratio is None:
         return _row("P1", None, "no eval question was answered by every arm with token counts", decidable=False)
-    return _row("P1", low <= round(ratio, 2) <= high, f"mean prompt tokens {before:.1f} before, {after:.1f} after: ratio {ratio:.2f} on {n} questions, band {low} to {high}")
+    return _row("P1", low <= round(ratio, 2) <= high, f"mean prompt tokens {before:.1f} before, {after:.1f} after: ratio {ratio:.2f} on {n} questions, band {low:.2f} to {high:.2f}")
 
 
 def _p2(rows, meta):
@@ -127,7 +128,7 @@ def _p2(rows, meta):
     ratio, n, before, after = _token_ratio(rows, "bank")
     if ratio is None:
         return _row("P2", None, "no bank question was answered by every arm with token counts", decidable=False)
-    return _row("P2", low <= round(ratio, 2) <= high, f"mean prompt tokens {before:.1f} before, {after:.1f} after: ratio {ratio:.2f} on {n} questions, band {low} to {high}")
+    return _row("P2", low <= round(ratio, 2) <= high, f"mean prompt tokens {before:.1f} before, {after:.1f} after: ratio {ratio:.2f} on {n} questions, band {low:.2f} to {high:.2f}")
 
 
 def _p3(rows):
@@ -147,7 +148,7 @@ def _p4(rows):
     low, high = COMPLETION_BAND
     if ratio is None:
         return _row("P4", None, "no eval question was answered by every arm with token counts", decidable=False)
-    return _row("P4", low <= round(ratio, 2) <= high, f"mean completion tokens {before:.1f} before, {after:.1f} after: ratio {ratio:.2f} on {n} questions, band {low} to {high}")
+    return _row("P4", low <= round(ratio, 2) <= high, f"mean completion tokens {before:.1f} before, {after:.1f} after: ratio {ratio:.2f} on {n} questions, band {low:.2f} to {high:.2f}")
 
 
 def _p5(rows):

@@ -84,6 +84,6 @@
   }
  },
  "why": null,
- "drafted_by": "the failure tool, to be reviewed by you",
+ "drafted_by": "drafted by scripts/failure_to_test.py, to be reviewed by you",
  "worked_example": true
 }

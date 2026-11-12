@@ -242,7 +242,7 @@ def main(argv=None):
                           # where the correct answer came from: a request of the log, and whether it answered this question, or the hand that wrote it
                           "corrected": {"from": good["id"] if args.corrected_from else None, "by_hand": bool(args.corrected_answer),
                                         "same_question": bool(args.corrected_from) and " ".join(good["question"].lower().split()) == " ".join(record["question"].lower().split())}},
-               "why": args.why, "drafted_by": "the failure tool, to be reviewed by you" if args.worked_example else "converted with scripts/failure_to_test.py",
+               "why": args.why, "drafted_by": "drafted by scripts/failure_to_test.py, to be reviewed by you" if args.worked_example else "converted with scripts/failure_to_test.py",
                "worked_example": bool(args.worked_example)}
 
     print(f"case {case_id}: {record['question']}")

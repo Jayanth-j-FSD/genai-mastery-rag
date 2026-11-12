@@ -54,20 +54,36 @@ def tracked_week11_files():
     return sorted(set(found))
 
 
+# A drive letter and a slash (the letter standing alone, so the "s:/" of a web address is not one), a file URL, a home folder.
+MACHINE = re.compile("(?<![A-Za-z0-9_])[A-Za-z]:[" + chr(92) + chr(92) + "/]|file:///|/Users/|/home/")
+ADDRESS = re.compile(r"[\w.+-]+@[\w-]+\.(?!example\b)[\w.]+")        # an address, except one at a name ending in .example
+CURLY_QUOTES = [chr(0x2018), chr(0x2019), chr(0x201C), chr(0x201D)]
+
+
 class DocumentHygieneTests(unittest.TestCase):
+    def test_a_web_address_is_not_a_place_on_a_machine_but_a_drive_a_file_url_and_a_home_folder_are(self):
+        for fine in ("https://ai.google.dev/gemini-api/docs/pricing", "http://example.org/a", "see https://x.test and ftp://y.test"):
+            self.assertIsNone(MACHINE.search(fine), fine)
+        for bad in ("C:" + chr(92) + "Users" + chr(92) + "x", "d:/work/x", "a path (C:/x)", "file:///tmp/x", "/Users/someone/x", "/home/someone/x"):
+            self.assertIsNotNone(MACHINE.search(bad), bad)
+
+    def test_an_address_at_a_name_ending_in_example_is_allowed_and_any_other_is_not(self):
+        self.assertIsNone(ADDRESS.search("report it to security@northwind.example within an hour"))
+        self.assertIsNotNone(ADDRESS.search("write to someone@company.com"))
+
     def test_no_em_dash_machine_path_file_url_or_personal_address_in_what_the_week_commits(self):
         paths = tracked_week11_files()
         self.assertTrue(any(p.endswith("prediction.md") for p in paths))
-        machine = re.compile("[A-Za-z]:[" + chr(92) + chr(92) + "/]|file:///|/Users/|/home/")      # a drive letter and a slash, a file URL, a home folder
-        address = re.compile(r"[\w.+-]+@[\w-]+\.(?!example)[\w.]+")
         for path in paths:
             with open(path, encoding="utf-8") as handle:
                 text = handle.read()
             name = os.path.relpath(path, ROOT)
             self.assertNotIn(chr(0x2014), text, f"{name} has an em dash")
             self.assertNotIn(chr(0x2013), text, f"{name} has an en dash")
-            self.assertIsNone(machine.search(text), f"{name} names a place on a machine")
-            self.assertIsNone(address.search(text), f"{name} holds an address")
+            for quote in CURLY_QUOTES:
+                self.assertNotIn(quote, text, f"{name} has a curly quote (U+{ord(quote):04X})")
+            self.assertIsNone(MACHINE.search(text), f"{name} names a place on a machine")
+            self.assertIsNone(ADDRESS.search(text), f"{name} holds an address")
 
     def test_nothing_in_the_agent_machinery_reads_the_drill(self):
         agent = os.path.join(ROOT, "app", "agent")

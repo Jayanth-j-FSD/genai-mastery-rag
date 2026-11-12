@@ -79,6 +79,8 @@ class DocumentTests(unittest.TestCase):
     def test_the_document_says_it_was_written_before_the_first_request_and_who_decides_to_ship(self):
         self.assertIn("before any request was sent to the model", self.document)
         self.assertIn("which is your decision", self.document)
+        self.assertIn("Each ratio is compared to two decimals, as the check prints it", self.document)
+        self.assertIn("compared to two decimals", self.module_text)
         self.assertNotIn(chr(0x2014), self.document)               # no em dash in the document
 
 
@@ -91,6 +93,7 @@ class BandTests(unittest.TestCase):
     def test_p1_compares_the_ratio_as_it_is_printed(self):
         self.assertTrue(verdict_row(build(after_prompt=749), "P1")["held"])       # 0.749 prints as 0.75, which is inside the band
         self.assertIn("ratio 0.75", verdict_row(build(after_prompt=749), "P1")["evidence"])
+        self.assertIn("band 0.75 to 0.90", verdict_row(build(after_prompt=749), "P1")["evidence"])          # the band is printed the way the document writes it
 
     def test_p2_is_only_read_when_enough_bank_questions_were_asked(self):
         self.assertFalse(verdict_row(build(bank=10), "P2")["decidable"])

@@ -2,9 +2,9 @@
 
 ## The task (from the brief)
 
-*Make the app observable: log every request so any past answer can be found, with the time and the cost of each step and not
-just one total. Run a support drill ("find the wrong notice period in the logs"): a planted bad answer, found from a vague
-complaint. Measure what a request costs and make ONE improvement. Turn one real failure into a test that now guards against it.*
+*Add proper logging to your app so you can find any past answer, then practise finding a planted bad answer from a vague complaint.
+Measure your cost per request, make one improvement, and turn one real failure into a permanent test.* The track line for HR
+policy: *find the wrong notice period in the logs.*
 
 In plain words: until now the app answered and forgot. This week every request leaves a record of its steps, so a complaint
 a week later can be answered from the log; the cost of a request is measured and cut once, with the answer quality checked
@@ -12,17 +12,19 @@ alongside; and a failure found in the log is kept as a test so it cannot quietly
 
 ## Definition of done: the mentor's four questions
 
-1. Can you find a specific past answer from the logs quickly?
+1. Can they find a specific past answer from the logs quickly?
 2. Do the logs show time and cost per step, not just one total?
-3. Did you measure cost per request and improve it?
-4. Did you turn a real failure into a test that now guards against it?
+3. Did they measure cost per request and improve it?
+4. Did they turn a real failure into a test that now guards against it?
+
+Copied word for word from the brief.
 
 ## What was built, and which check it serves
 
 | Piece | File | Serves |
 |---|---|---|
 | A request id and one timed record per step (embedding the question, each search, the model call), with the model step's time split into time at the provider and time waiting for the rate limit, and the tokens the provider reported | `app/observability.py`, hooks in `app/rag/pipeline.py`, `retriever.py`, `generator.py` | 2 |
-| The request log: one JSON line per answered request, now with the request id, the steps, the tokens, the documents cited and why it refused; a failed request goes to `errors.jsonl` (kind of failure and HTTP status, never the message or the question); safe for several threads and several processes | `app/tracing.py` | 1, 2 |
+| The request log: one JSON line per answered request, now with the request id, the steps, the tokens, the documents listed as sources and why it refused; a failed request goes to `errors.jsonl` (kind of failure and HTTP status, never the message or the question); safe for several threads and several processes | `app/tracing.py` | 1, 2 |
 | The request id on every `/ask` answer and on every error the API maps to a status (400, 429, 502) in an `X-Request-ID` header, an optional `X-Caller-ID`, and the id printed by `scripts/ask.py` | `app/main.py`, `scripts/ask.py`, `scripts/ask_batch.py` | 1 |
 | Finding a request: by words, an answer pattern, a time window, the document cited or retrieved from, status, channel, id prefix, how slow, how costly; groups identical answers; reads one request step by step | `scripts/find_requests.py`, `evals/logsearch.py` | 1, 2 |
 | The cost report: per step across many requests (time, provider time apart from waiting, tokens), per request (tokens first, then time, then dollars at prices you state), two logs side by side, a saved measurement | `scripts/cost_report.py`, `evals/costreport.py` | 2, 3 |

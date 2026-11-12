@@ -5,6 +5,9 @@ before this week still reads, `pipeline.answer` still returns its four keys, `PO
 a trace id is still eight hex digits, and a case without the new keys is scored exactly as before. What was measured, and
 the verdict on the prediction, are in `findings.md`; the numbers here are only the ones a script printed.
 
+**Left for you.** The drill write-up, the plan for 10x the traffic, whether the improvement ships, the prices you state and where they come from,
+and the failure you convert into a test and why it is real are blank in `findings.md`.
+
 ## What was added
 
 - `app/observability.py`: the request and its steps. A request context that always closes and keeps its id readable after it ends;
@@ -97,7 +100,7 @@ diagnose runs). `tokens_known` is false, and the totals are lower bounds, when a
 
 | Idea | Why it was left, and what the log already holds toward it |
 |---|---|
-| OpenTelemetry and hosted tracers (LangSmith and others) | Each needs a collector or an account, and the lines already carry the shape: a request is a trace, a step is a span with a start and a duration, the model step carries the requested and served model and the input and output tokens. As I know them the OpenTelemetry GenAI conventions name these `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens`; check the current names before relying on this. An exporter would be a short function over the log. |
+| OpenTelemetry and hosted tracers (LangSmith and others) | Each needs a collector or an account, and the lines already carry the shape: a request is a trace, a step is a span with a start and a duration, the model step carries the requested and served model and the input and output tokens. The OpenTelemetry GenAI conventions name these `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens`; check the current names before relying on this. An exporter would be a short function over the log. |
 | Prompt caching (the provider reuses an identical prefix) | It happens on the provider's side and is not controlled from here; the model step records `cached_tokens` when the provider reports it, so a saving would show in the log without any code. The instructions are a stable prefix; the passages change per question. |
 | Semantic or exact answer caching | Whether it pays depends on how often the same question repeats, which the log answers (`find_requests.py --distinct-answers` groups identical answers). The eval runner already has an exact-input cache for offline runs. Not built until the repeat rate says it is worth the staleness risk. |
 | Model routing (for example through LiteLLM) | Needs two models and evidence that the cheaper one is good enough on some questions; the Week 6 eval is the instrument for that evidence. One model on a free tier. |
@@ -106,13 +109,9 @@ diagnose runs). `tokens_known` is false, and the totals are lower bounds, when a
 | A data flywheel | The loop exists in small: a failure found in the log becomes a case that guards the next change. Automating the finding is the part not built. |
 | Log retention and redaction | Logs grow until deleted and hold the full text of questions and passages. The folders are ignored by git; nothing deletes or redacts them. |
 
-## Left for you
-
-The drill write-up, the prices used and where they come from, what the measurement means and whether the improvement ships, the failure converted and why it is real, and the 10x plan, all in `findings.md`.
-
 ## The measured results
 
-Written when the measurement is done; the generated output is in `findings.md`.
+Not measured yet. The command that fills this section is `python scripts/measure_cost.py --label w11 --model <model> --bank 30 --seed 42` (look first with `--dry-run`), then `python scripts/check_cost_prediction.py w11`; the generated output goes in `findings.md`.
 
 ## Requirement to code, check by check
 
