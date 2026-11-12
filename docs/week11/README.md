@@ -26,7 +26,7 @@ Copied word for word from the brief.
 | A request id and one timed record per step (embedding the question, each search, the model call), with the model step's time split into time at the provider and time waiting for the rate limit, and the tokens the provider reported | `app/observability.py`, hooks in `app/rag/pipeline.py`, `retriever.py`, `generator.py` | 2 |
 | The request log: one JSON line per answered request, now with the request id, the steps, the tokens, the documents listed as sources and why it refused; a failed request goes to `errors.jsonl` (kind of failure and HTTP status, never the message or the question); safe for several threads and several processes | `app/tracing.py` | 1, 2 |
 | The request id on every `/ask` answer and on every error the API maps to a status (400, 429, 502) in an `X-Request-ID` header, an optional `X-Caller-ID`, and the id printed by `scripts/ask.py` | `app/main.py`, `scripts/ask.py`, `scripts/ask_batch.py` | 1 |
-| Finding a request: by words, an answer pattern, a time window, the document cited or retrieved from, status, channel, id prefix, how slow, how costly; groups identical answers; reads one request step by step | `scripts/find_requests.py`, `evals/logsearch.py` | 1, 2 |
+| Finding a request: by words, an answer pattern, a time window, the document cited or retrieved from, status, channel, id prefix, how slow, how costly; groups identical answers; reads one request step by step, with each step's time, tokens and dollars at the prices you state, and each passage in full with `--full` | `scripts/find_requests.py`, `evals/logsearch.py` | 1, 2 |
 | The cost report: per step across many requests (time, provider time apart from waiting, tokens), per request (tokens first, then time, then dollars at prices you state), two logs side by side, a saved measurement | `scripts/cost_report.py`, `evals/costreport.py` | 2, 3 |
 | The support drill: a synthetic log with one wrong notice answer planted in it, a vague complaint, and a five-guess checker | `scripts/make_drill.py`, `scripts/check_drill.py`, `evals/drill.py` | 1 |
 | The one improvement: take the lines a document repeats out of what the model is shown (`CONTEXT_STRIP_MIN_REPEATS`, off by default) | `app/rag/generator.py`, `app/config.py` | 3 |
@@ -45,7 +45,7 @@ is still a complete record and every tool reads it; it just has no steps.
 .\.venv\Scripts\python.exe scripts\ask.py "How much notice must a permanent employee give before resigning?"   # prints the request id
 .\.venv\Scripts\python.exe scripts\find_requests.py --text notice                                          # find it again
 .\.venv\Scripts\python.exe scripts\find_requests.py --id <id> --show                                       # its steps as a table
-.\.venv\Scripts\python.exe scripts\cost_report.py --price-in <usd> --price-out <usd> --price-source "<where>"   # time and cost per step
+.\.venv\Scripts\python.exe scripts\cost_report.py --price-in <usd> --price-out <usd> --price-source "<where>"   # time and tokens per step, dollars per request
 
 .\.venv\Scripts\python.exe scripts\make_drill.py                                                          # build the support drill
 .\.venv\Scripts\python.exe scripts\find_requests.py --drill <drill id> --text notice --distinct-answers
@@ -89,10 +89,10 @@ One line per answered request in `data/traces/traces.jsonl`. The keys Weeks 3 to
 | `request_id` | 16 hex digits; the first 8 are the `trace_id` the older lines have |
 | `started_at`, `ts_utc`, `total_ms` | when it started (local and UTC) and how long the whole request took |
 | `channel`, `caller` | how it arrived (`api`, `cli`, `batch`, `measure`) and the optional `X-Caller-ID` |
-| `spans` | one record per step: `name`, `kind` (`embed`, `retrieve`, `model`), `start_ms`, `duration_ms`, `status`, and for the model step `provider_ms`, `wait_ms`, `attempts`, `model_requested`, `model_served`, `prompt_tokens`, `completion_tokens`, `tokens_known`, `cost_usd` |
-| `usage` | the request's tokens (the sum of its model steps) and `tokens_known`, false when any call reported none: the sums are then lower bounds |
+| `spans` | one record per step: `span_id`, `name`, `kind` (`embed`, `retrieve`, `model`), `start_ms`, `duration_ms`, `status`, `error` (the class of the exception when the step failed) and `cold` (the first step of its kind in a process). The embed step adds `provider`, `cost_usd` (0.0 for a local model) and `cost_basis`; the search step `mode` and `top_k`; the model step `model_requested`, `model_served`, `provider_ms`, `wait_ms`, `attempts`, `tokens_known`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `cached_tokens`, `reasoning_tokens`, `cost_usd` and, when a price is set, `prices` |
+| `usage` | `model_calls`, the request's tokens (the sum of its model steps), `provider_ms`, `wait_ms`, and `tokens_known`, false when any call reported none: the sums are then lower bounds |
 | `sources`, `status`, `refusal_cause` | the documents the app listed as sources (when the model wrote no `[source: ...]` tag the app lists every retrieved document, so `find_requests.py` reads what an answer CITED from its tags and shows the listed ones apart), `ok` or `refused`, and why it refused (`no_chunks`, `below_min_relevance`, `empty_reply`, `model_idk`, `context_all_repeated`, or `unknown` when a refusal reached the end with no cause noted) |
-| `index_id`, `prompt_sha`, `chars` | which index answered, a hash of the instructions, and how many characters of the prompt were instructions, passages and question, and how many were stripped |
+| `index_id`, `prompt_sha`, `chars` | which index answered (the number of chunks and a short hash of the documents: an index rebuilt by another process with the same number of chunks is not noticed until this process restarts), a hash of the instructions, and how many characters of the prompt were instructions, passages and question, and how many were stripped |
 
 Two rules the log keeps, because a log that gets them wrong is worse than none. Spans are steps, not groups of steps, so they do
 not overlap and their durations add up to at most the request's time. And the model step keeps the waiting apart: on a free tier most
@@ -118,17 +118,20 @@ used, labelled an assumption. With no price it is `null`: unknown is not free.
   (find it with `find_requests.py --status error --since ...`); a request the API rejects before the pipeline (a malformed body, HTTP 422) leaves no record.
 - There is no automatic deletion: logs grow until you delete the file. Writing is thread-safe in one process and, with an operating-system
   lock on a side file, safe across processes; a writer that cannot get the lock within two seconds drops its line, prints a warning and
-  counts it, instead of making the user wait.
+  counts it in memory (`tracing.dropped_records()`; nothing reads that count yet), instead of making the user wait.
 - Logging never breaks answering: every piece that runs while a request is answered catches its own failure, says so once and carries on.
 
 ## The support drill
 
 `make_drill.py` writes about 3000 synthetic requests over four weeks, shaped like the real ones (the same keys, steps and kinds of numbers,
 real passages of the corpus), a vague complaint, and a hash that lets `check_drill.py` tell whether a guess is the planted request. Among the
-notice-period answers, which differ by company and status, exactly one states a figure that no document states. Each question gets answers that really
-answer it, in several wordings, and some right answers are as rare as the planted one: being rare is not what gives it away, only a figure checked against
-the document the answer cites does (and the passages the log shows for that request). The kit refuses to build if its own decoys state something the corpus no
-longer says, or if it did not plant exactly one wrong answer. Every request in a drill says it is synthetic, and so does the complaint. The checker tells a
+notice-period answers, which differ by company and status, exactly one states a figure that the document it cites does not state: in some drills a figure no
+document states, in the others one the other document does. Each question gets answers that really answer it, in several wordings. The planted answer is worded
+like right answers that state a different, right figure; some right answers are as rare as it is and sit inside the complaint's window and under the document the
+complaint names (by the file name the log cites, so a `--cited` filter can be written from it); and its day, hour and channel are drawn like everyone else's. So
+the rarity of an answer, its wording and its place in the log do not give it away. An unusual figure can, in the drills where no document states it; whether an
+answer is wrong is settled only by reading the document it cites, and `find_requests.py --id <id> --show --full` prints the passages the log shows for that
+request without cutting them. The kit refuses to build if its own decoys state something the corpus no longer says, or if it did not plant exactly one wrong answer. Every request in a drill says it is synthetic, and so does the complaint. The checker tells a
 log that was edited from a wrong guess and does not charge for it, and does not charge twice for the same wrong id. It is an honour system, and says so.
 Finding the request and writing down what you looked at is yours.
 

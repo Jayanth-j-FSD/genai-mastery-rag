@@ -20,16 +20,22 @@ and the failure you convert into a test and why it is real are blank in `finding
   that take another log's path. The record builder was factored out of `log_trace` so the drill builds its lines from the same code.
 - `app/main.py`, `scripts/ask.py`, `scripts/ask_batch.py`: the request id in an `X-Request-ID` header on answers and on every mapped
   error, an optional `X-Caller-ID`, and the channel a request arrived by.
+- `app/rag/pipeline.py`, `app/rag/retriever.py`: the request context around `answer`, the timed steps (embedding the question, each search, the model call), the
+  error record of a request that failed, the id of the index that answered, the refusal cause and the documents cited and listed.
 - `app/llm.py`: the per-call record says whether the provider reported usage at all (`usage_reported`), so a call that reported nothing
   is not read as a call that cost nothing. The five-key usage dict is untouched.
-- `scripts/find_requests.py`, `evals/logsearch.py`: finding a request.
+- `scripts/find_requests.py`, `evals/logsearch.py`: finding a request (`--full` prints a passage whole; a log of a drill or a dry run carries a banner; a log that
+  cannot be read is an error line).
 - `scripts/cost_report.py`, `evals/costreport.py`: the cost report.
 - `scripts/make_drill.py`, `scripts/check_drill.py`, `evals/drill.py`: the support drill.
 - `CONTEXT_STRIP_MIN_REPEATS` in `app/config.py` and `app/rag/generator.py` (`strip_context` and its helpers), `evals/runner.py` (the cache key):
   the improvement.
 - `scripts/estimate_context_savings.py`, `evals/context_savings.py`, `evals/bank.py`: the free screen and the question bank sample.
-- `scripts/measure_cost.py`, `evals/cost_run.py`: the measurement.
+- `scripts/measure_cost.py`, `evals/cost_run.py`: the measurement (`--resume` carries a stopped one on, `--allow-unregistered` measures under settings the
+  prediction was not registered for).
 - `docs/week11/prediction.md`, `evals/cost_prediction.py`, `scripts/check_cost_prediction.py`: the prediction and its check.
+- `.gitignore`: the folders that hold request text, the copies a resume and a forced run keep beside a result, and the failure tool's temporary files.
+- `tests/unit/_testkit.py`: `isolated_index` pins the context strip off, so a value in `.env` cannot decide what a test sees.
 - `scripts/failure_to_test.py`, `evals/logged_failures.json` (created by the tool when a failure is converted), `tests/fixtures/log_regressions/`,
   `forbid_contains` in `evals/checks.py`, `load_logged_failures` in `evals/cases.py`: a failure becomes a test.
 
@@ -89,6 +95,18 @@ and the failure you convert into a test and why it is real are blank in `finding
     "45 days" from "not 45 days", which is said where it is defined), the new case file is separate from the Week 5 regressions, and
     a case with no expectations is refused at load because it would silently become a refusal case and pass the failure it came from.
 
+15. **A resume never leaves a label without its result, and only a change to what decides the answers stops it.** The check runs before any file is touched and, when
+    it refuses, says what differs and leaves the saved result where it was. A copy of the result is kept beside it, not a move, so a stop at any moment leaves the
+    label with its result. What is compared is a hash of the files under `app`, the scoring and measuring modules and the corpus, not the commit: a test, a doc, a
+    saved result or a converted failure committed between a stop and its resume does not stop it. A last save that fails is an error with the way on, never a
+    "saved".
+16. **The prediction is registered with its conditions.** The bands come from a screen at retrieval dense, `TOP_K=4`, local embeddings, 800/120 chunks, no dedupe, no
+    boilerplate strip, exact search, 432 chunks and the 41 eval questions plus 30 bank questions drawn with seed 42. A real run under other settings stops before the
+    first request and names each difference, and the check gives no verdict to a measurement made under other settings, on another index or on other questions.
+17. **The planted answer does not stand out by how it is placed or worded.** Right answers as rare as it sit inside the complaint's window and under the document the
+    complaint names; it is worded like right answers that state another, right figure; its day, hour and channel are drawn like everyone else's; and its figure is, in
+    some drills, one the other document states. What is left is the figure itself and the document it cites, which is the check the drill is for.
+
 ## What the log can and cannot say
 
 It can say which step took the time and how much of a model call was waiting; how many tokens a request used when the provider said; which
@@ -135,6 +153,23 @@ Written at the tag, with the function names and line numbers of that tag.
 - The failure tool proves a case against the correct answer you give it; whether the live model would give that answer is shown only by a live run.
 - New log lines are written with LF; Weeks 3 to 10 wrote CRLF on Windows. Readers accept both. A `traces.jsonl.lock` file appears beside each log.
 - `scripts/check_all.py` compiles every file in one command line, which can exceed Windows' limit in a very long checkout path.
+- Several tests of Weeks 7 to 10 read settings from the environment (the price settings, `LLM_RPM`, `AGENT_MAX_STEPS`, `AGENT_MAX_CALLS_PER_TOOL`), so a value in `.env` or
+  the shell can fail them. The Week 11 tests pin what they read; the older ones are not touched here.
+- The bands in `prediction.md` were derived from the mean of the per-question saved shares the screen prints (17.9% on the eval questions, 27.2% on the bank draw), and
+  P1 and P2 test the ratio of mean prompt tokens; the same screen prints the means in characters (3131 to 2617 and 2921 to 2148), which give somewhat different ratios.
+  The registered bands contain the range from either, so no verdict depends on it, and the document is left as it was registered. Idea C's 9.8% is a mean over all
+  71 questions, printed beside idea A's figures per kind.
+- A line of a drill still differs from a real one in ways its shape test cannot see: the order of its keys (`refusal_cause` comes after `origin`), ids that are random
+  hex digits and not the start of a version-4 UUID, a `config` that holds today's `top_k` and chunk sizes, and `meta.window.end`, which is an exclusive bound. None of
+  them touches the planted request, which is built like every other.
+- Every record the log tools read keeps its raw line, so reading a log holds about three times its size in memory. The per-step table of `cost_report.py` has no dollar
+  column (dollars are per request there and per step in `find_requests.py --show`), and the report ignores the total, cached and reasoning tokens the app records, so its
+  dollars are prompt plus completion tokens at the prices you state.
+- `--cited` finds the documents an answer names in its own tags; when the model wrote no tag the app lists every retrieved document as the sources, and only
+  `--retrieved-from` finds those requests (together with every other request that retrieved the document).
+- Some outputs of the measurement are checked only through the larger tests: the layout of the summary table and the plan line, and the `dirty` flag of the code stamp.
+  Some edges of the logging core are too: the served model of a step is the last call's, the times of a step are sums over its calls, and the default two-second lock wait.
+- The offline retrieval guard of the failure tool skips when the local embedding model is not downloaded; `scripts/check_all.py --strict` refuses a skipped test.
 
 - Characters are not tokens. The free screen reports characters; tokens follow them to a first approximation and the measurement reports tokens.
 - The repeats are counted from the stored chunks, not the original documents, so a line in an overlap counts twice.

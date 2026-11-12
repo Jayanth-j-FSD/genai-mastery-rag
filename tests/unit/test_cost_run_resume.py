@@ -52,8 +52,17 @@ class ResumeTests(test_cost_run.MeasureCase):
         self.assertEqual([r["request_id"] for r in resumed["rows"][:3]], [r["request_id"] for r in first["rows"]])        # the kept rows are the first part's, untouched
         self.assertEqual(len(resumed["meta"]["resumed"]), 1)
         self.assertEqual(resumed["meta"]["resumed"][0]["kept_rows"], 3)
+        self.assertEqual(resumed["meta"]["resumed"][0]["max_calls"], 400)
         self.assertEqual(resumed["meta"]["calls_spent"], first["meta"]["calls_spent"] + 6)
         self.assertEqual(resumed["meta"]["started"], first["meta"]["started"])
+
+    def test_a_question_that_was_finished_in_the_first_part_is_not_reported_again_by_the_resume(self):
+        first = self.first_part([None, None, None, quota()])
+        lines = []
+        with mock.patch.object(llm, "_get_client", return_value=Citing()):
+            cost_run.run(cost_run.make_items(CASES, []), self.arms, "t", "served-model", self.out, save=None, say=lines.append, prior=first)
+        progress = [line for line in lines if line.startswith("[")]
+        self.assertEqual([line[:8] for line in progress], ["[  2/3] ", "[  3/3] "])
 
     def test_requests_that_failed_are_set_aside_in_the_result_and_asked_again(self):
         first = self.first_part([None, refuse(), None, None, refuse(), None, None, None, None])

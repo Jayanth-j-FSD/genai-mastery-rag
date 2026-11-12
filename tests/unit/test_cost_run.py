@@ -190,7 +190,29 @@ class RunTests(MeasureCase):
         self.assertFalse(results["meta"]["complete"])
         self.assertEqual(len(results["rows"]), 4)
         self.assertIn("--max-calls", results["meta"]["stopped_because"])
+        self.assertIn("the budget of 4 model calls", results["meta"]["stopped_because"])           # the budget that was set, not the number spent
         self.assertEqual(results["meta"]["calls_spent"], 4)
+
+    def test_the_progress_line_shows_each_question_with_a_sign_for_its_rule_check_and_the_summary_a_column_for_refusals(self):
+        lines = []
+        with mock.patch.object(llm, "_get_client", return_value=Citing()):
+            results = cost_run.run(cost_run.make_items(CASES, []), self.arms, "t", "served-model", self.out, save=None, say=lines.append)
+        progress = [line for line in lines if line.startswith("[")]
+        self.assertEqual(len(progress), 3)
+        self.assertRegex(progress[0], r"^\[  1/3\] notice\s+before=\d+tok\+")                  # the answer passed its rule check: +
+        self.assertRegex(progress[2], r"bonus\s+.*before=\d+tok-")                                 # an answer to an unanswerable question did not: -
+        self.assertIn("refused", "\n".join(cost_run.format_summary(results)).splitlines()[2])
+        self.assertEqual(cost_run._cell({"status": "ok", "prompt_tokens": 12, "passed": None}), "12tok")
+        self.assertEqual(cost_run._cell({"status": "ok", "prompt_tokens": None, "passed": False}), "?tok-")
+        self.assertEqual(cost_run._cell({"status": "error", "error_class": "X"}), "ERROR(X)")
+
+    def test_the_index_the_measurement_ran_on_is_counted_and_a_file_can_be_fingerprinted(self):
+        results, _ = self.run_with(Citing())
+        self.assertEqual(results["meta"]["chunk_count"], 5)
+        path = os.path.join(self.out, "f.txt")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("abc")
+        self.assertRegex(cost_run.digest(path), r"^[0-9a-f]{12}$")
 
     def test_a_used_up_daily_quota_stops_the_run_keeps_what_finished_and_names_the_cause(self):
         client = Citing(fail_with=[None, None, None, status_error(openai.RateLimitError, 429, DAILY_BODY)])
@@ -314,7 +336,7 @@ class BankDrawTests(unittest.TestCase):
         def spy(cases, count, seed, path=None):
             seen.append((len(cases), count, seed))
             raise ValueError("stop here, the draw is what is being looked at")
-        with mock.patch.object(bank, "draw", side_effect=spy), mock.patch.object(settings, "embed_provider", "local"), contextlib.redirect_stdout(io.StringIO()):
+        with mock.patch.object(bank, "draw", side_effect=spy), mock.patch.object(settings, "embed_provider", "local"),                 mock.patch.object(settings, "context_strip_min_repeats", 0), contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(ValueError):
                 measure_cost.main(["--label", "t", "--dry-run", "--bank", "30", "--seed", "42"])
             estimate_context_savings.main(["--bank", "30", "--seed", "42"])
