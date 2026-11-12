@@ -10,6 +10,7 @@ from unittest import mock
 import _testkit
 from app.agent import display
 from app.agent.loop import AgentRun
+from app.agent.team import TeamRun
 from evals import race, runner
 
 sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))
@@ -61,6 +62,13 @@ class ShowStepTests(unittest.TestCase):
                 self.assertIn(reason, text)
                 self.assertNotIn("argument guard", text)
 
+    def test_a_team_step_is_led_by_its_agent_and_hand_off_number(self):
+        manager = dict(step("final"), agent="manager", handoff=None)
+        researcher = dict(step("final"), agent="researcher", handoff=2)
+        self.assertIn("--- manager ---", captured(display.show_team_step, manager)[1])
+        self.assertIn("--- researcher #2 ---", captured(display.show_team_step, researcher)[1])
+        self.assertIn("FINAL ANSWER", captured(display.show_team_step, researcher)[1])
+
     def test_a_long_result_is_cut_to_one_readable_line(self):
         text = captured(display.show_step, step("tool", [tool_call(observation="word " * 200)]))[1]
         line = [row for row in text.splitlines() if "RESULT" in row][0]
@@ -100,6 +108,42 @@ class RunAgentScriptTests(unittest.TestCase):
         self.assertEqual(code, 0)
         flow.assert_called_once()
         agent.assert_not_called()
+
+    def test_the_team_flag_runs_the_team_and_says_what_each_agent_spent(self):
+        crew = TeamRun(question="q", answer="done. [source: a.md]", stop_reason="final", steps=[step("final")], elapsed_seconds=2.0, model="m",
+                       usage={"calls": 3, "prompt_tokens": 300, "completion_tokens": 30, "api_seconds": 2.0},
+                       team={"per_agent": {"manager": {"calls": 2, "prompt_tokens": 200, "completion_tokens": 20, "handoffs": 0},
+                                           "researcher": {"calls": 1, "prompt_tokens": 100, "completion_tokens": 10, "handoffs": 1},
+                                           "calculator": {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "handoffs": 0}},
+                             "handoffs": []})
+        with mock.patch.object(run_agent.team, "run_team", return_value=crew) as running, \
+                mock.patch.object(run_agent.loop, "run_agent") as agent:
+            code, text = captured(run_agent.main, ["--team", "--max-steps", "5", "q"])
+        self.assertEqual(code, 0)
+        agent.assert_not_called()
+        self.assertEqual(running.call_args.kwargs["max_steps"], 5)
+        self.assertIs(running.call_args.kwargs["on_step"], display.show_team_step)
+        self.assertIn("manager     2 model call(s), 220 tokens\n", text)
+        self.assertIn("researcher  1 model call(s), 110 tokens, 1 hand-off(s)", text)
+        self.assertNotIn("calculator", text)                                      # an agent that did nothing is not listed
+
+    def test_a_team_code_bug_or_a_usage_warning_is_printed_and_not_left_inside_the_run_record(self):
+        crew = TeamRun(question="q", answer="done", stop_reason="final", steps=[step("final")], elapsed_seconds=1.0, model="m",
+                       usage={"calls": 1, "prompt_tokens": 10, "completion_tokens": 1, "api_seconds": 1.0},
+                       team={"per_agent": {}, "handoffs": [], "warnings": ["usage mismatch: 3 calls against 4"],
+                             "errors": [{"agent": "researcher", "type": "KeyError"}]})
+        with mock.patch.object(run_agent.team, "run_team", return_value=crew):
+            code, text = captured(run_agent.main, ["--team", "q"])
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING: usage mismatch: 3 calls against 4", text)
+        self.assertIn("WARNING: a hand-off failed on a bug in the team code (KeyError in the researcher).", text)
+
+    def test_the_team_flag_cannot_be_combined_with_switches_the_team_does_not_have(self):
+        for flags, needle in ((["--team", "--workflow"], "--workflow"), (["--team", "--no-memory"], "--no-memory")):
+            with self.subTest(flags=flags), mock.patch.object(run_agent.team, "run_team") as running:
+                code, text = captured(run_agent.main, flags + ["q"])
+            self.assertEqual((code, needle in text), (1, True))
+            running.assert_not_called()
 
     def test_a_limit_of_zero_is_refused_instead_of_quietly_becoming_the_default(self):
         for flag in ("--max-steps", "--max-tokens", "--timeout"):

@@ -32,6 +32,7 @@ from app.console import make_output_safe  # noqa: E402
 # Quiet library warnings and keep Chroma from sending usage statistics during a check.
 ENV = dict(os.environ, PYTHONWARNINGS="ignore", ANONYMIZED_TELEMETRY="False", PYTHONIOENCODING="utf-8")
 SKIP_DIRS = {".git", ".venv", ".python312", "__pycache__", "node_modules", "data"}
+COMPILE_BATCH = 30        # files per py_compile call: all of them in one command line overflows Windows' 32,767 characters in a deep folder
 
 IMPORT_PROBE = r"""
 import importlib, importlib.util, os, pkgutil, sys
@@ -67,7 +68,7 @@ sys.exit(1 if failed else 0)
 
 def python_files():
     for folder, dirs, files in os.walk(ROOT):
-        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".venv")]
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]    # hidden folders (virtual environments, other working copies) are not the project's own code
         for name in files:
             if name.endswith(".py"):
                 yield os.path.join(folder, name)
@@ -80,8 +81,12 @@ def run(args, timeout=600):
 
 def check_compile():
     files = list(python_files())
-    result = run([sys.executable, "-m", "py_compile", *files])
-    return result.returncode == 0, f"{len(files)} files", result.stderr.strip()
+    problems = []
+    for start in range(0, len(files), COMPILE_BATCH):                  # one command line has a length limit on Windows, and a deep folder path eats it
+        result = run([sys.executable, "-m", "py_compile", *files[start:start + COMPILE_BATCH]])
+        if result.returncode != 0:
+            problems.append(result.stderr.strip())
+    return not problems, f"{len(files)} files", "\n".join(problems)
 
 
 def check_imports():
@@ -151,6 +156,8 @@ def main():
             ok, summary, detail = check()
         except subprocess.TimeoutExpired:
             ok, summary, detail = False, "timed out", ""
+        except OSError as exc:                                         # a check that could not even start is a failed check, not a traceback
+            ok, summary, detail = False, "could not run", f"{type(exc).__name__}: {exc}"
         print(f"[{'ok' if ok else 'FAIL'}] {name:<11} {summary}")
         if detail:
             print("      " + detail.replace("\n", "\n      "))

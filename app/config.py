@@ -82,6 +82,15 @@ class Settings(BaseSettings):
     # executed: the model is told the budget is spent and to answer from what it found, or say it does not know.
     agent_max_calls_per_tool: int = 0
 
+    # --- Week 10: what a token costs (app/pricing.py) ---
+    # The free tier bills nothing, so cost is tokens x a price YOU state, in dollars per million tokens. Input and
+    # output are priced separately (output costs more). 0 = unpriced: reports then show tokens only and say so.
+    # There is no price table in this project on purpose: it would go stale and read as a fact.
+    # No Week 10 command reads these two settings: the race report takes --price-in, --price-out and --price-source,
+    # and prints the prices it used labelled as your assumption.
+    price_input_per_million: float = 0.0
+    price_output_per_million: float = 0.0
+
     # --- pipeline knobs (the graded chunk-size experiment lives here) ---
     chunk_size: int = 800       # characters per chunk
     chunk_overlap: int = 120    # characters shared between neighbouring chunks
@@ -169,6 +178,14 @@ class Settings(BaseSettings):
         """A limit of zero would end every run before it starts."""
         if value < 1:
             raise ValueError(f"must be 1 or greater, got {value}")
+        return value
+
+    @field_validator("price_input_per_million", "price_output_per_million")
+    @classmethod
+    def _check_prices(cls, value: float) -> float:
+        """A price is a plain number of dollars, zero or more. A negative, infinite or NaN price would make every cost nonsense."""
+        if not 0 <= value < float("inf"):
+            raise ValueError(f"a price must be 0 or more (dollars per million tokens), got {value}")
         return value
 
     @field_validator("agent_timeout_seconds")

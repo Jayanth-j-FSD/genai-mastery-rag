@@ -1,0 +1,4567 @@
+{
+ "meta": {
+  "label": "wk10",
+  "started": "2026-11-13T00:20:32+05:30",
+  "complete": false,
+  "stopped_because": null,
+  "repeats": 3,
+  "approaches": [
+   "agent",
+   "team"
+  ],
+  "arms": [
+   "agent",
+   "team"
+  ],
+  "tasks": [
+   "t7-single-lookup",
+   "t7-carry-forward-sum",
+   "t7-notice-end-date",
+   "t7-leave-end-date",
+   "t7-remote-eligibility",
+   "t7-two-documents",
+   "t7-conflict",
+   "t7-cloud-two-sections",
+   "t7-unanswerable"
+  ],
+  "interleaved": true,
+  "models": {
+   "agent": "gemini-3.5-flash-lite",
+   "team": "gemini-3.5-flash-lite"
+  },
+  "noise_arm": null,
+  "limits": {
+   "max_steps": 8,
+   "max_total_tokens": 40000,
+   "timeout_seconds": 300.0,
+   "agent_max_calls_per_tool": 0
+  },
+  "llm_rpm": 12,
+  "retrieval_mode": "dense",
+  "search": {
+   "top_k default": 3,
+   "passage chars": 700,
+   "retrieval mode": "dense"
+  },
+  "config": {
+   "agent": {
+    "memory": "on",
+    "calls per tool cap": 0,
+    "timeout": "300s",
+    "max steps": 8,
+    "prompt sha": "99482a2e3d5f",
+    "tools": "search_policies 33aa382afee4, calculate 98ffc522b8a3, add_days 5e84795660ef"
+   },
+   "team": {
+    "memory": "on",
+    "calls per tool cap": 0,
+    "timeout": "300s",
+    "manager steps": 8,
+    "researcher steps": 8,
+    "calculator steps": 4,
+    "manager prompt sha": "27b4ca0d98e2",
+    "researcher prompt sha": "4f964dab33c1",
+    "calculator prompt sha": "8f08baaba4ce",
+    "hand-off tools": "ask_policy_researcher 034c84e095c1, ask_calculator 35f207763d5a",
+    "researcher tools": "search_policies 33aa382afee4",
+    "calculator tools": "calculate 98ffc522b8a3, add_days 5e84795660ef"
+   }
+  },
+  "caps": [
+   {
+    "arm": "agent",
+    "agent": "agent",
+    "steps": 8,
+    "tokens": 40000,
+    "timeout": "300s",
+    "calls per tool": 0,
+    "memory": "on"
+   },
+   {
+    "arm": "team",
+    "agent": "manager",
+    "steps": 8,
+    "tokens": "shared",
+    "timeout": "shared",
+    "calls per tool": 0,
+    "memory": "on"
+   },
+   {
+    "arm": "team",
+    "agent": "researcher",
+    "steps": 8,
+    "tokens": "shared",
+    "timeout": "shared",
+    "calls per tool": 0,
+    "memory": "on"
+   },
+   {
+    "arm": "team",
+    "agent": "calculator",
+    "steps": 4,
+    "tokens": "shared",
+    "timeout": "shared",
+    "calls per tool": 0,
+    "memory": "on"
+   }
+  ],
+  "code": {
+   "git": "0873931",
+   "dirty": false,
+   "team.py": "9f36a583bc58",
+   "loop.py": "c89065271920",
+   "llm.py": "1c3149d37e6d",
+   "checks.py": "f27fafcbdc90",
+   "agent_tasks.py": "2f4ee5b7f16a",
+   "race.py": "74e1dfab14b7",
+   "team_prediction.py": "fde36ef02014",
+   "tree": "ed774c40b274"
+  },
+  "code_files": {
+   "app/__init__.py": "3125c86c991d",
+   "app/agent/__init__.py": "f58d4b0ce85a",
+   "app/agent/defense.py": "4c5c261e7cca",
+   "app/agent/display.py": "6763cb4ab9cf",
+   "app/agent/loop.py": "c89065271920",
+   "app/agent/memory.py": "2eade7b43ff9",
+   "app/agent/team.py": "9f36a583bc58",
+   "app/agent/toolkit.py": "c7a85a9dfc11",
+   "app/agent/tools.py": "7b7a3eb8bcc5",
+   "app/agent/workflow.py": "9341e19232a7",
+   "app/config.py": "800cda5c9927",
+   "app/console.py": "136f00783966",
+   "app/llm.py": "1c3149d37e6d",
+   "app/main.py": "94456db38b30",
+   "app/mcp/__init__.py": "e3b0c44298fc",
+   "app/mcp/client.py": "3f0114ffc1b5",
+   "app/mcp/servers/__init__.py": "e3b0c44298fc",
+   "app/mcp/servers/hris_server.py": "54f755c055cc",
+   "app/mcp/servers/policy_server.py": "b6a341c93b10",
+   "app/mcp/servers/utils_server.py": "387ed3a20f69",
+   "app/mcp/vetting.py": "d3237366393e",
+   "app/models.py": "f91e0aab0240",
+   "app/pricing.py": "d07ad2791991",
+   "app/rag/__init__.py": "0e59a34740b0",
+   "app/rag/chunker.py": "acad8fc2567d",
+   "app/rag/diagnose.py": "9834006d4e7b",
+   "app/rag/embedder.py": "a15dc6ecff81",
+   "app/rag/fusion.py": "e7b1a7f1d89a",
+   "app/rag/generator.py": "9795174a9878",
+   "app/rag/keyword.py": "e9c5c61d9e42",
+   "app/rag/loader.py": "d8c73f87b867",
+   "app/rag/local_embedder.py": "d268cf6ea2c1",
+   "app/rag/pipeline.py": "7e3bbc9c36b6",
+   "app/rag/retriever.py": "ea9c0bfe43d5",
+   "app/rag/store.py": "3a5a3f38a19d",
+   "app/tracing.py": "3382e9145257",
+   "app/worksheet.py": "2dcd58ff5f0b",
+   "evals/__init__.py": "5519b6df75fd",
+   "evals/agent_tasks.py": "2f4ee5b7f16a",
+   "evals/agreement.py": "0c770c6c6848",
+   "evals/cases.py": "62e4f6e7fd44",
+   "evals/checks.py": "f27fafcbdc90",
+   "evals/injection.py": "3966887d70dc",
+   "evals/judge.py": "93333813f68d",
+   "evals/prediction.py": "41520ea56cfa",
+   "evals/race.py": "74e1dfab14b7",
+   "evals/replay.py": "896f2753bf99",
+   "evals/report.py": "958b43cb8144",
+   "evals/runner.py": "cc23d65b8dd4",
+   "evals/screen.py": "63f2125c5d88",
+   "evals/team_prediction.py": "fde36ef02014",
+   "evals/team_report.py": "3e01b6d0d59e",
+   "evals/trajectory.py": "2d561732cac3",
+   "evals/validation.py": "59c352170f1d",
+   "scripts/pilot_team.py": "9a6ca4453dfd",
+   "scripts/race_team.py": "9dcc82afeeaa"
+  },
+  "code_history": [],
+  "settings": {
+   "llm_max_retries": 4,
+   "llm_timeout_seconds": 60.0,
+   "dense_search": "exact",
+   "hybrid_candidates": 10,
+   "rrf_k": 60,
+   "bm25_k1": 1.5,
+   "bm25_b": 0.75,
+   "embed_provider": "local",
+   "chunk_count": 432
+  },
+  "prediction_doc": "e35e6ba634d030a28f792104840ed3c8c97c4292",
+  "corpus": {
+   "Acme-Employment-Terms-2026.md": "cd7149efaa3e",
+   "Acme-Leave-Policy-2026.md": "88efbcccc912",
+   "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md": "3ced9d1e0b76",
+   "Northstar-Remote-Work-Policy-2026.md": "0a2c56b5556f",
+   "Synthetic_HR_Policy_RAG_Test_Dataset.md": "a26bf5fb4eed",
+   "benefits.md": "82a7f7ed49c0",
+   "expenses.md": "03277fabd58d",
+   "security-policy.md": "5884e8ff33e5",
+   "support-faq.md": "11c1e0ee62da"
+  },
+  "resumed": [],
+  "not_interleaved_arms": [],
+  "finished": "2026-11-13T00:31:06+05:30"
+ },
+ "runs": [
+  {
+   "task_id": "t7-single-lookup",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Employees are eligible for **16 weeks** of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 4,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "search_policies"
+   ],
+   "llm_calls": 4,
+   "prompt_tokens": 2871,
+   "completion_tokens": 121,
+   "api_seconds": 45.968,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 52.484,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"How many weeks of paid parental leave are available?\"}",
+       "observation": "[source: Acme-Leave-Policy-2026.md] Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 10.375,
+     "tokens": {
+      "prompt": 663,
+      "completion": 28
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid parental leave weeks\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 13.64,
+     "tokens": {
+      "prompt": 504,
+      "completion": 19
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "[source: Acme-Leave-Policy-2026.md] Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child.",
+     "tool_calls": [],
+     "seconds": 19.563,
+     "tokens": {
+      "prompt": 960,
+      "completion": 37
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "Employees are eligible for **16 weeks** of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 2.39,
+     "tokens": {
+      "prompt": 744,
+      "completion": 37
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 2,
+      "prompt_tokens": 1407,
+      "completion_tokens": 65,
+      "api_seconds": 12.765,
+      "wait_seconds": 0.0,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 2,
+      "prompt_tokens": 1464,
+      "completion_tokens": 56,
+      "api_seconds": 33.203,
+      "wait_seconds": 0.0,
+      "handoffs": 1
+     },
+     "calculator": {
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "api_seconds": 0,
+      "wait_seconds": 0,
+      "handoffs": 0
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "How many weeks of paid parental leave are available?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Acme-Leave-Policy-2026.md] Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child.",
+      "answer_chars": 135,
+      "seconds": 39.719,
+      "api_seconds": 33.203,
+      "wait_seconds": 0.0,
+      "calls": 2,
+      "prompt_tokens": 1464,
+      "completion_tokens": 56
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 1,
+      "started_at": 1794509433.349319,
+      "seconds": 10.375,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 663,
+      "completion_tokens": 28,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 691,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 2,
+      "started_at": 1794509443.709734,
+      "seconds": 13.64000000001397,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 504,
+      "completion_tokens": 19,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 523,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 3,
+      "started_at": 1794509463.87804,
+      "seconds": 19.562999999994645,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 960,
+      "completion_tokens": 37,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 997,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 4,
+      "started_at": 1794509483.4398847,
+      "seconds": 2.39000000001397,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 744,
+      "completion_tokens": 37,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 781,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-single-lookup",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1824,
+   "completion_tokens": 56,
+   "api_seconds": 2.235,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 2.797,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid parental leave weeks\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.235,
+     "tokens": {
+      "prompt": 684,
+      "completion": 19
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.0,
+     "tokens": {
+      "prompt": 1140,
+      "completion": 37
+     }
+    }
+   ],
+   "notes": [],
+   "call_log": [
+    {
+     "seq": 5,
+     "started_at": 1794509485.911944,
+     "seconds": 1.235000000015134,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 684,
+     "completion_tokens": 19,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 703,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 6,
+     "started_at": 1794509487.6936474,
+     "seconds": 1.0,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1140,
+     "completion_tokens": 37,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1177,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-carry-forward-sum",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the company leave policies, here is how your unused annual leave is handled:\n\n* **Maximum carry-forward limit:** You may carry forward up to 10 unused annual-leave days into the next calendar year [source: Acme-Leave-Policy-2026.md].\n* **Days above the limit:** With 25 unused annual leave days, **15 days** are above the 10-day limit [source: Acme-Leave-Policy-2026.md, calculated as 25 - 10]. \n\n*(Note: Under Acme-Leave-Policy-2026.md, days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations.)*",
+   "failed_checks": [],
+   "warnings": [
+    "numbers in the answer not found in the context: ['15']"
+   ],
+   "n_steps": 4,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "calculate"
+   ],
+   "llm_calls": 4,
+   "prompt_tokens": 5089,
+   "completion_tokens": 222,
+   "api_seconds": 7.359,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 8.25,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused annual leave\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.468,
+     "tokens": {
+      "prompt": 706,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward annual leave limit\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.203,
+     "tokens": {
+      "prompt": 1241,
+      "completion": 20
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "calculate",
+       "arguments": "{\"expression\":\"25 - 10\"}",
+       "observation": "15",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.719,
+     "tokens": {
+      "prompt": 1776,
+      "completion": 19
+     }
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "Based on the company leave policies, here is how your unused annual leave is handled:\n\n* **Maximum carry-forward limit:** You may carry forward up to 10 unused annual-leave days into the next calendar year [source: Acme-Leave-Policy-2026.md].\n* **Days above the limit:** With 25 unused annual leave days, **15 days** are above the 10-day limit [source: Acme-Leave-Policy-2026.md, calculated as 25 - 10]. \n\n*(Note: Under Acme-Leave-Policy-2026.md, days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations.)*",
+     "tool_calls": [],
+     "seconds": 1.969,
+     "tokens": {
+      "prompt": 1366,
+      "completion": 163
+     }
+    }
+   ],
+   "notes": [],
+   "call_log": [
+    {
+     "seq": 7,
+     "started_at": 1794509488.7632332,
+     "seconds": 1.4679999999934807,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 706,
+     "completion_tokens": 20,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 726,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 8,
+     "started_at": 1794509490.6251972,
+     "seconds": 2.2030000000086147,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1241,
+     "completion_tokens": 20,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1261,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 9,
+     "started_at": 1794509493.3288565,
+     "seconds": 1.7189999999827705,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1776,
+     "completion_tokens": 19,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1795,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 10,
+     "started_at": 1794509495.048541,
+     "seconds": 1.9690000000118744,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1366,
+     "completion_tokens": 163,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1529,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-carry-forward-sum",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the company policy, you can carry forward a maximum of **10** unused annual leave days [source: Acme-Leave-Policy-2026.md]. \n\nSince you have 25 unused annual leave days and the carry-forward limit is 10, the number of days above the limit is **15** (calculated as 25 total unused days minus the 10-day carry-forward limit).",
+   "failed_checks": [],
+   "warnings": [
+    "numbers in the answer not found in the context: ['15']"
+   ],
+   "n_steps": 8,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "search_policies",
+    "search_policies",
+    "remember",
+    "ask_calculator",
+    "calculate"
+   ],
+   "llm_calls": 8,
+   "prompt_tokens": 6351,
+   "completion_tokens": 305,
+   "api_seconds": 12.766,
+   "wait_seconds": 40.294,
+   "elapsed_seconds": 53.891,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"What is the maximum number of annual leave days that can be carried forward?\"}",
+       "observation": "[source: Acme-Leave-Policy-2026.md] Employees may carry forward up to 10 unused annual-leave days into the next calendar year.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.313,
+     "tokens": {
+      "prompt": 685,
+      "completion": 33
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused annual leave\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.812,
+     "tokens": {
+      "prompt": 509,
+      "completion": 20
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward annual leave days limit\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.484,
+     "tokens": {
+      "prompt": 1044,
+      "completion": 21
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "[source: Acme-Leave-Policy-2026.md] Employees may carry forward up to 10 unused annual-leave days into the next calendar year.",
+     "tool_calls": [],
+     "seconds": 3.422,
+     "tokens": {
+      "prompt": 1580,
+      "completion": 36
+     },
+     "local_n": 3,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "remember",
+       "arguments": "{\"fact\":\"Maximum annual leave days that can be carried forward is 10 [source: Acme-Leave-Policy-2026.md].\"}",
+       "observation": "Saved note 1.",
+       "ok": true,
+       "blocked": false
+      },
+      {
+       "name": "ask_calculator",
+       "arguments": "{\"question\":\"what is 25 minus 10\"}",
+       "observation": "The result is 15, calculated from 25 minus 10.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 20.672,
+     "tokens": {
+      "prompt": 770,
+      "completion": 66
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 6,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "calculate",
+       "arguments": "{\"expression\":\"25 - 10\"}",
+       "observation": "15",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 19.422,
+     "tokens": {
+      "prompt": 405,
+      "completion": 19
+     },
+     "local_n": 1,
+     "agent": "calculator",
+     "handoff": 2
+    },
+    {
+     "n": 7,
+     "kind": "final",
+     "content": "The result is 15, calculated from 25 minus 10.",
+     "tool_calls": [],
+     "seconds": 3.922,
+     "tokens": {
+      "prompt": 437,
+      "completion": 17
+     },
+     "local_n": 2,
+     "agent": "calculator",
+     "handoff": 2
+    },
+    {
+     "n": 8,
+     "kind": "final",
+     "content": "Based on the company policy, you can carry forward a maximum of **10** unused annual leave days [source: Acme-Leave-Policy-2026.md]. \n\nSince you have 25 unused annual leave days and the carry-forward limit is 10, the number of days above the limit is **15** (calculated as 25 total unused days minus the 10-day carry-forward limit).",
+     "tool_calls": [],
+     "seconds": 2.031,
+     "tokens": {
+      "prompt": 921,
+      "completion": 93
+     },
+     "local_n": 3,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [
+    "Maximum annual leave days that can be carried forward is 10 [source: Acme-Leave-Policy-2026.md]."
+   ],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 3,
+      "prompt_tokens": 2376,
+      "completion_tokens": 192,
+      "api_seconds": 4.969,
+      "wait_seconds": 19.05,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 3,
+      "prompt_tokens": 3133,
+      "completion_tokens": 77,
+      "api_seconds": 3.374,
+      "wait_seconds": 2.316,
+      "handoffs": 1
+     },
+     "calculator": {
+      "calls": 2,
+      "prompt_tokens": 842,
+      "completion_tokens": 36,
+      "api_seconds": 4.423,
+      "wait_seconds": 18.928,
+      "handoffs": 1
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "What is the maximum number of annual leave days that can be carried forward?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Acme-Leave-Policy-2026.md] Employees may carry forward up to 10 unused annual-leave days into the next calendar year.",
+      "answer_chars": 126,
+      "seconds": 6.531,
+      "api_seconds": 3.374,
+      "wait_seconds": 2.316,
+      "calls": 3,
+      "prompt_tokens": 3133,
+      "completion_tokens": 77
+     },
+     {
+      "handoff": 2,
+      "agent": "calculator",
+      "question": "what is 25 minus 10",
+      "after_manager_step": 2,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "The result is 15, calculated from 25 minus 10.",
+      "answer_chars": 46,
+      "seconds": 23.344,
+      "api_seconds": 4.423,
+      "wait_seconds": 18.928,
+      "calls": 2,
+      "prompt_tokens": 842,
+      "completion_tokens": 36
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 11,
+      "started_at": 1794509497.0351624,
+      "seconds": 1.312999999994645,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 685,
+      "completion_tokens": 33,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 718,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 12,
+      "started_at": 1794509498.3404975,
+      "seconds": 0.8120000000053551,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 509,
+      "completion_tokens": 20,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 529,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 13,
+      "started_at": 1794509499.588868,
+      "seconds": 1.4840000000258442,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1044,
+      "completion_tokens": 21,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1065,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 14,
+      "started_at": 1794509501.445696,
+      "seconds": 1.0780000000086147,
+      "wait_seconds": 2.3159999999741556,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1580,
+      "completion_tokens": 36,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1616,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 15,
+      "started_at": 1794509504.8739269,
+      "seconds": 1.625,
+      "wait_seconds": 19.05,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 770,
+      "completion_tokens": 66,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 836,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 16,
+      "started_at": 1794509525.540617,
+      "seconds": 1.4849999999860302,
+      "wait_seconds": 17.94100000000326,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 405,
+      "completion_tokens": 19,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 424,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "calculator",
+      "handoff": 2
+     },
+     {
+      "seq": 17,
+      "started_at": 1794509544.9690952,
+      "seconds": 2.937999999994645,
+      "wait_seconds": 0.9870000000053551,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 437,
+      "completion_tokens": 17,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 454,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "calculator",
+      "handoff": 2
+     },
+     {
+      "seq": 18,
+      "started_at": 1794509548.8953125,
+      "seconds": 2.0309999999881256,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 921,
+      "completion_tokens": 93,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1014,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-notice-end-date",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme employment terms, a permanent employee must provide 30 calendar days of written notice [source: Acme-Employment-Terms-2026.md]. \n\nWhen adding the 30 calendar days to the date the resignation was received by People Operations (3 November 2026), the notice period ends on **3 December 2026** [source: Acme-Employment-Terms-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 7,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "search_policies",
+    "ask_calculator",
+    "add_days"
+   ],
+   "llm_calls": 7,
+   "prompt_tokens": 4706,
+   "completion_tokens": 281,
+   "api_seconds": 87.796,
+   "wait_seconds": 5.0,
+   "elapsed_seconds": 92.937,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"What is the notice period for a permanent employee under the Acme employment terms?\"}",
+       "observation": "[source: Acme-Employment-Terms-2026.md] After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 4.39,
+     "tokens": {
+      "prompt": 690,
+      "completion": 33
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period permanent employee Acme employment terms\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.453,
+     "tokens": {
+      "prompt": 509,
+      "completion": 22
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "[source: Acme-Employment-Terms-2026.md] After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning.",
+     "tool_calls": [],
+     "seconds": 1.719,
+     "tokens": {
+      "prompt": 992,
+      "completion": 38
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_calculator",
+       "arguments": "{\"question\":\"add 30 calendar days to 2026-11-03\"}",
+       "observation": "Adding 30 calendar days to 2026-11-03 gives 2026-12-03.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 15.203,
+     "tokens": {
+      "prompt": 777,
+      "completion": 33
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"date\":\"2026-11-03\",\"days\":30}",
+       "observation": "2026-12-03 (Thursday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 5.953,
+     "tokens": {
+      "prompt": 414,
+      "completion": 30
+     },
+     "local_n": 1,
+     "agent": "calculator",
+     "handoff": 2
+    },
+    {
+     "n": 6,
+     "kind": "final",
+     "content": "Adding 30 calendar days to 2026-11-03 gives 2026-12-03.",
+     "tool_calls": [],
+     "seconds": 11.141,
+     "tokens": {
+      "prompt": 470,
+      "completion": 31
+     },
+     "local_n": 2,
+     "agent": "calculator",
+     "handoff": 2
+    },
+    {
+     "n": 7,
+     "kind": "final",
+     "content": "Under the Acme employment terms, a permanent employee must provide 30 calendar days of written notice [source: Acme-Employment-Terms-2026.md]. \n\nWhen adding the 30 calendar days to the date the resignation was received by People Operations (3 November 2026), the notice period ends on **3 December 2026** [source: Acme-Employment-Terms-2026.md].",
+     "tool_calls": [],
+     "seconds": 51.937,
+     "tokens": {
+      "prompt": 854,
+      "completion": 94
+     },
+     "local_n": 3,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 3,
+      "prompt_tokens": 2321,
+      "completion_tokens": 160,
+      "api_seconds": 66.53,
+      "wait_seconds": 5.0,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 2,
+      "prompt_tokens": 1501,
+      "completion_tokens": 60,
+      "api_seconds": 4.172,
+      "wait_seconds": 0.0,
+      "handoffs": 1
+     },
+     "calculator": {
+      "calls": 2,
+      "prompt_tokens": 884,
+      "completion_tokens": 61,
+      "api_seconds": 17.094,
+      "wait_seconds": 0.0,
+      "handoffs": 1
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "What is the notice period for a permanent employee under the Acme employment terms?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Acme-Employment-Terms-2026.md] After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning.",
+      "answer_chars": 168,
+      "seconds": 4.313,
+      "api_seconds": 4.172,
+      "wait_seconds": 0.0,
+      "calls": 2,
+      "prompt_tokens": 1501,
+      "completion_tokens": 60
+     },
+     {
+      "handoff": 2,
+      "agent": "calculator",
+      "question": "add 30 calendar days to 2026-11-03",
+      "after_manager_step": 2,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "Adding 30 calendar days to 2026-11-03 gives 2026-12-03.",
+      "answer_chars": 55,
+      "seconds": 17.094,
+      "api_seconds": 17.094,
+      "wait_seconds": 0.0,
+      "calls": 2,
+      "prompt_tokens": 884,
+      "completion_tokens": 61
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 19,
+      "started_at": 1794509550.9384634,
+      "seconds": 4.39000000001397,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 690,
+      "completion_tokens": 33,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 723,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 20,
+      "started_at": 1794509555.3253665,
+      "seconds": 2.452999999979511,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 509,
+      "completion_tokens": 22,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 531,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 21,
+      "started_at": 1794509557.9140136,
+      "seconds": 1.7190000000118744,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 992,
+      "completion_tokens": 38,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1030,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 22,
+      "started_at": 1794509559.6335557,
+      "seconds": 15.202999999979511,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 777,
+      "completion_tokens": 33,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 810,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 23,
+      "started_at": 1794509574.8362947,
+      "seconds": 5.953000000008615,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 414,
+      "completion_tokens": 30,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 444,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "calculator",
+      "handoff": 2
+     },
+     {
+      "seq": 24,
+      "started_at": 1794509580.7920735,
+      "seconds": 11.14100000000326,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 470,
+      "completion_tokens": 31,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 501,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "calculator",
+      "handoff": 2
+     },
+     {
+      "seq": 25,
+      "started_at": 1794509591.9295378,
+      "seconds": 46.937000000005355,
+      "wait_seconds": 5.0,
+      "attempts": 2,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 854,
+      "completion_tokens": 94,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 948,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-notice-end-date",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme employment terms, a permanent employee must provide 30 calendar days of written notice before resigning, and the notice period begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md]. \n\nSince People Operations received the written resignation on 3 November 2026, adding the 30 calendar days of the notice period results in an end date of **3 December 2026** [source: Acme-Employment-Terms-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 4,
+   "tool_calls": [
+    "search_policies",
+    "add_days",
+    "search_policies"
+   ],
+   "llm_calls": 4,
+   "prompt_tokens": 4563,
+   "completion_tokens": 195,
+   "api_seconds": 53.046,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 53.203,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period permanent employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 10.531,
+     "tokens": {
+      "prompt": 711,
+      "completion": 19
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"date\":\"2026-11-03\",\"days\":30}",
+       "observation": "2026-12-03 (Thursday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 16.016,
+     "tokens": {
+      "prompt": 1232,
+      "completion": 31
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Acme-Employment-Terms-2026.md permanent employee notice period\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 6.296,
+     "tokens": {
+      "prompt": 1288,
+      "completion": 32
+     }
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "Under the Acme employment terms, a permanent employee must provide 30 calendar days of written notice before resigning, and the notice period begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md]. \n\nSince People Operations received the written resignation on 3 November 2026, adding the 30 calendar days of the notice period results in an end date of **3 December 2026** [source: Acme-Employment-Terms-2026.md].",
+     "tool_calls": [],
+     "seconds": 20.203,
+     "tokens": {
+      "prompt": 1332,
+      "completion": 113
+     }
+    }
+   ],
+   "notes": [],
+   "call_log": [
+    {
+     "seq": 26,
+     "started_at": 1794509647.7619867,
+     "seconds": 10.530999999988126,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 711,
+     "completion_tokens": 19,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 730,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 27,
+     "started_at": 1794509658.4141643,
+     "seconds": 16.01600000000326,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1232,
+     "completion_tokens": 31,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1263,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 28,
+     "started_at": 1794509674.4423306,
+     "seconds": 6.2960000000020955,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1288,
+     "completion_tokens": 32,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1320,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 29,
+     "started_at": 1794509680.760473,
+     "seconds": 20.20299999997951,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1332,
+     "completion_tokens": 113,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1445,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-leave-end-date",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "To determine your last day of leave, we first look at the maximum number of unused annual-leave days that can be carried forward into the next year, which is **10 days** [source: Acme-Leave-Policy-2026.md]. \n\nTaking all 10 carried-forward days consecutively starting on 4 January 2027:\n- Start date: 4 January 2027\n- Number of days: 10\n- Calculation: 4 January + (10 - 1) = 9 days added to 4 January\n\nYour last day of leave is **13 January 2027 (Wednesday)** [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 6,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "remember",
+    "calculate",
+    "add_days"
+   ],
+   "llm_calls": 6,
+   "prompt_tokens": 7250,
+   "completion_tokens": 296,
+   "api_seconds": 35.452,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 35.593,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused annual leave maximum days\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 5.89,
+     "tokens": {
+      "prompt": 730,
+      "completion": 22
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Acme leave policy carry forward days\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.0,
+     "tokens": {
+      "prompt": 1267,
+      "completion": 22
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "remember",
+       "arguments": "{\"fact\":\"Under Acme-Leave-Policy-2026.md, employees may carry forward up to 10 unused annual-leave days into the next calendar year.\"}",
+       "observation": "Saved note 1.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 10.344,
+     "tokens": {
+      "prompt": 1738,
+      "completion": 47
+     }
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "calculate",
+       "arguments": "{\"expression\":\"10 - 1\"}",
+       "observation": "9",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 5.25,
+     "tokens": {
+      "prompt": 1384,
+      "completion": 18
+     }
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"date\":\"2027-01-04\",\"days\":9}",
+       "observation": "2027-01-13 (Wednesday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 5.64,
+     "tokens": {
+      "prompt": 1038,
+      "completion": 29
+     }
+    },
+    {
+     "n": 6,
+     "kind": "final",
+     "content": "To determine your last day of leave, we first look at the maximum number of unused annual-leave days that can be carried forward into the next year, which is **10 days** [source: Acme-Leave-Policy-2026.md]. \n\nTaking all 10 carried-forward days consecutively starting on 4 January 2027:\n- Start date: 4 January 2027\n- Number of days: 10\n- Calculation: 4 January + (10 - 1) = 9 days added to 4 January\n\nYour last day of leave is **13 January 2027 (Wednesday)** [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 6.328,
+     "tokens": {
+      "prompt": 1093,
+      "completion": 158
+     }
+    }
+   ],
+   "notes": [
+    "Under Acme-Leave-Policy-2026.md, employees may carry forward up to 10 unused annual-leave days into the next calendar year."
+   ],
+   "call_log": [
+    {
+     "seq": 30,
+     "started_at": 1794509701.011591,
+     "seconds": 5.889999999984866,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 730,
+     "completion_tokens": 22,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 752,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 31,
+     "started_at": 1794509707.0064592,
+     "seconds": 2.0,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1267,
+     "completion_tokens": 22,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1289,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 32,
+     "started_at": 1794509709.0441759,
+     "seconds": 10.344000000011874,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1738,
+     "completion_tokens": 47,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1785,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 33,
+     "started_at": 1794509719.384736,
+     "seconds": 5.25,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1384,
+     "completion_tokens": 18,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1402,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 34,
+     "started_at": 1794509724.6453962,
+     "seconds": 5.639999999984866,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1038,
+     "completion_tokens": 29,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1067,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 35,
+     "started_at": 1794509730.275222,
+     "seconds": 6.328000000008615,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1093,
+     "completion_tokens": 158,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1251,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-leave-end-date",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme leave policy, the maximum number of unused annual-leave days you can carry forward into the next calendar year is **10 days** [source: Acme-Leave-Policy-2026.md]. \n\nTaking 10 consecutive calendar days of leave starting with **4 January 2027** as the first day means your last day of leave is **13 January 2027** (adding 9 days to 4 January 2027).\n\n**Key details used:**\n* Maximum carry-forward days: 10 [source: Acme-Leave-Policy-2026.md]\n* First day of leave: 4 January 2027\n* Last day of leave: 13 January 2027",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 8,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "search_policies",
+    "search_policies",
+    "remember",
+    "ask_calculator",
+    "add_days"
+   ],
+   "llm_calls": 8,
+   "prompt_tokens": 6458,
+   "completion_tokens": 421,
+   "api_seconds": 51.734,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 51.782,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"What is the maximum allowed number of unused leave days an employee can carry forward into next year under the Acme leave policy?\"}",
+       "observation": "[source: Acme-Leave-Policy-2026.md] Employees may carry forward up to 10 unused annual-leave days into the next calendar year.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.157,
+     "tokens": {
+      "prompt": 709,
+      "completion": 42
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused leave days annual leave\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.343,
+     "tokens": {
+      "prompt": 518,
+      "completion": 22
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused annual leave Acme leave policy\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 8.234,
+     "tokens": {
+      "prompt": 1055,
+      "completion": 23
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "[source: Acme-Leave-Policy-2026.md] Employees may carry forward up to 10 unused annual-leave days into the next calendar year.",
+     "tool_calls": [],
+     "seconds": 8.531,
+     "tokens": {
+      "prompt": 1527,
+      "completion": 36
+     },
+     "local_n": 3,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "remember",
+       "arguments": "{\"fact\":\"Maximum carry-forward days is 10 [source: Acme-Leave-Policy-2026.md].\"}",
+       "observation": "Saved note 1.",
+       "ok": true,
+       "blocked": false
+      },
+      {
+       "name": "ask_calculator",
+       "arguments": "{\"question\":\"add 9 days to 2027-01-04\"}",
+       "observation": "Adding 9 days to 2027-01-04 gives 2027-01-13 (Wednesday).",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 14.672,
+     "tokens": {
+      "prompt": 803,
+      "completion": 70
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 6,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"date\":\"2027-01-04\",\"days\":9}",
+       "observation": "2027-01-13 (Wednesday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 6.015,
+     "tokens": {
+      "prompt": 412,
+      "completion": 29
+     },
+     "local_n": 1,
+     "agent": "calculator",
+     "handoff": 2
+    },
+    {
+     "n": 7,
+     "kind": "final",
+     "content": "Adding 9 days to 2027-01-04 gives 2027-01-13 (Wednesday).",
+     "tool_calls": [],
+     "seconds": 8.625,
+     "tokens": {
+      "prompt": 467,
+      "completion": 31
+     },
+     "local_n": 2,
+     "agent": "calculator",
+     "handoff": 2
+    },
+    {
+     "n": 8,
+     "kind": "final",
+     "content": "Under the Acme leave policy, the maximum number of unused annual-leave days you can carry forward into the next calendar year is **10 days** [source: Acme-Leave-Policy-2026.md]. \n\nTaking 10 consecutive calendar days of leave starting with **4 January 2027** as the first day means your last day of leave is **13 January 2027** (adding 9 days to 4 January 2027).\n\n**Key details used:**\n* Maximum carry-forward days: 10 [source: Acme-Leave-Policy-2026.md]\n* First day of leave: 4 January 2027\n* Last day of leave: 13 January 2027",
+     "tool_calls": [],
+     "seconds": 3.157,
+     "tokens": {
+      "prompt": 967,
+      "completion": 168
+     },
+     "local_n": 3,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [
+    "Maximum carry-forward days is 10 [source: Acme-Leave-Policy-2026.md]."
+   ],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 3,
+      "prompt_tokens": 2479,
+      "completion_tokens": 280,
+      "api_seconds": 18.986,
+      "wait_seconds": 0.0,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 3,
+      "prompt_tokens": 3100,
+      "completion_tokens": 81,
+      "api_seconds": 18.108,
+      "wait_seconds": 0.0,
+      "handoffs": 1
+     },
+     "calculator": {
+      "calls": 2,
+      "prompt_tokens": 879,
+      "completion_tokens": 60,
+      "api_seconds": 14.64,
+      "wait_seconds": 0.0,
+      "handoffs": 1
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "What is the maximum allowed number of unused leave days an employee can carry forward into next year under the Acme leave policy?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Acme-Leave-Policy-2026.md] Employees may carry forward up to 10 unused annual-leave days into the next calendar year.",
+      "answer_chars": 126,
+      "seconds": 18.156,
+      "api_seconds": 18.108,
+      "wait_seconds": 0.0,
+      "calls": 3,
+      "prompt_tokens": 3100,
+      "completion_tokens": 81
+     },
+     {
+      "handoff": 2,
+      "agent": "calculator",
+      "question": "add 9 days to 2027-01-04",
+      "after_manager_step": 2,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "Adding 9 days to 2027-01-04 gives 2027-01-13 (Wednesday).",
+      "answer_chars": 57,
+      "seconds": 14.64,
+      "api_seconds": 14.64,
+      "wait_seconds": 0.0,
+      "calls": 2,
+      "prompt_tokens": 879,
+      "completion_tokens": 60
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 36,
+      "started_at": 1794509736.6570423,
+      "seconds": 1.1570000000065193,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 709,
+      "completion_tokens": 42,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 751,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 37,
+      "started_at": 1794509737.8144534,
+      "seconds": 1.3429999999934807,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 518,
+      "completion_tokens": 22,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 540,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 38,
+      "started_at": 1794509739.1875265,
+      "seconds": 8.23399999999674,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1055,
+      "completion_tokens": 23,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1078,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 39,
+      "started_at": 1794509747.435231,
+      "seconds": 8.530999999988126,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1527,
+      "completion_tokens": 36,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1563,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 40,
+      "started_at": 1794509755.9682288,
+      "seconds": 14.672000000020489,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 803,
+      "completion_tokens": 70,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 873,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 41,
+      "started_at": 1794509770.6427891,
+      "seconds": 6.014999999984866,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 412,
+      "completion_tokens": 29,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 441,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "calculator",
+      "handoff": 2
+     },
+     {
+      "seq": 42,
+      "started_at": 1794509776.6592536,
+      "seconds": 8.625,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 467,
+      "completion_tokens": 31,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 498,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "calculator",
+      "handoff": 2
+     },
+     {
+      "seq": 43,
+      "started_at": 1794509785.2767348,
+      "seconds": 3.1570000000065193,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 967,
+      "completion_tokens": 168,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1135,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-remote-eligibility",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "An employee who joined 45 days ago cannot request remote work yet, because regular employees must complete **60 days of service** before making a request [source: Northstar-Remote-Work-Policy-2026.md]. \n\nSince they have been here for 45 days, they have **15 days** remaining before they reach the 60-day threshold. Once they achieve this length of service and their request is approved, the maximum number of days they can work remotely is **3 days per week** [source: Northstar-Remote-Work-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 7,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "search_policies",
+    "ask_calculator",
+    "calculate"
+   ],
+   "llm_calls": 7,
+   "prompt_tokens": 4829,
+   "completion_tokens": 325,
+   "api_seconds": 38.172,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 38.234,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"What is the required length of service or probationary period before an employee can request remote work, and what is the maximum number of remote work days per week allowed?\"}",
+       "observation": "[source: Northstar-Remote-Work-Policy-2026.md] Regular employees may request remote work after completing 60 days of service.\n[source: Northstar-Remote-Work-Policy-2026.md] An approved employee may work remotely up to three days per week.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 6.625,
+     "tokens": {
+      "prompt": 695,
+      "completion": 50
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"remote work probationary period length of service\"}",
+       "observation": "[1] [source: Northstar-Remote-Work-Policy-2026.md] # NORTHSTAR REMOTE WORK POLICY 2026 Effective date: 2026-02-15 ## 1. Scope and eligibility Regular employees may request remote work after completing 60 days of service. Approval depends on role suitability, team coverage, security requirements, and manager review. ## 2. Remote-work schedule An approved employee may work remotely up to three days per week. The employee must be available during the team core hours of 10:00 to 16:00 local time unless the manager approves an alternative schedule. ## 3. Equipment and security Northstar supplies one company laptop and an approved security token. Employees must use the company VPN for internal systems and must not store confidential policy or cust...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - The standard probation period is **6 months**, although the company may extend it once by up to 3 months based on documented performance or business circumstances.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 5.703,
+     "tokens": {
+      "prompt": 526,
+      "completion": 22
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "[source: Northstar-Remote-Work-Policy-2026.md] Regular employees may request remote work after completing 60 days of service.\n[source: Northstar-Remote-Work-Policy-2026.md] An approved employee may work remotely up to three days per week.",
+     "tool_calls": [],
+     "seconds": 9.344,
+     "tokens": {
+      "prompt": 1062,
+      "completion": 67
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_calculator",
+       "arguments": "{\"question\":\"subtract 45 from 60\"}",
+       "observation": "Subtracting 45 from 60 gives 15.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 5.828,
+     "tokens": {
+      "prompt": 828,
+      "completion": 23
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "calculate",
+       "arguments": "{\"expression\":\"60 - 45\"}",
+       "observation": "15",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 3.297,
+     "tokens": {
+      "prompt": 404,
+      "completion": 19
+     },
+     "local_n": 1,
+     "agent": "calculator",
+     "handoff": 2
+    },
+    {
+     "n": 6,
+     "kind": "final",
+     "content": "Subtracting 45 from 60 gives 15.",
+     "tool_calls": [],
+     "seconds": 1.125,
+     "tokens": {
+      "prompt": 436,
+      "completion": 14
+     },
+     "local_n": 2,
+     "agent": "calculator",
+     "handoff": 2
+    },
+    {
+     "n": 7,
+     "kind": "final",
+     "content": "An employee who joined 45 days ago cannot request remote work yet, because regular employees must complete **60 days of service** before making a request [source: Northstar-Remote-Work-Policy-2026.md]. \n\nSince they have been here for 45 days, they have **15 days** remaining before they reach the 60-day threshold. Once they achieve this length of service and their request is approved, the maximum number of days they can work remotely is **3 days per week** [source: Northstar-Remote-Work-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 6.25,
+     "tokens": {
+      "prompt": 878,
+      "completion": 130
+     },
+     "local_n": 3,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 3,
+      "prompt_tokens": 2401,
+      "completion_tokens": 203,
+      "api_seconds": 18.703,
+      "wait_seconds": 0.0,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 2,
+      "prompt_tokens": 1588,
+      "completion_tokens": 89,
+      "api_seconds": 15.047,
+      "wait_seconds": 0.0,
+      "handoffs": 1
+     },
+     "calculator": {
+      "calls": 2,
+      "prompt_tokens": 840,
+      "completion_tokens": 33,
+      "api_seconds": 4.422,
+      "wait_seconds": 0.0,
+      "handoffs": 1
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "What is the required length of service or probationary period before an employee can request remote work, and what is the maximum number of remote work days per week allowed?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Northstar-Remote-Work-Policy-2026.md] Regular employees may request remote work after completing 60 days of service.\n[source: Northstar-Remote-Work-Policy-2026.md] An approved employee may work remotely up to three days per week.",
+      "answer_chars": 238,
+      "seconds": 15.109,
+      "api_seconds": 15.047,
+      "wait_seconds": 0.0,
+      "calls": 2,
+      "prompt_tokens": 1588,
+      "completion_tokens": 89
+     },
+     {
+      "handoff": 2,
+      "agent": "calculator",
+      "question": "subtract 45 from 60",
+      "after_manager_step": 2,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "Subtracting 45 from 60 gives 15.",
+      "answer_chars": 32,
+      "seconds": 4.422,
+      "api_seconds": 4.422,
+      "wait_seconds": 0.0,
+      "calls": 2,
+      "prompt_tokens": 840,
+      "completion_tokens": 33
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 44,
+      "started_at": 1794509788.5614429,
+      "seconds": 6.625,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 695,
+      "completion_tokens": 50,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 745,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 45,
+      "started_at": 1794509795.182738,
+      "seconds": 5.703000000008615,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 526,
+      "completion_tokens": 22,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 548,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 46,
+      "started_at": 1794509800.948654,
+      "seconds": 9.34399999998277,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1062,
+      "completion_tokens": 67,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1129,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 47,
+      "started_at": 1794509810.290707,
+      "seconds": 5.828000000008615,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 828,
+      "completion_tokens": 23,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 851,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 48,
+      "started_at": 1794509816.1268587,
+      "seconds": 3.2969999999913853,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 404,
+      "completion_tokens": 19,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 423,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "calculator",
+      "handoff": 2
+     },
+     {
+      "seq": 49,
+      "started_at": 1794509819.417214,
+      "seconds": 1.125,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 436,
+      "completion_tokens": 14,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 450,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "calculator",
+      "handoff": 2
+     },
+     {
+      "seq": 50,
+      "started_at": 1794509820.5393043,
+      "seconds": 6.25,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 878,
+      "completion_tokens": 130,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1008,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-remote-eligibility",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on company policy:\n\n- **Can they request remote work yet?** No, an employee who joined 45 days ago cannot request remote work yet because regular employees must complete 60 days of service before making such a request [source: Northstar-Remote-Work-Policy-2026.md].\n- **After how many days of service can they?** They can request remote work after **60 days** of service [source: Northstar-Remote-Work-Policy-2026.md].\n- **What is the most days a week they could then work remotely?** Once approved, an employee may work remotely up to **3 days per week** [source: Northstar-Remote-Work-Policy-2026.md, Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1836,
+   "completion_tokens": 199,
+   "api_seconds": 5.953,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 5.984,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"remote work eligibility service days\"}",
+       "observation": "[1] [source: Northstar-Remote-Work-Policy-2026.md] # NORTHSTAR REMOTE WORK POLICY 2026 Effective date: 2026-02-15 ## 1. Scope and eligibility Regular employees may request remote work after completing 60 days of service. Approval depends on role suitability, team coverage, security requirements, and manager review. ## 2. Remote-work schedule An approved employee may work remotely up to three days per week. The employee must be available during the team core hours of 10:00 to 16:00 local time unless the manager approves an alternative schedule. ## 3. Equipment and security Northstar supplies one company laptop and an approved security token. Employees must use the company VPN for internal systems and must not store confidential policy or cust...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible hybrid employees may work remotely up to **3 days per week**, subject to team coverage and manager approval.\n[3] [source: Northstar-Remote-Work-Policy-2026.md] ## 4. Home-office expenses Employees may claim up to 50 USD per month for internet service used for approved remote work. Claims require an itemized receipt and must be submitted by the tenth day of the following month. ## 5. Review and cancellation Remote-work approvals are reviewed every six months. The company may suspend or cancel an arrangement when business needs, performance, security, or attendance requirements are not met.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.797,
+     "tokens": {
+      "prompt": 716,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Based on company policy:\n\n- **Can they request remote work yet?** No, an employee who joined 45 days ago cannot request remote work yet because regular employees must complete 60 days of service before making such a request [source: Northstar-Remote-Work-Policy-2026.md].\n- **After how many days of service can they?** They can request remote work after **60 days** of service [source: Northstar-Remote-Work-Policy-2026.md].\n- **What is the most days a week they could then work remotely?** Once approved, an employee may work remotely up to **3 days per week** [source: Northstar-Remote-Work-Policy-2026.md, Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+     "tool_calls": [],
+     "seconds": 4.156,
+     "tokens": {
+      "prompt": 1120,
+      "completion": 179
+     }
+    }
+   ],
+   "notes": [],
+   "call_log": [
+    {
+     "seq": 51,
+     "started_at": 1794509826.8362052,
+     "seconds": 1.797000000020489,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 716,
+     "completion_tokens": 20,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 736,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 52,
+     "started_at": 1794509828.6692076,
+     "seconds": 4.1560000000172295,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1120,
+     "completion_tokens": 179,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1299,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-two-documents",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the company policy documents:\n\n1. **Notice period for an employee on probation:** An employee who is still within the probationary period must provide **7 calendar days** of written notice before resigning under the *Acme-Employment-Terms-2026.md* policy [source: Acme-Employment-Terms-2026.md]. (Note: The *Synthetic_HR_Policy_RAG_Test_Dataset.md* mentions 30 calendar days during probation [source: Synthetic_HR_Policy_RAG_Test_Dataset.md], so the documents disagree on this point.)\n2. **Paid sick leave days:** Employees receive **12 paid sick-leave days** per calendar year under the *Acme-Leave-Policy-2026.md* [source: Acme-Leave-Policy-2026.md] (this is also supported by *Synthetic_HR_Policy_RAG_Test_Dataset.md* [source: Synthetic_HR_Policy_RAG_Test_Dataset.md]).",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 2219,
+   "completion_tokens": 268,
+   "api_seconds": 9.39,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 9.64,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period probation employee Acme\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      },
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid sick leave days per year Acme leave policy\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees receive **12 days of sick leave per calendar year**. A medical certificate may be requested for absences exceeding 2 consecutive working days.\n[3] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 4.515,
+     "tokens": {
+      "prompt": 709,
+      "completion": 44
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Based on the company policy documents:\n\n1. **Notice period for an employee on probation:** An employee who is still within the probationary period must provide **7 calendar days** of written notice before resigning under the *Acme-Employment-Terms-2026.md* policy [source: Acme-Employment-Terms-2026.md]. (Note: The *Synthetic_HR_Policy_RAG_Test_Dataset.md* mentions 30 calendar days during probation [source: Synthetic_HR_Policy_RAG_Test_Dataset.md], so the documents disagree on this point.)\n2. **Paid sick leave days:** Employees receive **12 paid sick-leave days** per calendar year under the *Acme-Leave-Policy-2026.md* [source: Acme-Leave-Policy-2026.md] (this is also supported by *Synthetic_HR_Policy_RAG_Test_Dataset.md* [source: Synthetic_HR_Policy_RAG_Test_Dataset.md]).",
+     "tool_calls": [],
+     "seconds": 4.875,
+     "tokens": {
+      "prompt": 1510,
+      "completion": 224
+     }
+    }
+   ],
+   "notes": [],
+   "call_log": [
+    {
+     "seq": 53,
+     "started_at": 1794509832.837551,
+     "seconds": 4.51500000001397,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 709,
+     "completion_tokens": 44,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 753,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 54,
+     "started_at": 1794509837.481774,
+     "seconds": 4.875,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1510,
+     "completion_tokens": 224,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1734,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-two-documents",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme terms, an employee on probation must give **7 calendar days** of written notice before resigning [source: Acme-Employment-Terms-2026.md].\n\nUnder the Acme leave policy, employees receive **12** paid sick leave days per calendar year [source: Acme-Leave-Policy-2026.md, Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 6,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "ask_policy_researcher",
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 6,
+   "prompt_tokens": 4414,
+   "completion_tokens": 302,
+   "api_seconds": 29.422,
+   "wait_seconds": 15.5,
+   "elapsed_seconds": 45.015,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"Under the Acme terms, how many days of written notice must an employee on probation give?\"}",
+       "observation": "[source: Acme-Employment-Terms-2026.md] An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning.",
+       "ok": true,
+       "blocked": false
+      },
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"Under the Acme leave policy, how many paid sick leave days are there per year?\"}",
+       "observation": "[source: Acme-Leave-Policy-2026.md] Employees receive 12 paid sick-leave days per calendar year.\n[source: Synthetic_HR_Policy_RAG_Test_Dataset.md] Employees receive **12 days of sick leave per calendar year**.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 3.734,
+     "tokens": {
+      "prompt": 688,
+      "completion": 71
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period probation employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - The standard probation period is **6 months**, although the company may extend it once by up to 3 months based on documented performance or business circumstances.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 6.797,
+     "tokens": {
+      "prompt": 512,
+      "completion": 20
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "[source: Acme-Employment-Terms-2026.md] An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning.",
+     "tool_calls": [],
+     "seconds": 16.469,
+     "tokens": {
+      "prompt": 893,
+      "completion": 37
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid sick leave days per year Acme leave policy\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees receive **12 days of sick leave per calendar year**. A medical certificate may be requested for absences exceeding 2 consecutive working days.\n[3] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 4.219,
+     "tokens": {
+      "prompt": 511,
+      "completion": 24
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 2
+    },
+    {
+     "n": 5,
+     "kind": "final",
+     "content": "[source: Acme-Leave-Policy-2026.md] Employees receive 12 paid sick-leave days per calendar year.\n[source: Synthetic_HR_Policy_RAG_Test_Dataset.md] Employees receive **12 days of sick leave per calendar year**.",
+     "tool_calls": [],
+     "seconds": 12.546,
+     "tokens": {
+      "prompt": 921,
+      "completion": 62
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 2
+    },
+    {
+     "n": 6,
+     "kind": "final",
+     "content": "Under the Acme terms, an employee on probation must give **7 calendar days** of written notice before resigning [source: Acme-Employment-Terms-2026.md].\n\nUnder the Acme leave policy, employees receive **12** paid sick leave days per calendar year [source: Acme-Leave-Policy-2026.md, Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+     "tool_calls": [],
+     "seconds": 1.172,
+     "tokens": {
+      "prompt": 889,
+      "completion": 88
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 2,
+      "prompt_tokens": 1577,
+      "completion_tokens": 159,
+      "api_seconds": 2.094,
+      "wait_seconds": 2.815,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 4,
+      "prompt_tokens": 2837,
+      "completion_tokens": 143,
+      "api_seconds": 27.328,
+      "wait_seconds": 12.685,
+      "handoffs": 2
+     },
+     "calculator": {
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "api_seconds": 0,
+      "wait_seconds": 0,
+      "handoffs": 0
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "Under the Acme terms, how many days of written notice must an employee on probation give?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Acme-Employment-Terms-2026.md] An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning.",
+      "answer_chars": 160,
+      "seconds": 23.297,
+      "api_seconds": 13.719,
+      "wait_seconds": 9.523,
+      "calls": 2,
+      "prompt_tokens": 1405,
+      "completion_tokens": 57
+     },
+     {
+      "handoff": 2,
+      "agent": "researcher",
+      "question": "Under the Acme leave policy, how many paid sick leave days are there per year?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Acme-Leave-Policy-2026.md] Employees receive 12 paid sick-leave days per calendar year.\n[source: Synthetic_HR_Policy_RAG_Test_Dataset.md] Employees receive **12 days of sick leave per calendar year**.",
+      "answer_chars": 209,
+      "seconds": 16.812,
+      "api_seconds": 13.609,
+      "wait_seconds": 3.162,
+      "calls": 2,
+      "prompt_tokens": 1432,
+      "completion_tokens": 86
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 55,
+      "started_at": 1794509842.5073588,
+      "seconds": 0.9219999999913853,
+      "wait_seconds": 2.814999999984866,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 688,
+      "completion_tokens": 71,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 759,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 56,
+      "started_at": 1794509846.2421296,
+      "seconds": 4.437999999994645,
+      "wait_seconds": 2.3629999999946447,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 512,
+      "completion_tokens": 20,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 532,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 57,
+      "started_at": 1794509853.0785038,
+      "seconds": 9.280999999988126,
+      "wait_seconds": 7.15999999998603,
+      "attempts": 2,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 893,
+      "completion_tokens": 37,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 930,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 58,
+      "started_at": 1794509869.5446382,
+      "seconds": 3.422000000020489,
+      "wait_seconds": 0.8,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 511,
+      "completion_tokens": 24,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 535,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 2
+     },
+     {
+      "seq": 59,
+      "started_at": 1794509873.8123696,
+      "seconds": 10.187000000005355,
+      "wait_seconds": 2.362000000005355,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 921,
+      "completion_tokens": 62,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 983,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 2
+     },
+     {
+      "seq": 60,
+      "started_at": 1794509886.3533983,
+      "seconds": 1.1719999999913853,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 889,
+      "completion_tokens": 88,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 977,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-conflict",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "The policy documents disagree on the number of days of annual leave an employee receives each year:\n\n- **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive **24 days** of annual leave per calendar year [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n- **Acme-Leave-Policy-2026.md** states that employees receive **18 days** of annual leave per calendar year [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 4,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "search_policies"
+   ],
+   "llm_calls": 4,
+   "prompt_tokens": 2993,
+   "completion_tokens": 236,
+   "api_seconds": 17.016,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 17.047,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"How many days of annual leave does an employee get each year?\"}",
+       "observation": "[source: Synthetic_HR_Policy_RAG_Test_Dataset.md] Full-time employees receive 24 days of annual leave per calendar year.\n[source: Acme-Leave-Policy-2026.md] Employees receive 18 days of annual leave per calendar year.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.687,
+     "tokens": {
+      "prompt": 666,
+      "completion": 31
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"annual leave days each year employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 8.641,
+     "tokens": {
+      "prompt": 507,
+      "completion": 21
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "[source: Synthetic_HR_Policy_RAG_Test_Dataset.md] Full-time employees receive 24 days of annual leave per calendar year.\n[source: Acme-Leave-Policy-2026.md] Employees receive 18 days of annual leave per calendar year.",
+     "tool_calls": [],
+     "seconds": 3.0,
+     "tokens": {
+      "prompt": 1043,
+      "completion": 64
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "The policy documents disagree on the number of days of annual leave an employee receives each year:\n\n- **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive **24 days** of annual leave per calendar year [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n- **Acme-Leave-Policy-2026.md** states that employees receive **18 days** of annual leave per calendar year [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 2.688,
+     "tokens": {
+      "prompt": 777,
+      "completion": 120
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 2,
+      "prompt_tokens": 1443,
+      "completion_tokens": 151,
+      "api_seconds": 5.375,
+      "wait_seconds": 0.0,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 2,
+      "prompt_tokens": 1550,
+      "completion_tokens": 85,
+      "api_seconds": 11.641,
+      "wait_seconds": 0.0,
+      "handoffs": 1
+     },
+     "calculator": {
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "api_seconds": 0,
+      "wait_seconds": 0,
+      "handoffs": 0
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "How many days of annual leave does an employee get each year?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Synthetic_HR_Policy_RAG_Test_Dataset.md] Full-time employees receive 24 days of annual leave per calendar year.\n[source: Acme-Leave-Policy-2026.md] Employees receive 18 days of annual leave per calendar year.",
+      "answer_chars": 217,
+      "seconds": 11.672,
+      "api_seconds": 11.641,
+      "wait_seconds": 0.0,
+      "calls": 2,
+      "prompt_tokens": 1550,
+      "completion_tokens": 85
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 61,
+      "started_at": 1794509887.5424943,
+      "seconds": 2.687000000005355,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 666,
+      "completion_tokens": 31,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 697,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 62,
+      "started_at": 1794509890.2401645,
+      "seconds": 8.64100000000326,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 507,
+      "completion_tokens": 21,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 528,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 63,
+      "started_at": 1794509898.8986897,
+      "seconds": 3.0,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1043,
+      "completion_tokens": 64,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1107,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 64,
+      "started_at": 1794509901.9010406,
+      "seconds": 2.687999999994645,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 777,
+      "completion_tokens": 120,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 897,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-conflict",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "The provided documents disagree on the number of annual leave days an employee receives each year:\n\n* **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive **24 days** of annual leave per calendar year (accrued monthly at 2 days per completed month) [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n* **Acme-Leave-Policy-2026.md** states that employees receive **18 days** of annual leave per calendar year (with a prorated allowance for employees joining after 1 July) [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1909,
+   "completion_tokens": 166,
+   "api_seconds": 4.751,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 4.782,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"annual leave days each year\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.344,
+     "tokens": {
+      "prompt": 687,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "The provided documents disagree on the number of annual leave days an employee receives each year:\n\n* **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive **24 days** of annual leave per calendar year (accrued monthly at 2 days per completed month) [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n* **Acme-Leave-Policy-2026.md** states that employees receive **18 days** of annual leave per calendar year (with a prorated allowance for employees joining after 1 July) [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 2.407,
+     "tokens": {
+      "prompt": 1222,
+      "completion": 146
+     }
+    }
+   ],
+   "notes": [],
+   "call_log": [
+    {
+     "seq": 65,
+     "started_at": 1794509904.6035078,
+     "seconds": 2.3440000000118744,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 687,
+     "completion_tokens": 20,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 707,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 66,
+     "started_at": 1794509906.9791367,
+     "seconds": 2.4070000000065193,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1222,
+     "completion_tokens": 146,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1368,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-cloud-two-sections",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the company policy documents:\n\n* **Should they get access to the whole subscription?** No. Users should not receive broad storage account permissions when access to a specific container or resource is sufficient, and access should be assigned at the lowest practical scope instead of the entire subscription [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].\n* **Where must any access keys they use be stored?** Azure access keys must never be stored directly in source code and must be stored using an approved secrets-management solution such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 3,
+   "tool_calls": [
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 3,
+   "prompt_tokens": 3335,
+   "completion_tokens": 182,
+   "api_seconds": 26.562,
+   "wait_seconds": 26.507,
+   "elapsed_seconds": 53.125,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Azure Storage container access subscription\"}",
+       "observation": "[1] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Applications processing customer information should use managed identities or other approved identity mechanisms instead of storing long-lived credentials in source code. ## 8. Azure Storage Access Azure Storage resources containing Confidential or Restricted data must use authenticated and authorized access. Public access should be disabled unless the resource is intentionally hosting Public information. Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient. ## 9. Secrets and Credentials The following must never be stored directly in source code: - Azure access keys - API keys - Database passwords - Client secrets - Encrypti...\n[2] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] - Azure access keys - API keys - Database passwords - Client secrets - Encryption keys - Service credentials Secrets must be stored using an approved secrets-management solution such as **Azure Key Vault**. Access to secrets must be restricted to authorized applications and administrators. ## 10. Access Reviews Access to Confidential and Restricted resources must be reviewed periodically. Inactive accounts and unnecessary permissions must be removed. Privileged access should be minimized and, where appropriate, protected through Microsoft Entra Privileged Identity Management (PIM). ## 11. Logging and Monitoring Access to sensitive Azure resources must be logged. Security teams should monitor...\n[3] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] ## 13. Policy Summary > **Nexora Tech employees and applications may access only the Azure resources and data required to perform their authorized responsibilities.**",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.141,
+     "tokens": {
+      "prompt": 707,
+      "completion": 21
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Azure storage access keys storage location\"}",
+       "observation": "[1] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Applications processing customer information should use managed identities or other approved identity mechanisms instead of storing long-lived credentials in source code. ## 8. Azure Storage Access Azure Storage resources containing Confidential or Restricted data must use authenticated and authorized access. Public access should be disabled unless the resource is intentionally hosting Public information. Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient. ## 9. Secrets and Credentials The following must never be stored directly in source code: - Azure access keys - API keys - Database passwords - Client secrets - Encrypti...\n[2] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] - Azure access keys - API keys - Database passwords - Client secrets - Encryption keys - Service credentials Secrets must be stored using an approved secrets-management solution such as **Azure Key Vault**. Access to secrets must be restricted to authorized applications and administrators. ## 10. Access Reviews Access to Confidential and Restricted resources must be reviewed periodically. Inactive accounts and unnecessary permissions must be removed. Privileged access should be minimized and, where appropriate, protected through Microsoft Entra Privileged Identity Management (PIM). ## 11. Logging and Monitoring Access to sensitive Azure resources must be logged. Security teams should monitor...\n[3] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Security administrators should use privileged access only when required. ## 5. Least-Privilege Requirement Every user, application, service principal, and managed identity must receive only the permissions required for their responsibilities. For example: > A developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account. Access should be assigned at the lowest practical scope, such as a specific resource or resource group instead of the entire subscription. Nexora Tech should prefer built-in Azure roles where they satisfy the requirement and use custom roles only when necessary. ## 6. Production Data Access Production data ...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 7.141,
+     "tokens": {
+      "prompt": 1080,
+      "completion": 22
+     }
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "Based on the company policy documents:\n\n* **Should they get access to the whole subscription?** No. Users should not receive broad storage account permissions when access to a specific container or resource is sufficient, and access should be assigned at the lowest practical scope instead of the entire subscription [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].\n* **Where must any access keys they use be stored?** Azure access keys must never be stored directly in source code and must be stored using an approved secrets-management solution such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+     "tool_calls": [],
+     "seconds": 43.797,
+     "tokens": {
+      "prompt": 1548,
+      "completion": 139
+     }
+    }
+   ],
+   "notes": [],
+   "call_log": [
+    {
+     "seq": 67,
+     "started_at": 1794509909.406506,
+     "seconds": 2.1410000000032596,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 707,
+     "completion_tokens": 21,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 728,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 68,
+     "started_at": 1794509911.5800915,
+     "seconds": 3.4059999999881256,
+     "wait_seconds": 3.7379999999946447,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1080,
+     "completion_tokens": 22,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1102,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 69,
+     "started_at": 1794509918.740038,
+     "seconds": 21.014999999984866,
+     "wait_seconds": 22.769000000011875,
+     "attempts": 3,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1548,
+     "completion_tokens": 139,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1687,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-cloud-two-sections",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the Nexora Tech Azure Cloud Data Access Policy:\n\n* **Subscription access:** No. Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].\n* **Storage location for access keys:** Any access keys must be stored using an approved secrets-management solution such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 4,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "search_policies"
+   ],
+   "llm_calls": 4,
+   "prompt_tokens": 2942,
+   "completion_tokens": 256,
+   "api_seconds": 27.218,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 27.265,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"Should a developer who only needs to read files from one Azure Storage container get access to the whole subscription, and where must any access keys they use be stored?\"}",
+       "observation": "[source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient.\n[source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Secrets must be stored using an approved secrets-management solution such as **Azure Key Vault**.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 4.671,
+     "tokens": {
+      "prompt": 686,
+      "completion": 50
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Azure Storage access keys container subscription\"}",
+       "observation": "[1] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Applications processing customer information should use managed identities or other approved identity mechanisms instead of storing long-lived credentials in source code. ## 8. Azure Storage Access Azure Storage resources containing Confidential or Restricted data must use authenticated and authorized access. Public access should be disabled unless the resource is intentionally hosting Public information. Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient. ## 9. Secrets and Credentials The following must never be stored directly in source code: - Azure access keys - API keys - Database passwords - Client secrets - Encrypti...\n[2] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] - Azure access keys - API keys - Database passwords - Client secrets - Encryption keys - Service credentials Secrets must be stored using an approved secrets-management solution such as **Azure Key Vault**. Access to secrets must be restricted to authorized applications and administrators. ## 10. Access Reviews Access to Confidential and Restricted resources must be reviewed periodically. Inactive accounts and unnecessary permissions must be removed. Privileged access should be minimized and, where appropriate, protected through Microsoft Entra Privileged Identity Management (PIM). ## 11. Logging and Monitoring Access to sensitive Azure resources must be logged. Security teams should monitor...\n[3] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] ## 13. Policy Summary > **Nexora Tech employees and applications may access only the Azure resources and data required to perform their authorized responsibilities.**",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 3.688,
+     "tokens": {
+      "prompt": 526,
+      "completion": 21
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "[source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient.\n[source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Secrets must be stored using an approved secrets-management solution such as **Azure Key Vault**.",
+     "tool_calls": [],
+     "seconds": 8.922,
+     "tokens": {
+      "prompt": 900,
+      "completion": 78
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "Based on the Nexora Tech Azure Cloud Data Access Policy:\n\n* **Subscription access:** No. Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].\n* **Storage location for access keys:** Any access keys must be stored using an approved secrets-management solution such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+     "tool_calls": [],
+     "seconds": 9.937,
+     "tokens": {
+      "prompt": 830,
+      "completion": 107
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 2,
+      "prompt_tokens": 1516,
+      "completion_tokens": 157,
+      "api_seconds": 14.608,
+      "wait_seconds": 0.0,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 2,
+      "prompt_tokens": 1426,
+      "completion_tokens": 99,
+      "api_seconds": 12.61,
+      "wait_seconds": 0.0,
+      "handoffs": 1
+     },
+     "calculator": {
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "api_seconds": 0,
+      "wait_seconds": 0,
+      "handoffs": 0
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "Should a developer who only needs to read files from one Azure Storage container get access to the whole subscription, and where must any access keys they use be stored?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "[source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient.\n[source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Secrets must be stored using an approved secrets-management solution such as **Azure Key Vault**.",
+      "answer_chars": 331,
+      "seconds": 12.657,
+      "api_seconds": 12.61,
+      "wait_seconds": 0.0,
+      "calls": 2,
+      "prompt_tokens": 1426,
+      "completion_tokens": 99
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 70,
+      "started_at": 1794509962.5596054,
+      "seconds": 4.6710000000020955,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 686,
+      "completion_tokens": 50,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 736,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 71,
+      "started_at": 1794509967.2332082,
+      "seconds": 3.687999999994645,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 526,
+      "completion_tokens": 21,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 547,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 72,
+      "started_at": 1794509970.9640934,
+      "seconds": 8.922000000020489,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 900,
+      "completion_tokens": 78,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 978,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 73,
+      "started_at": 1794509979.8940153,
+      "seconds": 9.937000000005355,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 830,
+      "completion_tokens": 107,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 937,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-unanswerable",
+   "approach": "team",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "I don't know based on the provided documents.",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 12,
+   "tool_calls": [
+    "ask_policy_researcher",
+    "search_policies",
+    "search_policies",
+    "ask_policy_researcher",
+    "search_policies",
+    "search_policies",
+    "search_policies",
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 12,
+   "prompt_tokens": 11116,
+   "completion_tokens": 232,
+   "api_seconds": 58.595,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 58.797,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"What is the maximum bonus a manager can approve for a team member?\"}",
+       "observation": "I don't know based on the provided documents.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 7.031,
+     "tokens": {
+      "prompt": 667,
+      "completion": 32
+     },
+     "local_n": 1,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"maximum bonus manager approve team member\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible employees may claim up to **INR 30,000 per financial year** for approved learning and certification expenses.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Promotions Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.25,
+     "tokens": {
+      "prompt": 508,
+      "completion": 21
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"bonus manager approve\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Promotions Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Quarterly Check-ins Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 4.86,
+     "tokens": {
+      "prompt": 820,
+      "completion": 19
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "I don't know based on the provided documents.",
+     "tool_calls": [],
+     "seconds": 1.86,
+     "tokens": {
+      "prompt": 1131,
+      "completion": 11
+     },
+     "local_n": 3,
+     "agent": "researcher",
+     "handoff": 1
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "ask_policy_researcher",
+       "arguments": "{\"question\":\"What does the policy say about bonuses, bonus limits, or manager approval limits for bonuses?\"}",
+       "observation": "I don't know based on the provided documents.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 10.453,
+     "tokens": {
+      "prompt": 726,
+      "completion": 37
+     },
+     "local_n": 2,
+     "agent": "manager",
+     "handoff": null
+    },
+    {
+     "n": 6,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"bonus limit manager approval\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Promotions Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible employees may claim up to **INR 30,000 per financial year** for approved learning and certification expenses.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.906,
+     "tokens": {
+      "prompt": 512,
+      "completion": 19
+     },
+     "local_n": 1,
+     "agent": "researcher",
+     "handoff": 2
+    },
+    {
+     "n": 7,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"bonus\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. — Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effective date:** 1 April 2026 **Review date:** 1 April 2027 **Status:** Fictional / testing only > This handbook is entirely fictional and is intended for software testing, retrieval evaluation, chunking, embedding, reranking, and question-answering experiments. ## 1. Employee Handbook Overview\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ## 8. Benefits ### Health Benefits Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: benefits.md] # Benefits Northwind Labs offers: - Private health insurance (employee covered 100%; dependents at 50%). - A pension match of **5%** of base salary. - An annual learning budget of **$1,000** per employee. - 24 days annual leave (see the Annual Leave policy). Benefits begin on your first day; the pension match starts after **3 months** of employment.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.266,
+     "tokens": {
+      "prompt": 822,
+      "completion": 16
+     },
+     "local_n": 2,
+     "agent": "researcher",
+     "handoff": 2
+    },
+    {
+     "n": 8,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"manager approval limit\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible employees may claim up to **INR 30,000 per financial year** for approved learning and certification expenses.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Leave Approval Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Requests should normally be submitted through the employee portal before the relevant date. Managers should consider business continuity, employee circumstances, and previously approved requests. - Records must be accurate and should be updated when circumstances change. Employees must not knowingly submit false information or alter company records without authorization. - Where approval is required, approval does not remove the employee's responsibility to follow other applicable company policies. - People Operations may maintain supporting records for audit, compliance, payroll, or operational purposes. Access is limited according to role and business need.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 11.047,
+     "tokens": {
+      "prompt": 1171,
+      "completion": 18
+     },
+     "local_n": 3,
+     "agent": "researcher",
+     "handoff": 2
+    },
+    {
+     "n": 9,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"approval limit\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible employees may claim up to **INR 30,000 per financial year** for approved learning and certification expenses.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Leave Approval Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Requests should normally be submitted through the employee portal before the relevant date. Managers should consider business continuity, employee circumstances, and previously approved requests. - Records must be accurate and should be updated when circumstances change. Employees must not knowingly submit false information or alter company records without authorization. - Where approval is required, approval does not remove the employee's responsibility to follow other applicable company policies. - People Operations may maintain supporting records for audit, compliance, payroll, or operational purposes. Access is limited according to role and business need.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 3.781,
+     "tokens": {
+      "prompt": 1267,
+      "completion": 18
+     },
+     "local_n": 4,
+     "agent": "researcher",
+     "handoff": 2
+    },
+    {
+     "n": 10,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"incentive compensation reward\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ## 7. Compensation and Payroll ### Salary Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Overtime Pay Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 10.125,
+     "tokens": {
+      "prompt": 1324,
+      "completion": 19
+     },
+     "local_n": 5,
+     "agent": "researcher",
+     "handoff": 2
+    },
+    {
+     "n": 11,
+     "kind": "final",
+     "content": "I don't know based on the provided documents.",
+     "tool_calls": [],
+     "seconds": 1.344,
+     "tokens": {
+      "prompt": 1379,
+      "completion": 11
+     },
+     "local_n": 6,
+     "agent": "researcher",
+     "handoff": 2
+    },
+    {
+     "n": 12,
+     "kind": "final",
+     "content": "I don't know based on the provided documents.",
+     "tool_calls": [],
+     "seconds": 1.672,
+     "tokens": {
+      "prompt": 789,
+      "completion": 11
+     },
+     "local_n": 3,
+     "agent": "manager",
+     "handoff": null
+    }
+   ],
+   "notes": [],
+   "team": {
+    "per_agent": {
+     "manager": {
+      "calls": 3,
+      "prompt_tokens": 2182,
+      "completion_tokens": 80,
+      "api_seconds": 19.156,
+      "wait_seconds": 0.0,
+      "handoffs": 0
+     },
+     "researcher": {
+      "calls": 9,
+      "prompt_tokens": 8934,
+      "completion_tokens": 152,
+      "api_seconds": 39.439,
+      "wait_seconds": 0.0,
+      "handoffs": 2
+     },
+     "calculator": {
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "api_seconds": 0,
+      "wait_seconds": 0,
+      "handoffs": 0
+     }
+    },
+    "handoffs": [
+     {
+      "handoff": 1,
+      "agent": "researcher",
+      "question": "What is the maximum bonus a manager can approve for a team member?",
+      "after_manager_step": 1,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "I don't know based on the provided documents.",
+      "answer_chars": 45,
+      "seconds": 8.016,
+      "api_seconds": 7.97,
+      "wait_seconds": 0.0,
+      "calls": 3,
+      "prompt_tokens": 2459,
+      "completion_tokens": 51
+     },
+     {
+      "handoff": 2,
+      "agent": "researcher",
+      "question": "What does the policy say about bonuses, bonus limits, or manager approval limits for bonuses?",
+      "after_manager_step": 2,
+      "state": "finished",
+      "stop_reason": "final",
+      "answer": "I don't know based on the provided documents.",
+      "answer_chars": 45,
+      "seconds": 31.625,
+      "api_seconds": 31.469,
+      "wait_seconds": 0.0,
+      "calls": 6,
+      "prompt_tokens": 6475,
+      "completion_tokens": 101
+     }
+    ],
+    "call_log": [
+     {
+      "seq": 74,
+      "started_at": 1794509989.8394144,
+      "seconds": 7.0310000000172295,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 667,
+      "completion_tokens": 32,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 699,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 75,
+      "started_at": 1794509996.8716123,
+      "seconds": 1.25,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 508,
+      "completion_tokens": 21,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 529,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 76,
+      "started_at": 1794509998.1548283,
+      "seconds": 4.860000000015134,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 820,
+      "completion_tokens": 19,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 839,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 77,
+      "started_at": 1794510003.0306695,
+      "seconds": 1.860000000015134,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1131,
+      "completion_tokens": 11,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1142,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 1
+     },
+     {
+      "seq": 78,
+      "started_at": 1794510004.890196,
+      "seconds": 10.452999999979511,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 726,
+      "completion_tokens": 37,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 763,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     },
+     {
+      "seq": 79,
+      "started_at": 1794510015.3351047,
+      "seconds": 2.9060000000172295,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 512,
+      "completion_tokens": 19,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 531,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 2
+     },
+     {
+      "seq": 80,
+      "started_at": 1794510018.2988136,
+      "seconds": 2.2660000000032596,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 822,
+      "completion_tokens": 16,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 838,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 2
+     },
+     {
+      "seq": 81,
+      "started_at": 1794510020.5913084,
+      "seconds": 11.047000000020489,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1171,
+      "completion_tokens": 18,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1189,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 2
+     },
+     {
+      "seq": 82,
+      "started_at": 1794510031.670429,
+      "seconds": 3.7810000000172295,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1267,
+      "completion_tokens": 18,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1285,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 2
+     },
+     {
+      "seq": 83,
+      "started_at": 1794510035.482836,
+      "seconds": 10.125,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1324,
+      "completion_tokens": 19,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1343,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 2
+     },
+     {
+      "seq": 84,
+      "started_at": 1794510045.6291595,
+      "seconds": 1.3439999999827705,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 1379,
+      "completion_tokens": 11,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 1390,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "researcher",
+      "handoff": 2
+     },
+     {
+      "seq": 85,
+      "started_at": 1794510046.9718204,
+      "seconds": 1.672000000020489,
+      "wait_seconds": 0.0,
+      "attempts": 1,
+      "model": "gemini-3.5-flash-lite",
+      "served": "gemini-3.5-flash-lite",
+      "prompt_tokens": 789,
+      "completion_tokens": 11,
+      "status": "ok",
+      "error": null,
+      "total_tokens": 800,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "agent": "manager",
+      "handoff": null
+     }
+    ],
+    "warnings": [],
+    "errors": []
+   },
+   "served_model": "gemini-3.5-flash-lite"
+  },
+  {
+   "task_id": "t7-unanswerable",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "I don't know based on the provided documents.",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 5,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 5,
+   "prompt_tokens": 5921,
+   "completion_tokens": 85,
+   "api_seconds": 9.062,
+   "wait_seconds": 8.372,
+   "elapsed_seconds": 17.532,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"maximum bonus manager approve team member\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible employees may claim up to **INR 30,000 per financial year** for approved learning and certification expenses.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Promotions Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.969,
+     "tokens": {
+      "prompt": 688,
+      "completion": 21
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"bonus manager approve\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Promotions Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Quarterly Check-ins Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 7.453,
+     "tokens": {
+      "prompt": 1000,
+      "completion": 18
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"bonus\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. — Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effective date:** 1 April 2026 **Review date:** 1 April 2027 **Status:** Fictional / testing only > This handbook is entirely fictional and is intended for software testing, retrieval evaluation, chunking, embedding, reranking, and question-answering experiments. ## 1. Employee Handbook Overview\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ## 8. Benefits ### Health Benefits Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: benefits.md] # Benefits Northwind Labs offers: - Private health insurance (employee covered 100%; dependents at 50%). - A pension match of **5%** of base salary. - An annual learning budget of **$1,000** per employee. - 24 days annual leave (see the Annual Leave policy). Benefits begin on your first day; the pension match starts after **3 months** of employment.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.484,
+     "tokens": {
+      "prompt": 1311,
+      "completion": 16
+     }
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"incentive reward compensation\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ## 7. Compensation and Payroll ### Salary Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Overtime Pay Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 2.859,
+     "tokens": {
+      "prompt": 1422,
+      "completion": 19
+     }
+    },
+    {
+     "n": 5,
+     "kind": "final",
+     "content": "I don't know based on the provided documents.",
+     "tool_calls": [],
+     "seconds": 1.672,
+     "tokens": {
+      "prompt": 1500,
+      "completion": 11
+     }
+    }
+   ],
+   "notes": [],
+   "call_log": [
+    {
+     "seq": 86,
+     "started_at": 1794510048.660696,
+     "seconds": 1.7190000000118744,
+     "wait_seconds": 1.237999999994645,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 688,
+     "completion_tokens": 21,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 709,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 87,
+     "started_at": 1794510051.64803,
+     "seconds": 2.187000000005355,
+     "wait_seconds": 5.269000000011874,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1000,
+     "completion_tokens": 18,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1018,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 88,
+     "started_at": 1794510059.1245673,
+     "seconds": 2.4839999999967404,
+     "wait_seconds": 0.0,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1311,
+     "completion_tokens": 16,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1327,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 89,
+     "started_at": 1794510061.6340964,
+     "seconds": 1.4219999999913853,
+     "wait_seconds": 1.439999999984866,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1422,
+     "completion_tokens": 19,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1441,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    },
+    {
+     "seq": 90,
+     "started_at": 1794510064.5129607,
+     "seconds": 1.25,
+     "wait_seconds": 0.425,
+     "attempts": 1,
+     "model": "gemini-3.5-flash-lite",
+     "served": "gemini-3.5-flash-lite",
+     "prompt_tokens": 1500,
+     "completion_tokens": 11,
+     "status": "ok",
+     "error": null,
+     "total_tokens": 1511,
+     "cached_tokens": null,
+     "reasoning_tokens": null,
+     "agent": "agent",
+     "handoff": null
+    }
+   ],
+   "served_model": "gemini-3.5-flash-lite"
+  }
+ ]
+}

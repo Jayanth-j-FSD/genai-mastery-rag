@@ -26,14 +26,15 @@ from types import SimpleNamespace
 import openai
 
 from app import llm
-from app.agent import loop, workflow
+from app.agent import loop, team, workflow
 from app.agent.tools import default_tools
 from app.config import settings
 from app.rag import generator
 from evals import checks
 from evals.agent_tasks import get_tasks
 
-APPROACHES = ("agent", "workflow")
+APPROACHES = ("agent", "workflow")             # the Week 7 race. Week 10 adds a third runner, "team", used by scripts/race_team.py
+TEAM_OPTIONS = ("model", "rpm", "max_steps", "max_total_tokens", "timeout_seconds", "max_calls_per_tool")     # what run_team takes
 
 _PASSAGE_RE = re.compile(r"\[\d+\]\s*\[source:\s*([^\]]+?)\s*\]\s*(.*)")
 _SOURCE_PREFIX_RE = re.compile(r"^\s*source:\s*", re.IGNORECASE)
@@ -102,20 +103,28 @@ def run_one(task, approach, repeat, tools, **options):
         run = loop.run_agent(task["question"], tools, **options)
     elif approach == "workflow":
         run = workflow.run_workflow(task["question"], model=options.get("model"), rpm=options.get("rpm"))
+    elif approach == "team":                     # Week 10: a manager and two specialists, same tools, same limits
+        unknown = sorted(set(options) - set(TEAM_OPTIONS))
+        if unknown:                              # an option the team would silently ignore is an experiment that did not run as meant
+            raise ValueError(f"the team does not take these options: {unknown}")
+        run = team.run_team(task["question"], tools, **options)
     else:
         raise ValueError(f"unknown approach {approach!r}")
     result = to_result(run)
     rule_checks, passed, warnings = checks.check_case(task, result)
     usage = run.usage or {}
-    return {"task_id": task["id"], "approach": approach, "repeat": repeat,
-            "success": bool(run.finished and passed), "finished": run.finished, "rules_passed": passed,
-            "stop_reason": run.stop_reason, "answer": run.answer, "failed_checks": [c["detail"] for c in rule_checks if not c["passed"]],
-            "warnings": warnings, "n_steps": len(run.steps),
-            "tool_calls": [call["name"] for step in run.steps for call in step.get("tool_calls", [])],
-            "llm_calls": usage.get("calls", 0), "prompt_tokens": usage.get("prompt_tokens", 0),
-            "completion_tokens": usage.get("completion_tokens", 0), "api_seconds": usage.get("api_seconds", 0.0),
-            "wait_seconds": usage.get("wait_seconds", 0.0), "elapsed_seconds": round(time.monotonic() - started, 3),
-            "steps": run.steps, "notes": run.notes}
+    record = {"task_id": task["id"], "approach": approach, "repeat": repeat,
+              "success": bool(run.finished and passed), "finished": run.finished, "rules_passed": passed,
+              "stop_reason": run.stop_reason, "answer": run.answer, "failed_checks": [c["detail"] for c in rule_checks if not c["passed"]],
+              "warnings": warnings, "n_steps": len(run.steps),
+              "tool_calls": [call["name"] for step in run.steps for call in step.get("tool_calls", [])],
+              "llm_calls": usage.get("calls", 0), "prompt_tokens": usage.get("prompt_tokens", 0),
+              "completion_tokens": usage.get("completion_tokens", 0), "api_seconds": usage.get("api_seconds", 0.0),
+              "wait_seconds": usage.get("wait_seconds", 0.0), "elapsed_seconds": round(time.monotonic() - started, 3),
+              "steps": run.steps, "notes": run.notes}
+    if approach == "team":                       # only the team has per-agent usage and hand-offs to record
+        record["team"] = run.team
+    return record
 
 
 def run_race(tasks=None, approaches=APPROACHES, repeats=3, label="race", say=print, tools=None, **options):

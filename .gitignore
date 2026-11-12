@@ -7,6 +7,7 @@ data/chroma/
 data/traces/
 evals/cache/
 evals/results/*.tmp
+evals/results/*.lock
 
 # Local secrets — never commit
 free_keys.txt
