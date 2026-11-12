@@ -1,11 +1,23 @@
-# AI-Task — "ask my documents" RAG app (Weeks 3-6)
-fastapi>=0.110
-uvicorn[standard]>=0.29
-pydantic>=2.6
-pydantic-settings>=2.2
-python-dotenv>=1.0
-openai>=1.30
-chromadb>=0.5
-langchain-text-splitters>=0.2
-pypdf>=4.2
-# Optional (local embeddings alternative): sentence-transformers, torch
+# AI-Task: "ask my documents" RAG app (course weeks 3 onward). Python 3.12.
+#
+# Pinned to the exact versions the app was verified with (3.12.10 on Windows). Unpinned ranges
+# let a later release change behaviour under a reviewer's feet, and chromadb in particular has
+# changed its search internals between major versions.
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-dotenv==1.2.3
+openai==3.14.0
+chromadb==1.5.9
+langchain-text-splitters==1.1.2
+pypdf==6.18.1
+
+# The offline embedding model (EMBED_PROVIDER=local) runs on these. chromadb installs them too,
+# but the code imports them directly, so they are named here.
+numpy==2.5.3
+onnxruntime==1.30.0
+tokenizers==0.23.2
+
+# Used by the unit tests (FastAPI's test client). openai installs it too; named for the same reason.
+httpx==0.28.1

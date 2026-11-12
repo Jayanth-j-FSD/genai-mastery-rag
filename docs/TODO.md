@@ -2,91 +2,61 @@
 
 Status legend:  `[ ]` not started · `[~]` in progress · `[x]` done
 
-## Phase 0 — Scaffolding (done)
-- [x] Create AI-Task folder + structure
-- [x] Scaffold app/ modules, scripts, config, models
-- [x] Write docs (overview, project-info, week3, this file)
-- [x] requirements.txt, .env.example, .gitignore
+The delivery plan, rules and per-week status live in [GOAL.md](GOAL.md). This file is the detailed
+checklist behind it. Items marked **(you)** are your own work and are deliberately not
+automated.
 
-## Phase 1 — Code (written + reviewed + hardened; NOT yet run)
-- [x] `loader.py` — read PDF/txt/md from corpus into text + source
-- [x] `chunker.py` — recursive splitter using config chunk_size/overlap
-- [x] `embedder.py` — OpenAI embeddings, batched; same model both sides
-- [x] `store.py` — persistent Chroma collection; reset + add + query (cosine)
-- [x] `retriever.py` — embed question, return top-K chunks with score + source
-- [x] `generator.py` — grounding prompt: answer-only-from-context, cite, "I don't know"
-- [x] `tracing.py` — append complete trace (question + chunks + answer + config) to JSONL
-- [x] `pipeline.py` — wire ingest() and answer()
-- [x] `scripts/ingest.py`, `scripts/ask.py`, `app/main.py` (FastAPI)
-- [x] Sample corpus (Northwind Labs) + tests/questions.md
+## Weeks 3 to 5: code
+- [x] The six-stage pipeline, the FastAPI app, the CLI, trace logging (Week 3)
+- [x] Hybrid search, the failure classifier, the inspection view, the eval scripts (Week 4)
+- [x] Sampling, the notes gate, grouping and ranking tools (Week 5)
+- [x] Offline unit tests for all of it (`tests/unit/`, run by `scripts/check_all.py`)
 
-> NOTE: code is written and reviewed but has NOT been executed — this machine has
-> no Python installed and no API key in-session. Verification is Phase 3.
+## Weeks 3 to 5: hardening (branch `week-5-hardening`, see `docs/hardening/README.md`)
+- [x] Free-provider support: Gemini answers, local embeddings, the offline model downloader
+- [x] Chat calls throttled and retried in one place (`app/llm.py`)
+- [x] Dense search made exact; the approximate index kept behind `DENSE_SEARCH=ann`
+- [x] Ingest no longer empties the index before embedding; an empty index is an error, not a refusal
+- [x] Week 5 "reproduce" command can no longer overwrite the notes; `--upto N` recreates the population
+- [x] Provider failures become clear HTTP errors; printing can no longer crash on a Windows console
+- [x] Stale test assets rewritten for the current documents; the Nexora answer key moved out of the corpus
+- [x] Dependencies pinned, README and `.env.example` rewritten, errata added to the frozen week docs
+- [x] `scripts/check_all.py`, the regression gate
 
-## Phase 1b — Smart enhancements (done; make the four checks shine)
-- [x] Precise citations — show only the documents the model actually cited (check #2)
-- [x] Injection-aware prompt — treat retrieved docs as data, not commands (Week 2 applied)
-- [x] `scripts/compare_chunks.py` — automated two-chunk-size comparison (check #4)
-- [x] `min_relevance` floor — optional weak-match guard, off by default (check #3)
-- [x] Per-file chunk counts printed on ingest ("prove your chunking")
-- [x] Friendly CLI errors for missing key / empty corpus
+## Week 3: run and verify the four mentor checks
+- [x] `python scripts/ingest.py` builds the index (9 documents, 432 chunks)
+- [x] #1 correct answers from the documents: see `docs/week4/failure-labels-dense.md` for each question's answer
+- [x] #2 every answer shows its source document
+- [x] #3 an absent topic gets "I don't know" (the refusal cases in the same file)
+- [x] #4 the two-size experiment was run: `docs/week3/chunk-experiment.md` has the numbers
+- [ ] **(you)** write what changed between the two chunk sizes, in your own words (`tests/questions.md`)
 
-## Phase 2 — Environment (you — required before anything runs)
-- [ ] **Install Python 3.11+** (not currently on this machine) — python.org, tick "Add to PATH"
-- [ ] `cd` into AI-Task, then `python -m venv .venv` and activate it
-- [ ] `pip install -r requirements.txt`
-- [ ] `cp .env.example .env` and paste your real `OPENAI_API_KEY`
+## Week 4: run and fill in the deliverable
+- [x] `scripts/diagnose_failures.py --mode dense --save` run: labels with evidence
+- [x] `scripts/eval_retrieval.py --save` run: hit-rate@1/@3/@5 and MRR, dense vs hybrid
+- [ ] **(you)** fill `docs/week4/findings.md` sections 2 to 6 in your own words (numbers are in the generated files)
+- [ ] **(you)** pick one failure and write it out with its evidence (check #1)
+- [ ] **(you)** say which failures the change did not fix, and which it broke (check #4)
 
-## Phase 3 — Run & verify the 4 mentor checks (definition of done)
-- [ ] `python scripts/ingest.py` — builds the index (prints doc/chunk counts)
-- [ ] #1 `python scripts/ask.py "how many leave days carry over?"` → correct answer from docs
-- [ ] #2 answer shows the source document (annual-leave.md)
-- [ ] #3 `python scripts/ask.py "what is the parental leave policy?"` → "I don't know"
-- [ ] #4 change CHUNK_SIZE in .env (800→400), re-ingest, re-ask, record the difference
-- [ ] (optional) `uvicorn app.main:app --reload` and try /ask at /docs
+## Week 5: the analysis itself (the part that cannot be automated)
+- [ ] `python scripts/ask_batch.py` builds a population of real traces (about 75 questions, throttled)
+- [ ] `python scripts/sample_traces.py --n 20` draws the fair sample (check #1)
+- [ ] **(you)** read all 20 traces; fill verdict / note / severity by hand in `worksheet.md` (check #2)
+- [ ] `python scripts/code_notes.py` passes only when the reading is genuinely done
+- [ ] **(you)** add one group name per failure in `coded-notes.md` (check #3)
+- [ ] `python scripts/rank_problems.py --save` produces the ranking (check #4)
+- [ ] **(you)** write `docs/week5/taxonomy.md`: groups, ranking, chosen target, and the prediction first
 
-## Phase 4 — Week 4, debugging retrieval (code written + reviewed; NOT yet run)
-- [x] `tests/eval_set.py` — 18 labelled questions (14 in-corpus, 4 deliberately absent)
-- [x] `app/rag/keyword.py` — BM25 keyword search, written longhand, no new dependency
-- [x] `app/rag/fusion.py` — Reciprocal Rank Fusion over the two ranked lists
-- [x] `app/rag/retriever.py` — `retrieve_hybrid()` + `retrieve_for_mode()`; `retrieve()` unchanged
-- [x] `app/rag/diagnose.py` — classify a failure as RETRIEVAL vs GENERATION, with evidence
-- [x] `scripts/inspect_traces.py` + `GET /inspect` — the side-by-side inspection view
-- [x] `scripts/diagnose_failures.py` — label every case, print the evidence (check #1)
-- [x] `scripts/eval_retrieval.py` — hit-rate@1/@3/@5 + MRR, both modes, and the deltas (checks #3, #4)
-- [x] `docs/week4/` — README (task) · CHANGES (what changed) · findings (the deliverable)
-- [x] Prediction written down BEFORE measuring (`docs/week4/findings.md` section 1)
+## Later weeks
+- [ ] Weeks 6 to 9: see [GOAL.md](GOAL.md); each gets its own branch, tag and `docs/weekN/` folder
+- [ ] Weeks 10 and 11: waiting for their briefs
 
-## Phase 5 — Week 4 run & verify (you — needs Python + API key)
-- [ ] `python scripts/ingest.py` — rebuild the index
-- [ ] #1 `python scripts/diagnose_failures.py --mode dense --save` → every case labelled with evidence
-- [ ] #3 `python scripts/eval_retrieval.py --save` → hit-rate@3 before vs after
-- [ ] #4 read the "NOT fixed by the change" list and record it in `findings.md`
-- [ ] #2 nothing to run — the single change is the diff itself (`git diff week-3..week-4 --stat`)
-- [ ] Fill in `docs/week4/findings.md` sections 2 to 6
-- [ ] (optional) `uvicorn app.main:app --reload` then open `/inspect` in the browser
-
-## Phase 6 — Week 5, error analysis tooling (code written + reviewed; NOT yet run)
-- [x] `tests/trace_questions.txt` — ~40 question bank, so a 20-trace sample is a real sample
-- [x] `scripts/ask_batch.py` — run the bank through the traced answer path
-- [x] `scripts/sample_traces.py` — seeded fair sample, records seed + reproduction command
-- [x] `app/worksheet.py` — one parser for the hand-filled note format
-- [x] `scripts/code_notes.py` — refuses to group until every note is written (check #2)
-- [x] `scripts/rank_problems.py` — frequency x severity ranking, singleton + name-split warnings
-- [x] `docs/week5/` — README (the four steps) · CHANGES · taxonomy (the deliverable template)
-
-## Phase 7 — Week 5 run & the analysis itself (you — the part that cannot be automated)
-- [ ] `python scripts/ask_batch.py` — build a population of real traces
-- [ ] `python scripts/sample_traces.py --n 20` — draw the fair sample (check #1)
-- [ ] **Read all 20 traces.** Fill verdict / note / severity by hand in `worksheet.md` (check #2)
-- [ ] `python scripts/code_notes.py` — passes only when the reading is genuinely done
-- [ ] Add one group name per failure in `coded-notes.md` (check #3)
-- [ ] `python scripts/rank_problems.py --save` — the ranking (check #4)
-- [ ] Write `docs/week5/taxonomy.md`: groups, ranking, chosen target, and the prediction first
-
-## Later weeks (not started)
-- [ ] Week 6 — one-command eval set, validated LLM judge, RAGAS, before/after deltas
-
-## Open / waiting on
-- [ ] Real track (A-F) document pack — using sample docs (Northwind Labs) until it arrives
-- [x] Project location — settled; this folder is the git repo root
+## Open decisions (yours)
+- [ ] The documents disagree: annual leave is 18 days in the Acme policy and 24 in the handbook and
+      `benefits.md`; the notice period is 30 vs 60 days; the learning budget is $1,000 vs INR 30,000.
+      The eval set accepts either where the question does not name a company. Decide what the
+      corpus should be.
+- [ ] Four fictional companies are mixed (Acme, Northstar, Nexora, Northwind); the four Northwind
+      sample files are off-track for an HR corpus. Keep them for more Week 5 failures, or remove them.
+- [ ] The Excel test workbook (`tests/Week3-Test-Cases.xlsx`) was built for the earlier corpus and its
+      Setup sheet predates the free-provider setup. Rebuilding it needs Excel (`tests/sheet-source/`).

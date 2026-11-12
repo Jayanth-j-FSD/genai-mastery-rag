@@ -8,10 +8,13 @@ import sys
 # Let this script find the "app" package when run directly from the project root.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.rag.pipeline import answer  # noqa: E402
+import openai                              # noqa: E402
+from app.console import make_output_safe   # noqa: E402
+from app.rag.pipeline import answer        # noqa: E402
 
 
 if __name__ == "__main__":
+    make_output_safe()                      # an odd character in the answer must not crash the script
     if len(sys.argv) < 2:
         print('Usage: python scripts/ask.py "your question"')
         sys.exit(1)
@@ -19,8 +22,11 @@ if __name__ == "__main__":
     question = " ".join(sys.argv[1:])   # join the words so surrounding quotes are optional
     try:
         result = answer(question)
-    except RuntimeError as exc:          # e.g. no API key configured
+    except RuntimeError as exc:          # e.g. no API key, nothing indexed yet, daily quota used up
         print(f"Error: {exc}")
+        sys.exit(1)
+    except openai.APIError as exc:       # the AI provider refused or failed: rate limit, bad key, network
+        print(f"Error: the AI provider call failed ({type(exc).__name__}): {exc}")
         sys.exit(1)
 
     print("\nANSWER:")

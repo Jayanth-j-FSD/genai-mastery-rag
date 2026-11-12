@@ -21,6 +21,8 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import settings, BASE_DIR          # noqa: E402
+from app.console import display_path, make_output_safe  # noqa: E402
+from app.rag.pipeline import require_index              # noqa: E402
 from app.rag.retriever import retrieve_for_mode    # noqa: E402
 from tests.eval_set import in_corpus_cases         # noqa: E402
 
@@ -127,6 +129,7 @@ def main():
     parser.add_argument("--save", action="store_true",
                         help="also write the report to docs/week4/eval-results.md")
     args = parser.parse_args()
+    make_output_safe()
 
     k_values = _k_values()
     depth = max(k_values)               # retrieve deep enough for every reported k
@@ -135,6 +138,7 @@ def main():
     results = {}
     for mode in MODES:
         try:
+            require_index()
             results[mode] = _measure(mode, depth)
         except RuntimeError as exc:          # missing documents, no API key configured
             print(f"Error: {exc}")
@@ -230,7 +234,7 @@ def main():
             f.write(f"Generated {datetime.now().isoformat(timespec='seconds')} by "
                     "`python scripts/eval_retrieval.py --save`.\n\n")
             f.write("```\n" + "\n".join(lines) + "\n```\n")
-        print(f"\nSaved: {os.path.relpath(out_path, BASE_DIR)}")
+        print(f"\nSaved: {display_path(out_path, BASE_DIR)}")
     return 0
 
 

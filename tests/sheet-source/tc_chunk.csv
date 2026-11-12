@@ -1,0 +1,15 @@
+Field|Config A - 800 / 120|Config B - 400 / 60|Notes
+CHUNK_SIZE|800|400|Set in .env then re-run python scripts/ingest.py
+CHUNK_OVERLAP|120|60|Overlap must always be smaller than chunk size or chunker.py raises
+Total documents ingested|||Should be 9 either way
+Total chunks created|||Expect Config B to produce roughly twice as many
+Chunks from Synthetic_HR_Policy_RAG_Test_Dataset.md|||This one file dominates the index - record it separately
+Chunks from Nexora_Tech_Azure_Cloud_Data_Access_Policy.md|||
+C1-01 four classification levels - right doc cited?|||Answer lives in a markdown table. Smaller chunks may split the table and lose rows.
+C1-11 five production-access approvals - all five listed?|||A list that must survive chunking intact. Smaller chunks are likely to truncate it.
+C1-12 cross-section developer + customer data - complete?|||Needs several sections at once. Smaller chunks make this harder, not easier.
+C1-21 annual leave days - which number and which source?|||The corpus conflict. Note whether the cited document changes between configs.
+C1-22 accrued 2 days per month - retrieved?|||The duplication probe. One unique bullet among 136 repeats of the same boilerplate.
+Questions answered correctly out of 5|||
+YOUR WRITTEN OBSERVATION - what changed and why|||THIS IS THE GRADED PART. Three to five sentences. Name at least one question that behaved differently between the two configs and say why you think it did. A number with no explanation does not satisfy mentor check 4.
+Which config would you ship, and why|||A defensible choice with a reason beats the higher score.

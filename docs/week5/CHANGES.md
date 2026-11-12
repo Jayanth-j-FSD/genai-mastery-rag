@@ -1,5 +1,16 @@
 # Week 5 — what changed, and why
 
+> **Erratum (2026-10-11).** Kept as written, with three corrections. (1) The requirement table
+> says to "re-run the printed command and show the identical draw". That command carried `--force`,
+> which **replaces `worksheet.md`, the file holding your handwritten notes**, and it could not
+> reproduce the draw once more traces existed. Both are fixed: the printed command now writes to a
+> separate file (`--out docs/week5/worksheet-check.md`) and uses `--upto N` to recreate the
+> original population. (2) "Has not been executed": the Week 5 tooling is now covered by unit tests
+> that run the whole chain (sample, notes gate, grouping, ranking). The reading itself has still
+> not been done: that part is yours. (3) "`git checkout week-4` still runs the app": it shows the
+> code, but running it needs a real OpenAI key and a re-ingest. See
+> [../hardening/README.md](../hardening/README.md).
+
 Week 5 is an analysis week, so it adds almost no application behaviour. It adds the tooling
 that makes a *disciplined* analysis possible, and it reads what the app already logs. Nothing
 from Week 3 or Week 4 was rewritten.

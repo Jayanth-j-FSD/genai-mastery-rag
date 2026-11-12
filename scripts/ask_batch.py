@@ -25,6 +25,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import settings, BASE_DIR        # noqa: E402
+from app.console import display_path               # noqa: E402
 from app.rag.pipeline import answer              # noqa: E402
 
 DEFAULT_QUESTIONS = os.path.join(BASE_DIR, "tests", "trace_questions.txt")
@@ -68,7 +69,7 @@ def main():
     mode = args.mode or settings.retrieval_mode
     print(f"About to ask {len(questions)} question(s) using mode={mode}.")
     print(f"That is {len(questions)} embedding call(s) + {len(questions)} answer call(s), "
-          f"logged to {os.path.relpath(settings.traces_path, BASE_DIR)}.")
+          f"logged to {display_path(settings.traces_path, BASE_DIR)}.")
     if not args.yes:
         # Cheap, but it is real money and real API calls — make it a deliberate act.
         try:

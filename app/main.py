@@ -9,15 +9,37 @@ the chunks that were fetched, and the final answer side by side.
 """
 from html import escape
 
+import openai
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
+from app import llm
 from app.config import settings
 from app.models import AskRequest, AskResponse
 from app.rag.pipeline import answer as run_answer, ingest as run_ingest
 from app.tracing import read_traces
 
 app = FastAPI(title="Ask My Documents", version="1.1.0")
+
+
+def _run(action, *args):
+    """Run a pipeline action and turn its expected failures into proper HTTP errors.
+
+    Without this a rate-limited or rejected AI call would surface as a bare "500 Internal
+    Server Error" with nothing to act on.
+    """
+    try:
+        return action(*args)
+    except llm.QuotaExhausted as exc:           # a RuntimeError subclass, so it must come first
+        raise HTTPException(status_code=429, detail=str(exc))
+    except RuntimeError as exc:                 # e.g. no key, no documents, nothing indexed yet
+        raise HTTPException(status_code=400, detail=str(exc))
+    except openai.RateLimitError:
+        raise HTTPException(status_code=429, detail="The AI provider's rate limit was hit. "
+                                                    "Wait a minute and try again.")
+    except (openai.APIStatusError, openai.APIConnectionError) as exc:
+        raise HTTPException(status_code=502, detail=f"The AI provider call failed "
+                                                    f"({type(exc).__name__}). Check the key, model and network.")
 
 
 @app.get("/health")           # quick "is it alive?" check
@@ -27,19 +49,12 @@ def health():
 
 @app.post("/ingest")          # (re)build the index from data/corpus/
 def ingest_endpoint():
-    try:
-        return run_ingest()
-    except RuntimeError as exc:
-        # Turn our clear error into a proper 400 response instead of a crash.
-        raise HTTPException(status_code=400, detail=str(exc))
+    return _run(run_ingest)
 
 
 @app.post("/ask", response_model=AskResponse)   # answer a question, with sources
 def ask_endpoint(req: AskRequest):
-    try:
-        return run_answer(req.question, req.mode)
-    except RuntimeError as exc:                 # e.g. no API key configured
-        raise HTTPException(status_code=400, detail=str(exc))
+    return _run(run_answer, req.question, req.mode)
 
 
 # --- Week 4: the inspection view ---

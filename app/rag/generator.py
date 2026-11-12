@@ -7,12 +7,9 @@ when the answer isn't in those chunks. Mentor checks #2 and #3 live here.
 import os
 import re
 
-from openai import OpenAI
-
+from app import llm
 from app.config import settings
 from app.models import Source
-
-_client = None
 
 # The exact sentence the model must use when the answer isn't in the documents.
 IDK = "I don't know based on the provided documents."
@@ -36,19 +33,6 @@ SYSTEM_PROMPT = (
 )
 
 
-def _get_client() -> OpenAI:
-    """Create the OpenAI client, with a clear error if the key is missing."""
-    global _client
-    if _client is None:
-        key = settings.openai_api_key or os.environ.get("OPENAI_API_KEY")
-        if not key:
-            raise RuntimeError(
-                "No OpenAI API key found. Copy .env.example to .env and set OPENAI_API_KEY."
-            )
-        _client = OpenAI(api_key=key)
-    return _client
-
-
 def _retrieved_scores(chunks) -> dict:
     """Map each retrieved source document -> its best (highest) score."""
     best: dict[str, float] = {}
@@ -58,12 +42,29 @@ def _retrieved_scores(chunks) -> dict:
     return best
 
 
+def _cited_names(answer: str):
+    """Every document name the answer cites, in order.
+
+    One citation may list several documents, "[source: A.md, B.md]" or "[source: A.md; B.md]",
+    so each is also split into its parts. The whole text is tried first because a real file
+    name may itself contain a comma.
+    """
+    names = []
+    for group in _SOURCE_RE.findall(answer):
+        group = group.strip()
+        names.append(group)
+        parts = [part.strip() for part in re.split(r"[;,]", group) if part.strip()]
+        if len(parts) > 1:
+            names.extend(parts)
+    return names
+
+
 def _sources_used(answer: str, chunks):
     """Prefer the sources the model actually CITED in its answer (precise), and
     fall back to all retrieved sources only if it didn't cite in the expected form."""
     scores = _retrieved_scores(chunks)
     used, seen = [], set()
-    for name in _SOURCE_RE.findall(answer):
+    for name in _cited_names(answer):
         name = name.strip()
         # Match a cited name to a real retrieved source (exact, or by file name).
         match = next(
@@ -94,15 +95,15 @@ def generate_answer(question: str, chunks):
     context = "\n\n".join(f"[source: {c['source']}]\n{c['text']}" for c in chunks)
     user_prompt = f"Context passages:\n{context}\n\nQuestion: {question}"
 
-    resp = _get_client().chat.completions.create(
-        model=settings.llm_model,
-        temperature=0,                      # 0 = most consistent, least random
-        messages=[
+    # llm.chat adds the per-minute limiter and the retries a free tier needs (app/llm.py).
+    resp = llm.chat(
+        [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ],
+        temperature=0,                      # 0 = most consistent, least random
     )
-    answer = (resp.choices[0].message.content or "").strip()
+    answer = llm.text_of(resp)
     if not answer:                          # empty reply -> treat as "don't know"
         return IDK, [], False
 

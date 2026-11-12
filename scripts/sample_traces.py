@@ -26,9 +26,19 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import settings, BASE_DIR        # noqa: E402
+from app.console import display_path               # noqa: E402
 from app.tracing import read_traces              # noqa: E402
 
 DEFAULT_OUT = os.path.join(BASE_DIR, "docs", "week5", "worksheet.md")
+
+
+def _label(trace):
+    """The id a block is filed under.
+
+    Traces logged before Week 4 have no trace_id. Filing them all under "?" would make every
+    such block look like the same trace to the parser, so fall back to the log line number.
+    """
+    return str(trace.get("trace_id") or f"line{trace.get('line_no', '?')}")
 
 
 def _one_line(text):
@@ -71,12 +81,15 @@ def _worksheet(sample, population_size, seed, requested):
     out.append(f"- Sample size requested: **{requested}**, actually drawn: **{len(sample)}**")
     out.append(f"- Random seed: **{seed}**")
     out.append(f"- Drawn at: {datetime.now().isoformat(timespec='seconds')}")
-    out.append(f"- Reproduce this exact sample: "
-               f"`python scripts/sample_traces.py --n {requested} --seed {seed} --force`")
+    # The log only ever grows, so --upto recreates the population as it was at this moment,
+    # and --out writes to a separate file so these notes are never touched by a re-check.
+    out.append(f"- Reproduce this exact draw into a separate file (your notes here stay untouched): "
+               f"`python scripts/sample_traces.py --n {requested} --seed {seed} "
+               f"--upto {population_size} --out docs/week5/worksheet-check.md`")
     out.append("")
     out.append("Trace ids in this sample, in the order they were drawn:")
     out.append("")
-    out.append("`" + ", ".join(str(t.get("trace_id", "?")) for t in sample) + "`")
+    out.append("`" + ", ".join(_label(t) for t in sample) + "`")
     out.append("")
     out.append("## How to fill this in")
     out.append("")
@@ -99,7 +112,7 @@ def _worksheet(sample, population_size, seed, requested):
 
     for number, trace in enumerate(sample, start=1):
         config = trace.get("config") or {}
-        out.append(f"## trace {trace.get('trace_id', '?')}")
+        out.append(f"## trace {_label(trace)}")
         out.append("")
         out.append(f"*sample {number} of {len(sample)} · log line {trace.get('line_no')} · "
                    f"{trace.get('ts', '')} · mode={config.get('retrieval_mode', '?')} · "
@@ -133,6 +146,9 @@ def main():
     parser.add_argument("--seed", type=int, default=42,
                         help="random seed, recorded in the worksheet so the draw is reproducible")
     parser.add_argument("--out", default=DEFAULT_OUT, help="where to write the worksheet")
+    parser.add_argument("--upto", type=int, default=None,
+                        help="use only the first N traces of the log. The log only grows, so this "
+                             "recreates the population as it was when an earlier sample was drawn")
     parser.add_argument("--force", action="store_true",
                         help="overwrite an existing worksheet (this DELETES notes you wrote)")
     args = parser.parse_args()
@@ -140,8 +156,13 @@ def main():
     if args.n < 1:
         print(f"Error: --n must be 1 or greater, got {args.n}.")
         return 1
+    if args.upto is not None and args.upto < 1:
+        print(f"Error: --upto must be 1 or greater, got {args.upto}.")
+        return 1
 
     traces = read_traces()
+    if args.upto is not None:
+        traces = traces[:args.upto]
     if not traces:
         print(f"No traces yet in {settings.traces_path}")
         print("Build a population first:  python scripts/ask_batch.py")
@@ -149,7 +170,7 @@ def main():
 
     # Refuse to destroy handwritten notes. This is the one irreversible thing here.
     if os.path.exists(args.out) and not args.force:
-        print(f"Error: {os.path.relpath(args.out, BASE_DIR)} already exists.")
+        print(f"Error: {display_path(args.out, BASE_DIR)} already exists.")
         print("It may contain notes you wrote by hand, and rewriting it would delete them.")
         print("Pass --force if you really want a fresh sample.")
         return 1
@@ -167,7 +188,7 @@ def main():
         f.write(_worksheet(sample, len(traces), args.seed, args.n))
 
     refused = sum(1 for t in sample if t.get("grounded") is False)
-    print(f"Wrote {os.path.relpath(args.out, BASE_DIR)}")
+    print(f"Wrote {display_path(args.out, BASE_DIR)}")
     print(f"  population {len(traces)} · sampled {len(sample)} · seed {args.seed}")
     print(f"  of the sample, {refused} were refusals and {len(sample) - refused} were answers")
     print("\nNext: read every block and fill in verdict / note / severity by hand.")

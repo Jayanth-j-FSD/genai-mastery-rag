@@ -1,5 +1,15 @@
 # Week 4 — findings (the deliverable)
 
+> **Erratum (2026-10-11).** Written before anything was run, and kept as written. Since then the
+> corpus changed, so `tests/eval_set.py` was rewritten before any measurement: the six exact-string
+> and four paraphrase cases of section 1 still exist, with `exact-code-freeze` and
+> `exact-collaboration-day` replaced by `exact-policy-id` and `acronym-pim` (same kind), and the
+> case table in section 3 below has been regenerated with the current ids (its cells are still empty). The mapping is at
+> the top of `tests/eval_set.py` and in [../hardening/README.md](../hardening/README.md). The code
+> **has** now been run: the generated output is in `eval-results.md` and `failure-labels-dense.md`
+> beside this file. Section 2's corpus-question count is updated to 28. The prediction, the interpretation
+> and the contents of sections 2 to 6 are still yours to write.
+
 This is the file the mentor reads. The prediction section is filled in already, because a
 prediction is only worth anything if it is written **before** the measurement. Every table
 that needs a real number is deliberately empty, with the command that fills it, because the
@@ -51,7 +61,7 @@ hypothesis was wrong and the next change should be reranking or query rewriting 
 
 ## 2. The before-and-after number (check #3)
 
-From `python scripts/eval_retrieval.py --save`. Measured over the 14 corpus questions; the
+From `python scripts/eval_retrieval.py --save`. Measured over the 28 corpus questions; the
 4 deliberately-absent questions are excluded because they have no expected document.
 
 | Metric | dense (before) | hybrid (after) | Change |
@@ -78,21 +88,35 @@ right document was fetched and the answer was still wrong.
 | code-err4032 | | |
 | exact-security-email | | |
 | exact-settings-path | | |
-| exact-code-freeze | | |
+| exact-policy-id | | |
 | acronym-mfa | | |
-| exact-collaboration-day | | |
+| acronym-pim | | |
 | paraphrase-usb | | |
 | paraphrase-hacked | | |
 | paraphrase-receipt-window | | |
 | paraphrase-retirement | | |
 | ambiguous-home-office | | |
 | ambiguous-leave-days | | |
-| negative-carryover-payout | | |
-| detail-december-forfeit | | |
-| absent-parental-leave | | |
-| absent-sick-days | | |
-| absent-notice-period | | |
+| ambiguous-notice-period | | |
+| ambiguous-learning-budget | | |
+| detail-sick-days | | |
+| negative-carryover-limit | | |
+| detail-carryover-expiry | | |
+| detail-parental-leave | | |
+| detail-notice-acme | | |
+| track-remote-eligibility | | |
+| track-internet-claim | | |
+| track-nexora-classification | | |
+| track-nexora-key-vault | | |
+| handbook-probation | | |
+| handbook-casual-leave | | |
+| handbook-holidays | | |
+| handbook-breach-hours | | |
+| handbook-pip | | |
 | absent-bonus | | |
+| absent-dress-code | | |
+| absent-azure-subscription-id | | |
+| absent-azure-admin-limit | | |
 
 Totals: ____ RETRIEVAL · ____ GENERATION · ____ PASS
 

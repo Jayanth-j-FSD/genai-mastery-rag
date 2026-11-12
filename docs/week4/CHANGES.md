@@ -1,5 +1,14 @@
 # Week 4 — what changed, and why
 
+> **Erratum (2026-10-11).** This page is kept as written, but three statements below are no longer
+> true. (1) "Has not been executed" and "no Python and no API key" (see "Status, stated honestly"):
+> the scripts have since been run, and their generated output is in `docs/week4/eval-results.md`
+> and `docs/week4/failure-labels-dense.md`. (2) "`tests/eval_set.py`: 18 labelled questions": the
+> corpus changed after this was written, so the set was rewritten (now 32 cases); see the mapping
+> at the top of `tests/eval_set.py`. (3) "`git checkout week-3` still runs the Week 3 app": it shows
+> the Week 3 *code*, but running it needs a real OpenAI key and a re-ingest. Everything is
+> explained in [../hardening/README.md](../hardening/README.md).
+
 The one-page answer to "what did you actually do this week?". Week 3's code and docs were
 not rewritten; everything here is either a new file or an additive change to an existing one.
 

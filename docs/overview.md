@@ -13,8 +13,8 @@ fixes that: it looks up the right documents first, then answers from them — so
 grounded in real facts and is traceable to a source. This is how support bots, internal
 "ask our handbook" tools, and document assistants are built.
 
-## The four-week arc (this one project, growing)
-This same app is carried across four course weeks. Each week hardens it:
+## The arc (this one project, growing)
+This same app is carried across the course weeks. Each week hardens or extends it:
 
 | Week | Theme | What we do to the app |
 |------|-------|-----------------------|
@@ -22,15 +22,22 @@ This same app is carried across four course weeks. Each week hardens it:
 | **4** | Debugging retrieval | When it's wrong, tell *why* (wrong doc vs wrong answer) and fix it, proven with a number. |
 | **5** | Error analysis | Read ~20 real answers, name the recurring problems, rank them. |
 | **6** | Evals | Build an automatic test so every future change gets a score, not a guess. |
+| **7** | Agent loops | Build a tool-using agent by hand, and race it against a fixed workflow. |
+| **8** | Agent failure modes | Judge the whole path, not just the answer; attack the agent with hidden instructions and defend it. |
+| **9** | MCP | Let the agent discover tools over the standard protocol, and expose one of ours. |
 
-We're on **Week 5**. The app was designed from day one to make weeks 4-6 easy — most importantly,
-it **logs a complete trace of every request** (question + what it fetched + what it answered),
-which is exactly what weeks 4 and 5 need to read. Both weeks spent nothing on plumbing as a
-result: Week 4's inspection view and Week 5's sampling both just read that file.
+[GOAL.md](GOAL.md) holds the plan, the delivery rules and the current status of each week.
 
-Each week is frozen as a git tag, so any week can be shown on its own:
-`git checkout week-3` for the app as the Week 3 mentor saw it, then `git checkout main` to
-come back. `docs/build-loop.md` describes the process every week follows.
+The app was designed from day one to make the later weeks easy — most importantly, it **logs a
+complete trace of every request** (question + what it fetched + what it answered), which is exactly
+what weeks 4 and 5 need to read. Both weeks spent nothing on plumbing as a result: Week 4's
+inspection view and Week 5's sampling both just read that file.
+
+Each week is frozen as a git tag, so any week's *code* can be shown on its own: `git checkout
+week-3`, then `git checkout main` to come back. (The old tags predate the free-provider support, so
+running one needs a real OpenAI key and a re-ingest; see the README.) `docs/build-loop.md`
+describes the process every week follows, and `docs/hardening/README.md` records what changed
+after the first three tags and why.
 
 ## The pipeline (six stages)
 A question flows through six steps. Each is its own file in `app/rag/`, so any one can be
@@ -61,11 +68,20 @@ Week 4 widened the retrieve step. It now runs two searches and merges them:
 Set `RETRIEVAL_MODE=dense` to switch the keyword half off and get the Week 3 behaviour back,
 which is how the before/after comparison is measured.
 
+The "dense search" box itself is exact: `store.query` compares the question with every stored
+vector (`DENSE_SEARCH=exact`, the default). Chroma's approximate index is still available
+(`DENSE_SEARCH=ann`) but missed the right chunk on this corpus and varied run to run; see
+`docs/hardening/README.md`.
+
 ## Tech stack (and why)
 - **Python + FastAPI** — the course language; FastAPI gives a clean API surface (and plays to
   your backend background).
-- **OpenAI API** — embeddings (`text-embedding-3-small`) and the answer model (`gpt-4o-mini`).
-  Simplest reliable start; both are swappable in `app/config.py`.
+- **An OpenAI-compatible chat model** — the answer model. The `openai` SDK is pointed at Google
+  Gemini's free tier (`OPENAI_BASE_URL`), so nothing needs billing; a real OpenAI key works by
+  clearing that one setting. Every call goes through `app/llm.py`, which throttles to the free
+  tier's per-minute limit, retries, and counts tokens.
+- **A local embedding model** — all-MiniLM-L6-v2 (ONNX, 384 dimensions) on onnxruntime and
+  tokenizers: free, offline, no quota. `scripts/download_model.py` fetches it once.
 - **Chroma** — a local vector database, zero setup, stores the chunk vectors.
 - **LangChain text-splitter + pypdf** — chunking and reading PDFs.
 

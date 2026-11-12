@@ -25,6 +25,8 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import settings, BASE_DIR                      # noqa: E402
+from app.console import display_path, make_output_safe  # noqa: E402
+from app.rag.pipeline import require_index              # noqa: E402
 from app.rag.diagnose import classify, NON_FAILURE_KINDS       # noqa: E402
 from tests.eval_set import CASES                                # noqa: E402
 
@@ -71,6 +73,7 @@ def main():
     parser.add_argument("--save", action="store_true",
                         help="also write the report to docs/week4/failure-labels-<mode>.md")
     args = parser.parse_args()
+    make_output_safe()                       # an odd character in an answer must not crash the run
 
     lines = []
 
@@ -79,6 +82,9 @@ def main():
         lines.append(text)
 
     emit(f"=== Failure diagnosis — mode={args.mode}, k={settings.top_k} ===")
+    # The model that wrote the answers is part of the evidence: another model can fail differently.
+    emit(f"answer model: {settings.llm_model} · embeddings: {settings.embed_provider} · "
+         f"dense search: {settings.dense_search} · {len(CASES)} cases")
     emit("'*' marks a chunk from a document that legitimately answers the question.")
     if args.no_model:
         emit("(--no-model: the answer model was NOT called, so refusal cases are ungraded)")
@@ -86,6 +92,7 @@ def main():
 
     counts = {}
     try:
+        require_index()
         for case in CASES:
             result = classify(case, mode=args.mode, call_model=not args.no_model)
             kind = result["kind"] or "NOT GRADED"
@@ -119,7 +126,7 @@ def main():
             f.write(f"Generated {datetime.now().isoformat(timespec='seconds')} by "
                     f"`python scripts/diagnose_failures.py --mode {args.mode} --save`.\n\n")
             f.write("```\n" + "\n".join(lines) + "\n```\n")
-        print(f"\nSaved: {os.path.relpath(out_path, BASE_DIR)}")
+        print(f"\nSaved: {display_path(out_path, BASE_DIR)}")
     return 0
 
 
