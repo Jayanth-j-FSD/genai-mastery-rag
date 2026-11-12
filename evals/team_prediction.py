@@ -215,6 +215,27 @@ def check_prediction(results):
                               prediction_doc=(results.get("meta") or {}).get("prediction_doc"))
 
 
+def drift_notes(meta, current_blob, current_hash):
+    """(changed, unverified): sentences saying the pre-registered prediction is not what the race began with, and sentences saying it could not be compared.
+
+    The race records the git blob of docs/week10/prediction.md and a hash of this file (which holds the thresholds) when it starts. An edit made after seeing the
+    numbers would otherwise pass silently, so the check compares both with what is on disk now. A value the saved race does not hold is not compared."""
+    changed, unverified = [], []
+    meta = meta or {}
+    recorded_blob, recorded_hash = meta.get("prediction_doc"), (meta.get("code") or {}).get("team_prediction.py")
+    if recorded_blob:
+        if current_blob is None:
+            unverified.append("the committed prediction document could not be read, so it was not compared with the one recorded when the race began")
+        elif current_blob != recorded_blob:
+            changed.append(f"docs/week10/prediction.md is not the document recorded when the race began (git blob {recorded_blob} then, {current_blob} now)")
+    if recorded_hash:
+        if current_hash is None:
+            unverified.append("evals/team_prediction.py could not be read, so its thresholds were not compared with the ones the race ran with")
+        elif current_hash != recorded_hash:
+            changed.append(f"evals/team_prediction.py, which holds the thresholds, is not the file the race began with (hash {recorded_hash} then, {current_hash} now)")
+    return changed, unverified
+
+
 def why_not_checkable(results):
     """One sentence on why check_prediction found nothing to check, for the script to print under the standard message."""
     arms = team_report.arm_names(results)

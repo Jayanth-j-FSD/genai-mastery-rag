@@ -177,8 +177,10 @@ To be written last, from the final code, with line numbers at the `week-10` tag.
 
 - After a daily-quota stop inside a specialist, the manager still makes its own next request before the run is raised (the existing test
   pins that the manager is told not to ask again); only the remaining hand-offs are refused. Raising from the manager's step would save one request.
-- A model call whose step never reaches the loop's `on_step` still counts in the calls and tokens but has no step of its own; closing that would
-  change `loop.py`.
+- A model call that returned no choices still counts in the calls and tokens (the report's "total != p+c" and `tokens_in_no_step` show it) but its step
+  records 0 tokens, because the loop's `on_step` never sees it; closing that would change `loop.py`.
+- The race's saved runs hold the model's answers and the tools' observations verbatim, and only error text is scrubbed; `tests/unit/test_week10_hygiene.py` is the
+  gate for what is committed, so a hit there means redacting by hand before committing the result file.
 - A value in a run record that cannot be saved as JSON ends the race with a traceback after saving what finished, instead of being dropped; a lone
   surrogate in an answer is replaced first. No real record holds one.
 - The order of arms inside a unit is balanced for who goes first but not for who goes before whom: with `--noise`, the single agent runs before the team

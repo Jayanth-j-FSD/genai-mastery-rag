@@ -127,6 +127,17 @@ class RunAgentScriptTests(unittest.TestCase):
         self.assertIn("researcher  1 model call(s), 110 tokens, 1 hand-off(s)", text)
         self.assertNotIn("calculator", text)                                      # an agent that did nothing is not listed
 
+    def test_a_team_code_bug_or_a_usage_warning_is_printed_and_not_left_inside_the_run_record(self):
+        crew = TeamRun(question="q", answer="done", stop_reason="final", steps=[step("final")], elapsed_seconds=1.0, model="m",
+                       usage={"calls": 1, "prompt_tokens": 10, "completion_tokens": 1, "api_seconds": 1.0},
+                       team={"per_agent": {}, "handoffs": [], "warnings": ["usage mismatch: 3 calls against 4"],
+                             "errors": [{"agent": "researcher", "type": "KeyError"}]})
+        with mock.patch.object(run_agent.team, "run_team", return_value=crew):
+            code, text = captured(run_agent.main, ["--team", "q"])
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING: usage mismatch: 3 calls against 4", text)
+        self.assertIn("WARNING: a hand-off failed on a bug in the team code (KeyError in the researcher).", text)
+
     def test_the_team_flag_cannot_be_combined_with_switches_the_team_does_not_have(self):
         for flags, needle in ((["--team", "--workflow"], "--workflow"), (["--team", "--no-memory"], "--no-memory")):
             with self.subTest(flags=flags), mock.patch.object(run_agent.team, "run_team") as running:

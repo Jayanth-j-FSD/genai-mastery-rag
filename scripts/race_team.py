@@ -65,6 +65,7 @@ SETTING_NAMES = ("llm_max_retries", "llm_timeout_seconds", "dense_search", "hybr
 PLAIN = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'})   # typographic marks a model writes, as plain ASCII
 DEFAULT_TIMEOUT = 300.0        # seconds a run may take: wider than the 120 s default because the free tier's rate-limit pauses count, for BOTH arms
 CODE_KEYS = tuple(os.path.basename(path) for path in STAMPED_FILES)
+NEVER_ACCEPTED = ("evals/team_prediction.py", "evals/checks.py", "evals/agent_tasks.py")     # the thresholds, what counts as a pass, what is asked
 LOCK_STALE_SECONDS = 600       # a race saves after every run and a run is capped at DEFAULT_TIMEOUT, so a label quiet this long was left behind by a crash
 GIT_PROBLEM = {"text": ""}     # why the latest git command failed, so a refusal can say what went wrong and not only that git was unreadable
 
@@ -357,12 +358,26 @@ def run_plan(plan, results, tools, options, save, say=print, run_one=None, max_c
         errors_in_a_row = errors_in_a_row + 1 if trouble else 0
         arm_streaks[arm] = arm_streaks.get(arm, 0) + 1 if trouble else 0
         if errors_in_a_row >= race.MAX_ERRORS_IN_A_ROW or arm_streaks[arm] >= race.MAX_ERRORS_IN_A_ROW:        # one provider error is a run; a string of them is an outage
-            steps = record.get("steps") or [{}]
-            last = steps[-1].get("content") or f"stop reason {record['stop_reason']}, no detail recorded"
+            errors = [step for step in record.get("steps") or [] if step.get("kind") == "error" and step.get("content")]
+            last = errors[-1]["content"] if errors else f"stop reason {record['stop_reason']}, no detail recorded"        # not the answer a manager gave after a specialist failed
             if errors_in_a_row >= race.MAX_ERRORS_IN_A_ROW:
                 return scrub_text(f"{errors_in_a_row} runs in a row ended on a provider error (the last: {last})")
             return scrub_text(f"{arm_streaks[arm]} runs in a row ended on a provider error in the {arm} arm, while the other arms were fine (the last: {last})")
     return None
+
+
+def index_problem():
+    """A sentence when the index holds a different number of chunks than the corpus gives with the current chunk settings (a stale index), else None.
+    The race hashes the corpus FILES but searches the INDEX, so a stale index would otherwise go unseen."""
+    try:
+        wanted = runner.expected_chunk_count(loader.load_documents(settings.corpus_dir))
+        have = store.count_chunks()
+    except Exception:                                   # an unreadable corpus or index is reported by the checks that need it
+        return None
+    if wanted == have:
+        return None
+    return (f"the index holds {have} chunks but the corpus gives {wanted} with the current chunk settings, so the index may be stale "
+            "(run scripts/ingest.py before a race you will quote)")
 
 
 def resume_hint(args, results):
@@ -478,6 +493,8 @@ def prices_from(args):
         raise ValueError("state both --price-in and --price-out, or neither")
     if args.price_in is not None and not (args.price_source or "").strip():
         raise ValueError("say where the prices came from with --price-source TEXT: a price without its source is not evidence")
+    if '"' in (args.price_source or ""):
+        raise ValueError("--price-source must not contain a double quote (it is written inside quotes into the command that prints the report again)")
     if args.price_source and args.price_in is None:
         raise ValueError("--price-source goes with --price-in and --price-out")
     return (args.price_in or 0.0), (args.price_out or 0.0), args.price_source
@@ -493,6 +510,7 @@ def show(args):
     lines = plain(team_report.format_report(saved, price_in, price_out, source))
     command = f"python scripts/race_team.py --show {args.show}" + (f" --price-in {args.price_in} --price-out {args.price_out} "
                                                                   f"--price-source \"{source}\"" if source else "") + (" --rescore" if args.rescore else "")
+    command = plain([command])[0]                                             # a typographic dash in the source must not reach a generated document
     if args.rescore:
         rescored = race.rescore(saved)
         changed = rescored["meta"]["rescored_changes"]
@@ -545,6 +563,10 @@ def accept_changes(differences, named, saved_meta, meta):
     for name in named:
         name = name.replace("\\", "/")
         wanted.append(name[2:] if name.startswith("./") else name)
+    pinned = [name for name in wanted if name in NEVER_ACCEPTED]
+    if pinned:
+        return differences, {}, (f"--accept-changed cannot name {', '.join(pinned)}: it holds the prediction's thresholds, what counts as a pass or what the "
+                                 "tasks ask, so changing it after the race began would change what the pre-registered numbers mean. Race again under a new label.")
     unknown = [name for name in wanted if name not in changed]
     if unknown:
         return differences, {}, (f"--accept-changed names {', '.join(unknown)}, which is not among the code files that changed since the race began "
@@ -861,7 +883,8 @@ def run_race(args, tasks, arms, path):
     if code["dirty"] and not args.allow_dirty:
         print(f"Error: code under app, evals or scripts has uncommitted changes ({code.get('dirty_paths', 'see git status')}), so a race could not "
               "say which code ran. Commit first (the order is: the code and prompts, then the prediction, then the race), or run a pilot with "
-              "--allow-dirty and a pilot- label.")
+              "--allow-dirty and a pilot- label. If git shows nothing to commit for a file (only its line endings differ), run `git add` on it; "
+              "any file under scripts/ counts here, not only the two race scripts.")
         return 1
     if args.allow_dirty and not is_pilot:
         print("Error: --allow-dirty is for pilots: give the label a pilot- prefix so the result cannot pass for the race.")
@@ -894,6 +917,9 @@ def run_race(args, tasks, arms, path):
           f"(limits: {settings.agent_max_steps} steps, {settings.agent_max_total_tokens} tokens, {args.timeout:g}s per run; {settings.llm_rpm} calls a minute)")
     print(f"code: {results['meta']['code']['git']}{' (UNCOMMITTED changes: a pilot)' if results['meta']['code']['dirty'] else ''}; "
           f"corpus: {len(results['meta']['corpus'])} files, fingerprint {sha(repr(sorted(results['meta']['corpus'].items())))}\n")
+    stale = index_problem()
+    if stale:
+        print(f"WARNING: {stale}.\n")
     options = {"model": args.model, "timeout_seconds": args.timeout, "max_calls_per_tool": 0}
 
     def save(partial):
@@ -910,7 +936,10 @@ def run_race(args, tasks, arms, path):
     results["meta"].update(complete=stopped is None, stopped_because=stopped,
                            finished=datetime.now().astimezone().isoformat(timespec="seconds"))
     if stopped:
-        print(f"\nSTOPPED: {stopped}\nSaved what finished. Carry on with --resume once the cause is gone.")
+        usable = [run for run in results["runs"] if not team_report.provider_trouble(run)]
+        print(f"\nSTOPPED: {stopped}\nSaved what finished. Carry on with --resume once the cause is gone." if usable else
+              f"\nSTOPPED: {stopped}\nNo usable run was saved. Once the cause is gone, --resume carries on if the model, the code and the settings are the same; "
+              "if you had to change any of them (a wrong model name, say), start over with --force.")
     try:
         if results["meta"]["complete"]:
             keep_other_race(path, results["meta"])      # a forced race that finished replaces the old one: the old one is kept aside

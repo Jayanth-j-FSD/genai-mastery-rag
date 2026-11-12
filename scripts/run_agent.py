@@ -81,6 +81,11 @@ def main(argv=None):
         if row["calls"]:
             handed = f", {row['handoffs']} hand-off(s)" if agent != "manager" else ""
             print(f"  {agent:<11} {row['calls']} model call(s), {row['prompt_tokens'] + row['completion_tokens']} tokens{handed}")
+    crew = getattr(run, "team", None) or {}
+    for warning in crew.get("warnings") or []:                    # a specialist the team code itself broke is not a model failure: say so
+        print(f"WARNING: {warning}")
+    for error in crew.get("errors") or []:
+        print(f"WARNING: a hand-off failed on a bug in the team code ({error.get('type')} in the {error.get('agent')}).")
     return 0 if run.finished else 2
 
 

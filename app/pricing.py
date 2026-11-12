@@ -6,9 +6,10 @@ tokens, and output costs more. An agent run is mostly input, because every step 
 the input price decides most of the bill.
 
 There is no price table in this project on purpose. A table would go stale and would be a guess that looks like a
-fact. Prices come from the settings (PRICE_INPUT_PER_MILLION, PRICE_OUTPUT_PER_MILLION) or from arguments, and any
-saved result records the ones it used, labelled as an assumption. With no price stated a cost is `None`, never 0:
-unknown is not free.
+fact. The functions here take the prices as arguments, and `current_prices()` reads the settings
+(PRICE_INPUT_PER_MILLION, PRICE_OUTPUT_PER_MILLION); no Week 10 command reads those two settings: the race report takes
+--price-in, --price-out and --price-source. A saved report prints the prices it used, labelled as an assumption. With no
+price stated a cost is `None`, never 0: unknown is not free.
 """
 from app.config import settings
 

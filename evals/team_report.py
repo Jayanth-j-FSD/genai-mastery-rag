@@ -608,6 +608,8 @@ def history_lines(meta):
         if len(shown) > SET_ASIDE_SHOWN:
             lines.append(f"  ... and {len(shown) - SET_ASIDE_SHOWN} more, in the saved file under set_aside_runs")
     history = [entry for entry in meta.get("code_history") or [] if isinstance(entry, dict)]
+    if history and isinstance(meta.get("code"), dict) and meta["code"]:
+        history = [{"at": meta.get("started"), "code": meta["code"]}] + history       # the session the race began in keeps its stamp in meta.code, not in the history
     if history:
         codes = [entry.get("code") or {} for entry in history]
         changed = sorted({key for code in codes[1:] for key in set(code) | set(codes[0]) if code.get(key) != codes[0].get(key)})
@@ -624,7 +626,7 @@ def closing_text(meta, stats):
     """The paragraph that ends the report: what the numbers cannot tell you, with what the race file and the numbers say filled in, so that
     no sentence asserts something about the data that the data does not show."""
     days = calendar_days(meta)
-    when = (f"this race spanned a quota reset (it ran on {len(days)} calendar days: {', '.join(days)}), so it is one model but not one day, "
+    when = (f"this race ran on {len(days)} calendar dates (local time: {', '.join(days)}), so it is one model but not one day, "
             "drift between the days is in the comparison, and it is one run of the race" if len(days) > 1
             else "this is one model on one day and one run of the race")
     counts = [row["runs"] for row in stats.values()]
@@ -775,7 +777,7 @@ def format_report(results, input_price=None, output_price=None, price_source=Non
         if meta.get("search"):
             lines.append("search tool, the same for every arm: " + ", ".join(f"{key} {value}" for key, value in meta["search"].items()))
     if not meta.get("complete", True):
-        lines.append(f"PARTIAL: the race stopped early ({meta.get('stopped_because') or 'no reason recorded'}). Every number below is from the runs that finished.")
+        lines.append(f"PARTIAL: the race stopped early ({_ascii(meta.get('stopped_because') or 'no reason recorded')}). Every number below is from the runs that finished.")
     if data["internal_errors"]:
         lines.append(f"INTERNAL ERRORS: {data['internal_errors']} hand-off(s) failed on a bug in the team code, not on the specialist. "
                      "Fix the cause and race again before reading any number below.")

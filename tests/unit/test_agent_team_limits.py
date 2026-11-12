@@ -145,6 +145,25 @@ class BudgetTests(TeamTestCase):
         self.assertEqual((run.stop_reason, run.answer), ("token_budget", None))
         self.assertEqual(run.steps[0]["tool_calls"][1]["observation"], "ERROR: the team's token or time budget is spent, so nothing more can be handed over.")
 
+    def test_a_hand_off_asked_for_when_exactly_zero_tokens_are_left_is_refused(self):
+        run, client = self.run_team([asks(to_researcher("m1"), prompt=90, completion=10)], max_total_tokens=100)          # the manager spends all 100
+        self.assertEqual([(h["agent"], h["state"], h["stop_reason"]) for h in run.team["handoffs"]], [("researcher", "refused", "budget")])
+        self.assertEqual(len(client.requests), 1)                                                   # not "left 0, so run it and overspend"
+
+    def test_a_hand_off_asked_for_when_exactly_zero_seconds_are_left_is_refused(self):
+        now = {"t": 0.0}
+
+        class TickingClient(FakeClient):
+            def _create(self, **kwargs):
+                now["t"] += 15.0                                                                    # the manager's one request takes the whole 15 seconds
+                return super()._create(**kwargs)
+
+        client = TickingClient([asks(to_researcher("m1"))])
+        with mock.patch.object(llm, "_get_client", return_value=client), mock.patch.object(llm.time, "monotonic", lambda: now["t"]):
+            run = team.run_team(QUESTION, TOOLS, timeout_seconds=15, clock=lambda: now["t"], max_calls_per_tool=0)
+        self.assertEqual([(h["agent"], h["state"], h["stop_reason"]) for h in run.team["handoffs"]], [("researcher", "refused", "budget")])
+        self.assertEqual(len(client.requests), 1)
+
     def test_a_hand_off_asked_for_after_the_time_ran_out_is_refused_like_one_asked_for_after_the_tokens_ran_out(self):
         now = {"t": 0.0}
 

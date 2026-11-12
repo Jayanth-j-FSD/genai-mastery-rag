@@ -105,6 +105,21 @@ class SetAsideAndHistoryTests(unittest.TestCase):
         self.assertEqual(text.count("  set aside: "), report.SET_ASIDE_SHOWN)
         self.assertIn("... and 3 more, in the saved file under set_aside_runs", text)
 
+    def test_the_code_history_counts_the_session_the_race_began_in_as_well_as_each_resume(self):
+        began = {"git": "aaa1111", "loop.py": "h1"}
+        resumed = [{"at": "2026-10-12T14:30:00+05:30", "code": {"git": "aaa1111", "loop.py": "h1"}}]
+        text = text_of(small_race(code=began, code_history=resumed))
+        self.assertIn("code history: 2 stamps", text)                                 # the first session and the one resume, not just the resume
+        self.assertIn("the code was the same in every session", text)
+        changed = [{"at": "2026-10-12T14:30:00+05:30", "code": {"git": "bbb2222", "loop.py": "h2"}}]
+        self.assertIn("differs from the first stamp in: git, loop.py", text_of(small_race(code=began, code_history=changed)))   # one resume now compares something
+
+    def test_a_banner_for_a_stopped_race_prints_only_plain_ascii_even_when_the_provider_wrote_something_else(self):
+        text = text_of(small_race(complete=False, stopped_because="the provider said: " + chr(0x2026) + " caf" + chr(0xe9) + " " + chr(0x2192)))
+        banner = next(line for line in text.splitlines() if line.startswith("PARTIAL: the race stopped early"))
+        self.assertTrue(banner.isascii(), banner)
+        self.assertIn("the provider said:", banner)
+
     def test_a_run_set_aside_by_an_older_script_with_no_reason_still_reads(self):
         text = text_of(small_race(set_aside_runs=[{"task_id": "t1", "approach": "team", "repeat": 1}]))
         self.assertIn("set aside: team t1 #1: no reason recorded", text)
@@ -148,10 +163,10 @@ class OneModelOneDayTests(unittest.TestCase):
                 self.assertIn("one model on one day", closing)
                 self.assertNotIn("quota reset", closing)
 
-    def test_a_race_whose_timestamps_fall_on_two_dates_says_it_spanned_a_quota_reset(self):
+    def test_a_race_whose_timestamps_fall_on_two_dates_says_so_without_claiming_a_quota_reset(self):
         closing = self.closing(resumed=[resume("2026-10-13T09:00:00+05:30")])
-        self.assertIn("spanned a quota reset", closing)
-        self.assertIn("2026-10-12, 2026-10-13", closing)
+        self.assertIn("ran on 2 calendar dates (local time: 2026-10-12, 2026-10-13)", closing)
+        self.assertNotIn("quota reset", closing)                                       # the quota resets at midnight Pacific, which these local dates do not show
         self.assertNotIn("one model on one day", closing)
 
     def test_a_timestamp_that_is_not_a_date_is_ignored_not_a_crash(self):
