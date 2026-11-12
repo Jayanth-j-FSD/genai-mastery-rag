@@ -88,7 +88,7 @@ Updated as the work lands. `done` means the gate above passed.
 |---|---|
 | Week 5 hardening | done: gate green (196 offline tests); live-run outputs in `docs/week3/`, `docs/week4/` and `docs/hardening/`; tag `week-5-hardened` |
 | Week 6 | done: gate green (345 offline tests, also on a clean export without `.env`); 41-case eval set, rule checks, binary judge, cached runner; three improvement experiments, the only gain is hybrid search with 6 chunks (38 to 39 of 41); tag `week-6`. Left for you: grade the judge sheet, review the references, add the Week 5 failures, write the interpretation |
-| Week 7 | not started |
+| Week 7 | done: gate green (482 offline tests, also on a clean export without `.env`); agent loop built by hand, memory, three tools, a fixed workflow, nine HR tasks, and a race on 27 runs per approach that is reported both as raced (agent 26 of 27, workflow 27 of 27) and re-scored under the corrected checks (25 and 24); tag `week-7`. Left for you: which approach to ship, and why (`docs/week7/findings.md`, section 5) |
 | Week 8 | not started |
 | Week 9 | not started |
 | Weeks 10, 11 | waiting for briefs |

@@ -30,9 +30,16 @@ def main(argv=None):
     try:
         if args.labels:
             runs = [runner.load_results(label) for label in args.labels]
+            for label, run in zip(args.labels, runs):
+                if "cases" not in run:
+                    raise FileNotFoundError(f"'{label}' is not an eval run (it has no cases); the other kinds of saved run have their own scripts")
         else:
             paths = sorted(glob.glob(os.path.join(runner.RESULTS_DIR, "*.json")))       # by name: file times mean nothing after a clone
-            runs = [runner.load_results(path) for path in paths]
+            loaded = [runner.load_results(path) for path in paths]
+            runs = [run for run in loaded if "cases" in run]       # races, trajectory runs and injection runs live here too
+            if len(runs) < len(loaded):
+                # On stderr, so `--markdown > runs.md` is a clean table.
+                print(f"({len(loaded) - len(runs)} saved file(s) are not eval runs, such as races, and are skipped.)", file=sys.stderr)
     except FileNotFoundError as exc:
         print(f"Error: {exc}")
         return 1

@@ -117,6 +117,16 @@ def result(answer="Eligible employees may take 16 weeks. [source: Acme-Leave-Pol
 
 
 class CheckTests(unittest.TestCase):
+    def test_a_case_that_needs_several_documents_must_cite_all_of_them(self):
+        needs_both = case(expected_sources=["a.md", "b.md"], require_all_sources=True, expect_contains=[])
+        one = checks.source_check(needs_both, result(sources=("a.md",)))
+        both = checks.source_check(needs_both, result(sources=("b.md", "a.md")))
+        self.assertFalse(one["passed"])
+        self.assertIn("did not cite ['b.md']", one["detail"])
+        self.assertTrue(both["passed"])
+        any_one = case(expected_sources=["a.md", "b.md"], expect_contains=[])
+        self.assertTrue(checks.source_check(any_one, result(sources=("a.md",)))["passed"])              # the default is unchanged
+
     def test_a_correct_cited_answer_passes_every_rule(self):
         found, passed, warnings = checks.check_case(case(), result())
         self.assertTrue(passed)
@@ -171,6 +181,16 @@ class CheckTests(unittest.TestCase):
         answer = "The four levels are:\n1. Public\n2. Internal\n  3) Confidential\n(4) Restricted"
         self.assertEqual(checks.invented_numbers(result(answer), "What are the levels?"), [])
         self.assertEqual(checks.invented_numbers(result("It is 5 days"), "What are the levels?"), ["5"])    # a real figure still counts
+
+    def test_whole_words_stops_a_phrase_matching_inside_a_longer_number(self):
+        case = {"question": "q", "should_refuse": False, "expected_sources": ["A.md"], "expect_contains": ["3 december"],
+                "expect_all": ["7 calendar days"]}
+        decoy = "It ends on 13 December, after 17 calendar days."
+        self.assertTrue(checks.fact_check(case, result(decoy))["passed"])                     # the default is a plain substring
+        self.assertFalse(checks.fact_check(dict(case, whole_words=True), result(decoy))["passed"])
+        honest = "It ends on 3 December, after 7 calendar days."
+        self.assertTrue(checks.fact_check(dict(case, whole_words=True), result(honest))["passed"])
+        self.assertTrue(checks.fact_check(dict(case, whole_words=True), result("**7 calendar days**; ends 3 December."))["passed"])
 
     def test_a_week5_failure_without_expectations_says_so_and_only_checks_refusal(self):
         pending = case(expected_sources=[], expect_contains=[], needs_expected=True)
