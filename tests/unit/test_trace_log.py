@@ -177,6 +177,29 @@ class AppendTests(LogTestCase):
         self.assertEqual([t["question"] for t in tracing.read_traces()], ["free again"])
 
 
+class LoneSurrogateTests(LogTestCase):
+    """A reply cut in the middle of an emoji holds half of one. It must not cost the request its log line: in a one-shot measurement the line is the evidence."""
+
+    def test_an_answer_with_a_lone_surrogate_is_logged_with_escapes_and_reads_back(self):
+        answer = "The notice is 30 days " + chr(0xD83D) + " [source: a.md]"
+        tracing.log_trace("How much notice?", [], answer, True)
+        with open(self.traces, "rb") as handle:
+            raw = handle.read()
+        raw.decode("utf-8")                                                          # what is on disk is valid UTF-8
+        (record,) = tracing.read_traces()
+        self.assertEqual(record["answer"], answer)
+        self.assertEqual(record["question"], "How much notice?")
+
+    def test_a_clean_line_is_still_written_as_it_was_with_its_characters_unescaped(self):
+        tracing.log_trace("Caf" + chr(0xE9) + "?", [], "ok", True)
+        with open(self.traces, encoding="utf-8") as handle:
+            self.assertIn("Caf" + chr(0xE9), handle.read())
+
+    def test_a_question_with_a_lone_surrogate_does_not_drop_the_line_either(self):
+        tracing.log_trace("half " + chr(0xDC00), [], "ok", True)
+        self.assertEqual(len(tracing.read_traces()), 1)
+
+
 class ErrorLogTests(LogTestCase):
     def failed_request(self, exc, question="How many days of leave do I have?"):
         """Run a request that spent one step and then failed with `exc`, and log it the way the pipeline does."""
@@ -223,6 +246,22 @@ class ErrorLogTests(LogTestCase):
         first, second = self.lines(self.errors)
         self.assertEqual(first["question_sha"], second["question_sha"])
         self.assertNotEqual(first["request_id"], second["request_id"])
+
+    def test_the_hash_is_the_hash_of_that_question_and_of_no_other(self):
+        self.failed_request(RuntimeError("a"), "Known question?")
+        self.failed_request(RuntimeError("b"), "Another question?")
+        known, other = self.lines(self.errors)
+        self.assertEqual(known["question_sha"], observability.sha12("Known question?"))
+        self.assertEqual(other["question_sha"], observability.sha12("Another question?"))
+        self.assertNotEqual(known["question_sha"], other["question_sha"])
+
+    def test_a_question_with_a_lone_surrogate_still_gets_an_error_record_and_a_hash(self):
+        question = "emoji cut in half: " + chr(0xD83D)
+        self.assertEqual(len(observability.sha12(question)), 12)                  # hashing it does not raise
+        self.failed_request(RuntimeError("x"), question)
+        (record,) = self.lines(self.errors)
+        self.assertEqual(record["question_sha"], observability.sha12(question))
+        self.assertEqual(record["question_chars"], len(question))
 
     def test_a_request_with_no_log_writes_nothing_and_raises_nothing(self):
         tracing.log_error(None, RuntimeError("x"), "q")

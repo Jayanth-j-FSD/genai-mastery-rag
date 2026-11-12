@@ -113,7 +113,7 @@ def _base_record(question, retrieved, answer, grounded, retrieval_mode=None, mod
             {
                 "source": c.get("source", "unknown"),
                 "score": c.get("score"),
-                # Why this chunk was fetched — the heart of the Week 4 inspection view.
+                # Why this chunk was fetched: the heart of the Week 4 inspection view.
                 "retrievers": c.get("retrievers", []),
                 "dense_rank": c.get("dense_rank"),
                 "keyword_rank": c.get("keyword_rank"),
@@ -142,8 +142,19 @@ def _base_record(question, retrieved, answer, grounded, retrieval_mode=None, mod
     }
 
 
+def _dump(record):
+    """One JSON line. A lone surrogate (half of an emoji, when a reply was cut in the middle of one) cannot be written as UTF-8, so a record that holds one is written
+    with ASCII escapes, which JSON can carry; the line is kept, not dropped."""
+    line = json.dumps(record, ensure_ascii=False)
+    try:
+        line.encode("utf-8")
+    except UnicodeEncodeError:
+        line = json.dumps(record, ensure_ascii=True)
+    return line
+
+
 def log_trace(question, retrieved, answer, grounded, retrieval_mode=None, model_served=None):
-    """Append one request as a JSON line. Never raises — logging is optional.
+    """Append one request as a JSON line. Never raises: logging is optional.
 
     When the request has a log (app/observability.py), its id, spans and notes join the line as extra keys, and the trace
     id is the first 8 hex digits of the request id."""
@@ -154,7 +165,7 @@ def log_trace(question, retrieved, answer, grounded, retrieval_mode=None, model_
             record["trace_id"] = request.trace_id
             record.update(observability.guarded("record_extras", observability.record_extras, request,
                                                 status="ok" if grounded else "refused", default={}))
-        append_line(settings.traces_path, json.dumps(record, ensure_ascii=False))
+        append_line(settings.traces_path, _dump(record))
     except LogBusy as exc:
         _dropped["records"] += 1
         print(f"  ! trace log busy, one record dropped (counted): {exc}")
@@ -187,7 +198,7 @@ def log_error(request, exc, question=""):
         record = observability.snapshot(request)
         record.update(trace_id=request.trace_id, ts=datetime.now().isoformat(timespec="seconds"), error_class=type(exc).__name__,
                       http_status=status_for(exc), question_chars=len(question or ""), question_sha=observability.sha12(question or ""))
-        append_line(errors_path(), json.dumps(record, ensure_ascii=False))
+        append_line(errors_path(), _dump(record))
     except LogBusy as busy:
         _dropped["records"] += 1
         print(f"  ! error log busy, one record dropped (counted): {busy}")

@@ -1,7 +1,10 @@
 """Week 11: app/observability.py, the spans of one request (no network, no index, no file input or output)."""
+import subprocess
+import sys
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 import _testkit
@@ -22,6 +25,55 @@ class FakeClock:
 
     def advance(self, seconds):
         self.now += seconds
+
+
+class ProviderTimeTests(unittest.TestCase):
+    """provider_ms and wait_ms come from a coarser clock than the step's own duration, so they are never allowed to add up to more than the step took."""
+
+    def close_model_span(self, took, provider, wait, kind="model"):
+        clock = FakeClock()
+        with observability.begin_request(clock=clock) as request:
+            handle = request.open_span("generate", kind, {"provider_ms": provider, "wait_ms": wait})
+            clock.advance(took)
+            return request.close_span(handle)
+
+    def test_provider_time_a_tick_longer_than_the_step_is_cut_to_the_step(self):
+        span = self.close_model_span(took=0.030, provider=31.0, wait=0.0)             # 31 ms measured inside a step that took 30
+        self.assertEqual((span["duration_ms"], span["provider_ms"], span["wait_ms"]), (30.0, 30.0, 0.0))
+
+    def test_waiting_is_cut_to_what_is_left_of_the_step_after_the_provider_time(self):
+        span = self.close_model_span(took=0.010, provider=8.0, wait=5.0)
+        self.assertEqual((span["provider_ms"], span["wait_ms"]), (8.0, 2.0))
+        self.assertLessEqual(span["provider_ms"] + span["wait_ms"], span["duration_ms"])
+
+    def test_figures_that_already_fit_are_left_exactly_as_measured(self):
+        span = self.close_model_span(took=0.010, provider=4.0, wait=3.0)
+        self.assertEqual((span["provider_ms"], span["wait_ms"]), (4.0, 3.0))
+
+    def test_a_step_that_is_not_a_model_call_is_left_alone(self):
+        span = self.close_model_span(took=0.010, provider=31.0, wait=9.0, kind="retrieve")
+        self.assertEqual((span["provider_ms"], span["wait_ms"]), (31.0, 9.0))
+
+    def test_a_model_step_that_never_reached_the_recorder_has_no_provider_time_to_cut(self):
+        span = self.close_model_span(took=0.010, provider=None, wait=None)
+        self.assertEqual((span["provider_ms"], span["wait_ms"]), (None, None))
+
+
+class ImportCostTests(unittest.TestCase):
+    def modules_loaded_by(self, statement):
+        script = "import sys\n" + statement + "\nprint('openai' in sys.modules)"
+        run = subprocess.run([sys.executable, "-c", script], cwd=_testkit.ROOT, capture_output=True, text=True, timeout=120)
+        self.assertEqual(run.returncode, 0, run.stderr[-500:])
+        return run.stdout.strip()
+
+    def test_a_tool_that_only_reads_logs_does_not_load_the_providers_sdk(self):
+        self.assertEqual(self.modules_loaded_by("import app.tracing"), "False")
+        self.assertEqual(self.modules_loaded_by("import app.observability"), "False")
+        self.assertEqual(self.modules_loaded_by("from evals import logsearch, costreport"), "False")
+
+    def test_the_sdk_is_loaded_when_a_model_step_is_opened(self):
+        script = "from app import observability\nwith observability.begin_request():\n    with observability.model_span('x'):\n        pass"
+        self.assertEqual(self.modules_loaded_by(script), "True")
 
 
 class RequestTests(unittest.TestCase):
@@ -243,9 +295,53 @@ class ModelSpanTests(LlmTestCase):
                     llm.chat([], model="m")
         span = self.span_of(request)
         self.assertEqual((span["status"], span["error"]), ("error", "QuotaExhausted"))
+        self.assertEqual(span["attempts"], 1)                      # the daily cap ends the call at the first attempt: no retry could help
         self.assertFalse(span["tokens_known"])
         self.assertIsNone(span["prompt_tokens"])                   # no usage came back, so none is claimed
         self.assertIsNone(span["cost_usd"])
+
+    def test_usage_that_lacks_the_prompt_count_is_unknown_not_a_zero(self):
+        from app import llm
+        reply = _testkit.fake_response("ok")
+        reply.usage = SimpleNamespace(completion_tokens=5)           # the completion was counted, the prompt was not
+        self.use(reply)
+        with observability.begin_request(clock=self.request_clock) as request:
+            with observability.model_span("generate"):
+                llm.chat([], model="m")
+        span = self.span_of(request)
+        self.assertEqual((span["tokens_known"], span["prompt_tokens"], span["completion_tokens"]), (False, None, None))
+        self.assertFalse(request.usage()["tokens_known"])
+
+    def test_the_time_a_failed_attempt_spent_at_the_provider_counts_with_the_one_that_answered(self):
+        from app import llm
+        busy = status_error(RateLimitError, 429, {"error": {"message": "Quota exceeded. Please retry in 7s.", "status": "RESOURCE_EXHAUSTED",
+                                                            "details": [{"quotaId": "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}]}})
+        client = self.use(busy, _testkit.fake_response("worked second time"))
+        original, spent = client.chat.completions.create, iter([2.0, 1.0])
+
+        def timed_create(**kwargs):
+            self.clock["now"] += next(spent)                          # the first attempt takes 2 seconds to fail, the second 1 to answer
+            return original(**kwargs)
+        client.chat.completions.create = timed_create
+        with observability.begin_request(clock=self.request_clock) as request:
+            with observability.model_span("generate"):
+                llm.chat([], model="m")
+        span = self.span_of(request)
+        self.assertEqual((span["attempts"], span["provider_ms"]), (2, 3000.0))
+        self.assertGreaterEqual(span["wait_ms"], 7000)
+        self.assertEqual(request.usage()["provider_ms"], 3000.0)
+
+    def test_an_error_record_keeps_the_provider_time_the_waiting_and_the_tries_of_a_model_step(self):
+        from app import llm
+        self.use(_testkit.fake_response("ok"))
+        with observability.begin_request(clock=self.request_clock) as request:
+            with observability.model_span("generate"):
+                self.clock["now"] += 0.5
+                llm.chat([], model="m")
+        kept = observability.snapshot(request)["spans"][0]
+        full = self.span_of(request)
+        self.assertEqual((kept["provider_ms"], kept["wait_ms"], kept["attempts"]), (full["provider_ms"], full["wait_ms"], full["attempts"]))
+        self.assertIn("wait_ms", kept)
 
     def test_a_reply_with_no_usage_block_is_unknown_not_free(self):
         from app import llm

@@ -1,6 +1,7 @@
 """Week 11, the improvement: take the lines a document repeats out of what the model is shown (CONTEXT_STRIP_MIN_REPEATS)."""
 import hashlib
 import json
+import os
 import unittest
 from unittest import mock
 
@@ -137,7 +138,9 @@ class PromptTests(unittest.TestCase):
         return chat.call_args.args[0][1]["content"]
 
     def test_off_by_default_so_the_prompt_is_exactly_what_it_was(self):
-        self.assertEqual(Settings(_env_file=None).context_strip_min_repeats, 0)
+        with mock.patch.dict(os.environ):
+            os.environ.pop("CONTEXT_STRIP_MIN_REPEATS", None)            # the default is what the code says, not what a shell or a .env says
+            self.assertEqual(Settings(_env_file=None).context_strip_min_repeats, 0)
         with mock.patch("app.llm.chat", return_value=fake_response("6 months. [source: handbook.md]")) as chat:
             generator.generate_answer("What is the probation period?", self.chunks)
         expected = "\n\n".join(f"[source: {c['source']}]\n{c['text']}" for c in self.chunks)
@@ -206,9 +209,18 @@ class SettingTests(unittest.TestCase):
     def test_the_eval_runner_can_override_it_like_any_other_setting(self):
         overrides = runner.parse_overrides(["context_strip_min_repeats=10"])
         self.assertEqual(overrides, {"context_strip_min_repeats": 10})
-        with runner.overridden(overrides):
-            self.assertEqual(settings.context_strip_min_repeats, 10)
-        self.assertEqual(settings.context_strip_min_repeats, 0)
+        with mock.patch.object(settings, "context_strip_min_repeats", 0):          # whatever .env says, this is about putting the value back
+            with runner.overridden(overrides):
+                self.assertEqual(settings.context_strip_min_repeats, 10)
+            self.assertEqual(settings.context_strip_min_repeats, 0)
+
+    def test_a_value_in_the_environment_does_not_reach_a_test_that_builds_its_index_in_a_temporary_folder(self):
+        with mock.patch.object(settings, "context_strip_min_repeats", 10):
+            with isolated_index(dense_search="exact", retrieval_mode="dense", top_k=4):
+                self.assertEqual(settings.context_strip_min_repeats, 0)
+            self.assertEqual(settings.context_strip_min_repeats, 10)                 # and what was there is put back
+            with isolated_index(context_strip_min_repeats=7):
+                self.assertEqual(settings.context_strip_min_repeats, 7)               # unless the test says otherwise
 
 
 class EvalCacheKeyTests(unittest.TestCase):

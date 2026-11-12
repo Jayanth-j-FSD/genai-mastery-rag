@@ -26,7 +26,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-from app import llm, pricing
+from app import pricing
 from app.config import settings
 
 _current = contextvars.ContextVar("observability_request", default=None)         # the request being answered, if any
@@ -121,6 +121,12 @@ class RequestLog:
                 "status": "error" if error is not None else "ok", "error": type(error).__name__ if error is not None else None,
                 "cold": handle["cold"]}
         span.update(handle["attrs"])
+        if span["kind"] == "model" and span.get("provider_ms") is not None:
+            # provider_ms is read from a coarser clock than duration_ms (time.monotonic ticks about every 15.6 ms on Windows), so it can come out a tick longer
+            # than the step it is part of; a step cannot spend more time at the provider and waiting than it took.
+            span["provider_ms"] = min(span["provider_ms"], span["duration_ms"])
+            if span.get("wait_ms") is not None:
+                span["wait_ms"] = min(span["wait_ms"], round(span["duration_ms"] - span["provider_ms"], 3))
         with self._lock:
             self.spans.append(span)
         return span
@@ -186,6 +192,7 @@ def model_span(name, requested_model=None, **attrs):
     if handle is None:
         yield None
         return
+    from app import llm                              # imported here: a tool that only reads logs must not pay for loading the provider's SDK
     handle["attrs"]["model_requested"] = requested_model or settings.llm_model
     with llm.call_scope(name) as scope:
         failure = None
