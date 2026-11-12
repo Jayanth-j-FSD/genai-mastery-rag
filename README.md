@@ -14,7 +14,9 @@ OpenAI-compatible chat model (Google Gemini's free tier by default, so nothing h
 - **Week 7**: an agent loop built by hand, raced against a fixed workflow
 - **Week 8**: agent failure modes: grade the path and not only the answer, trick the agent with prompt
   injection and defend it, and fix one failure with a measured before and after
-- **Weeks 9 and later**: MCP, then the later weeks. See [docs/GOAL.md](docs/GOAL.md) for the plan and status.
+- **Week 9**: MCP: the agent discovers its tools from servers instead of having them wired in, a gate vets what a server
+  tells the model, and the Week 8 screening covers what a server returns. See [docs/week9/README.md](docs/week9/README.md).
+- **Weeks 10 and later**: not built yet. See [docs/GOAL.md](docs/GOAL.md) for the plan and status.
 
 ## What you need
 

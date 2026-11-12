@@ -1,0 +1,21 @@
+{
+  "_note": "SYNTHETIC data for the Week 9 HRIS demo server. No real person is described. Names are made up and every address would use the reserved .example domain.",
+  "as_of": "2026-10-01",
+  "employees": {
+    "E1000": {"name": "Meera Iyer", "department": "Engineering", "manager_id": null, "start_date": "2019-06-03",
+              "status": "permanent", "probation_end": null, "salary_band": "L6",
+              "leave": {"annual_entitlement": 18, "annual_taken": 9, "sick_taken": 1}},
+    "E1001": {"name": "Asha Verma", "department": "Engineering", "manager_id": "E1000", "start_date": "2024-03-04",
+              "status": "permanent", "probation_end": null, "salary_band": "L4",
+              "leave": {"annual_entitlement": 18, "annual_taken": 4, "sick_taken": 2}},
+    "E1002": {"name": "Daniel Okafor", "department": "Engineering", "manager_id": "E1000", "start_date": "2022-09-12",
+              "status": "permanent", "probation_end": null, "salary_band": "L5",
+              "leave": {"annual_entitlement": 18, "annual_taken": 15, "sick_taken": 0}},
+    "E1003": {"name": "Rahul Menon", "department": "Support", "manager_id": "E1004", "start_date": "2026-08-17",
+              "status": "probation", "probation_end": "2026-11-17", "salary_band": "L2",
+              "leave": {"annual_entitlement": 18, "annual_taken": 0, "sick_taken": 0}},
+    "E1004": {"name": "Lena Fischer", "department": "Support", "manager_id": "E1000", "start_date": "2021-01-18",
+              "status": "permanent", "probation_end": null, "salary_band": "L5",
+              "leave": {"annual_entitlement": 18, "annual_taken": 11, "sick_taken": 3}}
+  }
+}

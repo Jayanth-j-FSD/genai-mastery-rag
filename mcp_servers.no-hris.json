@@ -1,0 +1,6 @@
+{
+  "servers": [
+    {"name": "policy", "command": "python", "args": ["-m", "app.mcp.servers.policy_server"]},
+    {"name": "utils", "command": "python", "args": ["-m", "app.mcp.servers.utils_server"]}
+  ]
+}

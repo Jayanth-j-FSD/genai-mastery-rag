@@ -43,6 +43,34 @@ A week is done only when all of these hold. They are the gate before its tag is 
 - **Documented meanings never change.** A later week adds a new function beside the old one. Week 3's
   `retrieve()` still means what its docstring says.
 
+## When git is signed in: the push plan
+
+Nothing here has been run. Git was not signed in while the work was built, and the rule was to push, pull and fetch
+nothing, so what exists is local branches and annotated tags. `main` was never touched.
+
+1. Sign in as the account that owns the repository, not a work account. The remote URL names it (`git remote -v`); a
+   403 on push means the wrong account is signed in. Do not use `gh` for this repository.
+2. Look before pushing: `git status` is clean, `git branch -vv` shows the five branches below, `git tag -n1` shows the
+   annotated tags below, and `python scripts/check_all.py --strict` is green on the tip being pushed.
+3. Push the branches, oldest first, then the tags, never with `--force`:
+
+   ```
+   git push origin week-5-hardening week-6-evals week-7-agent-loops week-8-agent-failure-modes week-9-mcp
+   git push origin week-5-hardened week-6 week-7 week-8 week-9
+   ```
+
+   The lightweight tags `week-3`, `week-4` and `week-5` are already on GitHub and are never moved.
+4. Open one pull request per week on the GitHub web page, each against the previous week's branch so it shows only
+   that week's change: `week-5-hardening` into `main`, `week-6-evals` into `week-5-hardening`, `week-7-agent-loops`
+   into `week-6-evals`, `week-8-agent-failure-modes` into `week-7-agent-loops`, and `week-9-mcp` into
+   `week-8-agent-failure-modes`. Start each description from that week's `docs/weekN/CHANGES.md`, and take the test
+   counts from the status table below.
+5. Merge in order with merge commits, no squash, so every tag stays reachable from `main`; retarget the next pull
+   request to `main` after each merge.
+6. After the last merge, `git branch -r --contains week-9` should list `origin/main`.
+7. Before the reviewer reads it, the blanks in the status table are still yours: the branches hold tooling and
+   numbers, never your own notes, observations or decisions.
+
 ## The plan
 
 | Week | Brief in one line | What gets built | Needs you |
@@ -90,5 +118,5 @@ Updated as the work lands. `done` means the gate above passed.
 | Week 6 | done: gate green (345 offline tests, also on a clean export without `.env`); 41-case eval set, rule checks, binary judge, cached runner; three improvement experiments, the only gain is hybrid search with 6 chunks (38 to 39 of 41); tag `week-6`. Left for you: grade the judge sheet, review the references, add the Week 5 failures, write the interpretation |
 | Week 7 | done: gate green (482 offline tests, also on a clean export without `.env`); agent loop built by hand, memory, three tools, a fixed workflow, nine HR tasks, and a race on 27 runs per approach that is reported both as raced (agent 26 of 27, workflow 27 of 27) and re-scored under the corrected checks (25 and 24); tag `week-7`. Left for you: which approach to ship, and why (`docs/week7/findings.md`, section 5) |
 | Week 8 | done: gate green (729 offline tests, also on a clean export without `.env`); a grader of the path an agent takes (eight failure modes), three defence layers, a 15-attack injection suite and a per-tool call budget whose prediction was written before it was measured; measured on 33 runs in each of two arms and a noise run: the four judged predictions held (`over-calling` 7 runs to 0, right answers 29 to 31, mean tokens per run 4,861 to 4,392 against a noise floor of 4.8%), the control on a model that never reaches the cap is identical, the defences refused and withheld nothing in 33 live runs, and 8 of 15 attacks worked with the defences off against 2 of 15 with them on; tag `week-8`. Left for you: what could still get through (`docs/week8/findings.md`, section 4) |
-| Week 9 | not started |
+| Week 9 | done: gate green (847 offline tests, also on a clean export without `.env`); a client that discovers its tools over MCP (6 tools on 3 servers, none of them named in the agent), three servers built with fastmcp, a gate that vets what a server tells the model, a raw-message demo and another agent's code calling our server; a live run of an HR question with and without the Week 8 call budget, on `gemini-3-flash-preview`, ended without an answer both times (the model kept searching: 6 of 7 searches returned a result without the cap, 3 of 7 with it), and `docs/week9/findings.md` shows both; tag `week-9`. Left for you: where the AI runs and where it does not (`docs/week9/findings.md`, section 7) |
 | Weeks 10, 11 | waiting for briefs |
