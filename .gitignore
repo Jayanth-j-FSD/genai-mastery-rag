@@ -6,6 +6,7 @@ __pycache__/
 data/chroma/
 data/traces/
 evals/cache/
+evals/results/*.tmp
 
 # Local secrets — never commit
 free_keys.txt

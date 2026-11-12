@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     agent_max_steps: int = 8              # think-and-act rounds (model calls) before giving up
     agent_max_total_tokens: int = 40000   # prompt + completion tokens summed over the whole run
     agent_timeout_seconds: float = 120.0  # wall-clock seconds for the whole run
+    # Week 8: a cap on how many times ONE tool may run in a single agent run (0 = off). A call over the cap is not
+    # executed: the model is told the budget is spent and to answer from what it found, or say it does not know.
+    agent_max_calls_per_tool: int = 0
 
     # --- pipeline knobs (the graded chunk-size experiment lives here) ---
     chunk_size: int = 800       # characters per chunk
@@ -144,7 +147,7 @@ class Settings(BaseSettings):
             raise ValueError(f"dense_search must be one of {sorted(allowed)}, got {value!r}")
         return cleaned
 
-    @field_validator("llm_rpm", "llm_max_retries", "chunk_overlap", "judge_rpm")
+    @field_validator("llm_rpm", "llm_max_retries", "chunk_overlap", "judge_rpm", "agent_max_calls_per_tool")
     @classmethod
     def _check_not_negative(cls, value: int) -> int:
         """A negative limit, retry count or overlap has no meaning."""

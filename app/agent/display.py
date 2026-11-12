@@ -21,6 +21,9 @@ def show_step(step):
     if step["kind"] == "final":
         print(f"[step {step['n']}] FINAL ANSWER  ({cost})")
         return
+    if step["kind"] == "blocked":
+        print(f"[step {step['n']}] FINAL ANSWER WITHHELD by the defences  ({cost})")
+        return
     if step["content"]:
         print(f"[step {step['n']}] model says: {_flat(step['content'], 160)}")
     for call in step["tool_calls"]:
@@ -29,6 +32,8 @@ def show_step(step):
         except (json.JSONDecodeError, TypeError):
             arguments = call["arguments"]
         mark = "" if call["ok"] else "  <-- the tool refused"
+        if call.get("blocked"):
+            mark = "  <-- refused before it ran (the result says by what)"
         print(f"[step {step['n']}] CALL   {call['name']}({_flat(arguments, 110)}){mark}")
         print(f"          RESULT {_flat(call['observation'], 220)}")
     print(f"          ({cost})")

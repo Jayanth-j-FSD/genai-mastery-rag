@@ -53,6 +53,14 @@ class ShowStepTests(unittest.TestCase):
         self.assertIn("search_policies({not json)", captured(display.show_step, step("tool", [tool_call(arguments="{not json")]))[1])
         self.assertIn("search_policies({'query': 'x'})", captured(display.show_step, step("tool", [tool_call(arguments={"query": "x"})]))[1])
 
+    def test_a_call_that_never_ran_says_so_without_blaming_a_particular_layer(self):
+        for reason in ("BUDGET: search_policies has already run 3 times", "BLOCKED: that date was not in the question"):
+            with self.subTest(reason=reason):
+                text = captured(display.show_step, step("tool", [dict(tool_call(observation=reason, ok=False), blocked=True)]))[1]
+                self.assertIn("refused before it ran", text)
+                self.assertIn(reason, text)
+                self.assertNotIn("argument guard", text)
+
     def test_a_long_result_is_cut_to_one_readable_line(self):
         text = captured(display.show_step, step("tool", [tool_call(observation="word " * 200)]))[1]
         line = [row for row in text.splitlines() if "RESULT" in row][0]

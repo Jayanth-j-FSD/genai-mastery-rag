@@ -256,6 +256,52 @@ class SaveAndFailureTests(RunnerCase):
         self.assertTrue(saved_to.endswith("keep.incomplete.json"))
         self.assertEqual(runner.load_results(path)["cases"], [{"id": "a"}])
 
+    def test_a_write_that_fails_part_way_leaves_the_earlier_file_whole(self):
+        path = self.label_path("whole")
+        runner.save_results({"meta": {"label": "whole", "complete": True}, "cases": [{"id": "a"}]}, path)
+        with mock.patch.object(runner.json, "dump", side_effect=OSError("the disk filled up")):
+            with self.assertRaises(OSError):
+                runner.save_results({"meta": {"label": "whole", "complete": True}, "cases": [{"id": "b"}]}, path)
+        self.assertEqual(runner.load_results(path)["cases"], [{"id": "a"}])
+        self.assertFalse(os.path.exists(path + ".tmp"))
+
+    def test_a_rename_another_program_is_holding_is_tried_again(self):
+        path = self.label_path("held")
+        real, calls = os.replace, []
+
+        def held_twice(source, target):
+            calls.append(target)
+            if len(calls) < 3:
+                raise PermissionError("another program has the file open")
+            return real(source, target)
+
+        with mock.patch("os.replace", held_twice), mock.patch.object(runner, "time") as fake_time:
+            runner.save_results({"meta": {"label": "held", "complete": True}, "cases": [{"id": "a"}]}, path)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(fake_time.sleep.call_count, 2)                      # it waited between the tries
+        self.assertEqual(runner.load_results(path)["cases"], [{"id": "a"}])
+
+    def test_the_finished_run_is_kept_in_the_temporary_file_whatever_stops_the_rename(self):
+        for label, failure in (("a Ctrl-C", KeyboardInterrupt()), ("an error that is not a permission error", OSError("the volume went away"))):
+            with self.subTest(label):
+                path = self.label_path("kept" + str(len(label)))
+                with mock.patch("os.replace", side_effect=failure), mock.patch.object(runner, "time"):
+                    with self.assertRaises(type(failure)) as caught:
+                        runner.save_results({"meta": {"label": "kept", "complete": True}, "cases": [{"id": "a"}]}, path)
+                with open(path + ".tmp", encoding="utf-8") as handle:
+                    self.assertEqual(json.load(handle)["cases"], [{"id": "a"}])
+                if isinstance(failure, OSError):
+                    self.assertIn(path + ".tmp", str(caught.exception))
+
+    def test_a_rename_that_stays_refused_keeps_the_finished_run_in_the_temporary_file_and_says_so(self):
+        path = self.label_path("stuck")
+        with mock.patch("os.replace", side_effect=PermissionError("held")), mock.patch.object(runner, "time"):
+            with self.assertRaises(PermissionError) as caught:
+                runner.save_results({"meta": {"label": "stuck", "complete": True}, "cases": [{"id": "a"}]}, path)
+        self.assertIn(path + ".tmp", str(caught.exception))
+        with open(path + ".tmp", encoding="utf-8") as handle:
+            self.assertEqual(json.load(handle)["cases"], [{"id": "a"}])
+
     def test_an_incomplete_run_is_saved_normally_when_nothing_complete_exists(self):
         path = self.label_path("fresh")
         self.assertEqual(runner.save_results({"meta": {"label": "fresh", "complete": False}, "cases": []}, path), path)

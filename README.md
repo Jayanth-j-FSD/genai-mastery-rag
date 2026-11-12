@@ -12,8 +12,9 @@ OpenAI-compatible chat model (Google Gemini's free tier by default, so nothing h
 - **Week 5**: read real traces, name and rank the problems
 - **Week 6**: evals you can run with one command
 - **Week 7**: an agent loop built by hand, raced against a fixed workflow
-- **Weeks 8 and later**: agent failure modes and prompt injection, then MCP. See [docs/GOAL.md](docs/GOAL.md)
-  for the plan and status.
+- **Week 8**: agent failure modes: grade the path and not only the answer, trick the agent with prompt
+  injection and defend it, and fix one failure with a measured before and after
+- **Weeks 9 and later**: MCP, then the later weeks. See [docs/GOAL.md](docs/GOAL.md) for the plan and status.
 
 ## What you need
 
@@ -80,6 +81,11 @@ non-zero if anything fails, and every week must pass it before it is tagged.
 | 6 | `scripts\list_runs.py` | every saved eval run in one table |
 | 7 | `scripts\run_agent.py "..."` | the agent loop with every step printed (`--workflow` for the fixed recipe) |
 | 7 | `scripts\race_agent.py` | race the agent against the fixed workflow: reliability, cost, speed |
+| 8 | `scripts\run_trajectories.py` | run the agent on the 11 tasks and grade every path (`--interleave` runs arms side by side; `--show` and `--regrade` read saved runs for free) |
+| 8 | `scripts\run_injection.py` | 15 prompt-injection attacks, defences off and on, in a private throwaway index (`--static`, `--show`, `--rescore` are free) |
+| 8 | `scripts\compare_trajectories.py before after` | before and after of one change, on the pairs both runs completed |
+| 8 | `scripts\check_prediction.py before after --noise run2` | the pre-registered prediction as arithmetic, with the noise floor |
+| 8 | `scripts\replay_defense.py LABEL ...` | what the defences would block in saved legitimate runs (free) |
 | hardening | `scripts\compare_ann_exact.py` | how often Chroma's approximate search disagrees with exact search |
 
 The Week 5 reading is deliberately not automated: it is the part of the course that cannot be.
@@ -94,6 +100,7 @@ Each Week 5 script refuses to run until the previous step is genuinely finished.
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | 800 / 120 | how documents are cut up |
 | `TOP_K` | 4 | chunks given to the answer model |
 | `LLM_RPM` | 0 | chat requests per minute allowed (set below your provider's limit; the app waits) |
+| `AGENT_MAX_CALLS_PER_TOOL` | 0 (off) | Week 8: how many results one tool may return in one agent run; a further call gets a notice to use what was found |
 | `EMBED_PROVIDER` | `openai` in code, `local` in `.env.example` | where embeddings come from; changing it needs a re-ingest |
 
 All settings, with their meaning, are in `app/config.py`. A bad value fails at startup with a clear message.

@@ -1,0 +1,16 @@
+Free-tier daily quota, as the provider reports it.
+
+Captured on 2026-10-11 at about 05:43 IST with a throwaway probe (not kept in the repository): one tiny chat request per
+model through the OpenAI-compatible endpoint, printing only the quota fields of the 429 response body. No key is
+printed or stored here.
+
+model                           quotaId                                              quotaValue
+gemini-3.5-flash-lite           GenerateRequestsPerDayPerProjectPerModel-FreeTier    500
+gemini-flash-lite-latest        GenerateRequestsPerDayPerProjectPerModel-FreeTier    500
+gemini-3.1-flash-lite           GenerateRequestsPerDayPerProjectPerModel-FreeTier    500
+gemini-3.1-flash-lite-preview   GenerateRequestsPerDayPerProjectPerModel-FreeTier    500
+
+The same probe, a few minutes earlier, was answered normally by gemini-3.5-flash-lite, gemini-flash-latest and
+gemini-3.7-flash, and at 05:43 by gemini-3-flash-preview: those requests were accepted, so they carry no quota figure here.
+The saved partial runs record only the app's own message ("The free daily quota for this model is used up"), in
+`meta.stopped_because` of evals/results/trajectories-before.json and trajectories-control.json.

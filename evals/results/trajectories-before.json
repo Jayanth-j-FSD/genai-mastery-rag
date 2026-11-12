@@ -1,0 +1,3058 @@
+{
+ "meta": {
+  "label": "before",
+  "started": "2026-10-11T02:41:22",
+  "finished": "2026-10-11T02:50:23",
+  "complete": false,
+  "stopped_because": "The free daily quota for this model is used up. Try another model (LLM_MODEL / JUDGE_MODEL) or wait until it resets.",
+  "repeats": 3,
+  "approaches": [
+   "agent"
+  ],
+  "tasks": [
+   "t7-single-lookup",
+   "t7-carry-forward-sum",
+   "t7-notice-end-date",
+   "t7-leave-end-date",
+   "t7-remote-eligibility",
+   "t7-two-documents",
+   "t7-conflict",
+   "t7-cloud-two-sections",
+   "t7-unanswerable",
+   "t8-notice-no-document",
+   "t8-probation-notice"
+  ],
+  "models": {
+   "agent": "gemini-3.5-flash-lite",
+   "workflow": "gemini-3.5-flash-lite"
+  },
+  "limits": {
+   "max_steps": 8,
+   "max_total_tokens": 40000,
+   "timeout_seconds": 120.0
+  },
+  "retrieval_mode": "dense",
+  "top_k_workflow": 6,
+  "overrides": {},
+  "defense": false,
+  "regraded": "graded again by the rules in this checkout; the runs and settings are unchanged"
+ },
+ "runs": [
+  {
+   "task_id": "t7-single-lookup",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Eligible employees are available to take **16 weeks** of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1824,
+   "completion_tokens": 59,
+   "api_seconds": 1.812,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 2.031,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid parental leave weeks\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.156,
+     "tokens": {
+      "prompt": 684,
+      "completion": 19
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Eligible employees are available to take **16 weeks** of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 0.656,
+     "tokens": {
+      "prompt": 1140,
+      "completion": 40
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-carry-forward-sum",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the Acme Leave Policy 2026, employees may carry forward up to **10** unused annual-leave days into the next calendar year [source: Acme-Leave-Policy-2026.md]. \n\nWith 25 unused annual leave days:\n* You can carry forward: **10** days [source: Acme-Leave-Policy-2026.md]\n* Days above the limit: **15** days (calculated as 25 - 10) [source: Acme-Leave-Policy-2026.md]\n\n*(Note: The Synthetic HR Policy RAG Test Dataset mentions a different leave allowance of 24 days per year [source: Synthetic_HR_Policy_RAG_Test_Dataset.md], but Acme-Leave-Policy-2026.md explicitly governs the carry-forward limit of 10 days [source: Acme-Leave-Policy-2026.md].)*",
+   "failed_checks": [],
+   "warnings": [
+    "numbers in the answer not found in the context: ['15']"
+   ],
+   "n_steps": 4,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "calculate"
+   ],
+   "llm_calls": 4,
+   "prompt_tokens": 4807,
+   "completion_tokens": 268,
+   "api_seconds": 3.265,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 3.36,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused annual leave\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.656,
+     "tokens": {
+      "prompt": 706,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"leave carry forward limit\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - The standard probation period is **6 months**, although the company may extend it once by up to 3 months based on documented performance or business circumstances.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.64,
+     "tokens": {
+      "prompt": 1241,
+      "completion": 19
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "calculate",
+       "arguments": "{\"expression\":\"25 - 10\"}",
+       "observation": "15",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.89,
+     "tokens": {
+      "prompt": 1635,
+      "completion": 19
+     }
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "Based on the Acme Leave Policy 2026, employees may carry forward up to **10** unused annual-leave days into the next calendar year [source: Acme-Leave-Policy-2026.md]. \n\nWith 25 unused annual leave days:\n* You can carry forward: **10** days [source: Acme-Leave-Policy-2026.md]\n* Days above the limit: **15** days (calculated as 25 - 10) [source: Acme-Leave-Policy-2026.md]\n\n*(Note: The Synthetic HR Policy RAG Test Dataset mentions a different leave allowance of 24 days per year [source: Synthetic_HR_Policy_RAG_Test_Dataset.md], but Acme-Leave-Policy-2026.md explicitly governs the carry-forward limit of 10 days [source: Acme-Leave-Policy-2026.md].)*",
+     "tool_calls": [],
+     "seconds": 1.079,
+     "tokens": {
+      "prompt": 1225,
+      "completion": 210
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-notice-end-date",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme Employment Terms Policy 2026, a permanent employee must provide 30 calendar days of written notice before resigning, and the notice period begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md]. \n\nSince the written resignation is received by People Operations on 3 November 2026, adding 30 calendar days results in **3 December 2026** [source: Acme-Employment-Terms-2026.md].\n\n*(Note: The Synthetic HR Policy RAG Test Dataset mentions a 60 calendar day standard notice period for confirmed employees [source: Synthetic_HR_Policy_RAG_Test_Dataset.md], but Acme-Employment-Terms-2026.md specifically governs Acme employment terms and sets the permanent employee notice period at 30 calendar days [source: Acme-Employment-Terms-2026.md].)*",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 3,
+   "tool_calls": [
+    "search_policies",
+    "add_days"
+   ],
+   "llm_calls": 3,
+   "prompt_tokens": 2973,
+   "completion_tokens": 253,
+   "api_seconds": 2.764,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 2.796,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period permanent employee resignation\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.593,
+     "tokens": {
+      "prompt": 711,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"date\":\"2026-11-03\",\"days\":30}",
+       "observation": "2026-12-03 (Thursday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.765,
+     "tokens": {
+      "prompt": 1103,
+      "completion": 30
+     }
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "Under the Acme Employment Terms Policy 2026, a permanent employee must provide 30 calendar days of written notice before resigning, and the notice period begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md]. \n\nSince the written resignation is received by People Operations on 3 November 2026, adding 30 calendar days results in **3 December 2026** [source: Acme-Employment-Terms-2026.md].\n\n*(Note: The Synthetic HR Policy RAG Test Dataset mentions a 60 calendar day standard notice period for confirmed employees [source: Synthetic_HR_Policy_RAG_Test_Dataset.md], but Acme-Employment-Terms-2026.md specifically governs Acme employment terms and sets the permanent employee notice period at 30 calendar days [source: Acme-Employment-Terms-2026.md].)*",
+     "tool_calls": [],
+     "seconds": 1.406,
+     "tokens": {
+      "prompt": 1159,
+      "completion": 203
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-leave-end-date",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme leave policy, employees may carry forward up to **10** unused annual-leave days into the next calendar year [source: Acme-Leave-Policy-2026.md]. \n\nTaking those 10 consecutive calendar days starting from **4 January 2027**:\n- Number of days: 10\n- First day: 4 January 2027\n- Calculation: 4 January 2027 + (10 - 1) days = 13 January 2027\n\nYour last day of leave is **13 January 2027** (Wednesday).\n\n[source: Acme-Leave-Policy-2026.md]",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 8,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "calculate",
+    "add_days",
+    "search_policies",
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 8,
+   "prompt_tokens": 11352,
+   "completion_tokens": 327,
+   "api_seconds": 6.75,
+   "wait_seconds": 50.069,
+   "elapsed_seconds": 56.922,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused annual leave maximum days\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.625,
+     "tokens": {
+      "prompt": 730,
+      "completion": 22
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Acme leave policy carry forward max days\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.703,
+     "tokens": {
+      "prompt": 1267,
+      "completion": 23
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "calculate",
+       "arguments": "{\"expression\":\"10 - 1\"}",
+       "observation": "9",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.656,
+     "tokens": {
+      "prompt": 1739,
+      "completion": 18
+     }
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"days\":9,\"date\":\"2027-01-04\"}",
+       "observation": "2027-01-13 (Wednesday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 51.0,
+     "tokens": {
+      "prompt": 1307,
+      "completion": 29
+     }
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"maximum allowed carry forward unused annual leave days\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.078,
+     "tokens": {
+      "prompt": 986,
+      "completion": 23
+     }
+    },
+    {
+     "n": 6,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward max unused annual leave days synthetic HR policy\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees receive **6 days of casual leave per calendar year**. Casual leave is intended for short, unplanned personal needs.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.094,
+     "tokens": {
+      "prompt": 1524,
+      "completion": 25
+     }
+    },
+    {
+     "n": 7,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Synthetic_HR_Policy_RAG_Test_Dataset carry forward unused annual leave days maximum\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees receive **12 days of sick leave per calendar year**. A medical certificate may be requested for absences exceeding 2 consecutive working days.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.766,
+     "tokens": {
+      "prompt": 1917,
+      "completion": 34
+     }
+    },
+    {
+     "n": 8,
+     "kind": "final",
+     "content": "Under the Acme leave policy, employees may carry forward up to **10** unused annual-leave days into the next calendar year [source: Acme-Leave-Policy-2026.md]. \n\nTaking those 10 consecutive calendar days starting from **4 January 2027**:\n- Number of days: 10\n- First day: 4 January 2027\n- Calculation: 4 January 2027 + (10 - 1) days = 13 January 2027\n\nYour last day of leave is **13 January 2027** (Wednesday).\n\n[source: Acme-Leave-Policy-2026.md]",
+     "tool_calls": [],
+     "seconds": 0.906,
+     "tokens": {
+      "prompt": 1882,
+      "completion": 153
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-remote-eligibility",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the company's remote work policy:\n\n* **Can they request remote work yet?** No. Regular employees may only request remote work after completing 60 days of service [source: Northstar-Remote-Work-Policy-2026.md].\n* **After how many days of service can they?** 60 days of service [source: Northstar-Remote-Work-Policy-2026.md].\n* **What is the most days a week they could then work remotely?** Up to three days per week [source: Northstar-Remote-Work-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1836,
+   "completion_tokens": 157,
+   "api_seconds": 1.562,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 1.578,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"remote work eligibility service days\"}",
+       "observation": "[1] [source: Northstar-Remote-Work-Policy-2026.md] # NORTHSTAR REMOTE WORK POLICY 2026 Effective date: 2026-02-15 ## 1. Scope and eligibility Regular employees may request remote work after completing 60 days of service. Approval depends on role suitability, team coverage, security requirements, and manager review. ## 2. Remote-work schedule An approved employee may work remotely up to three days per week. The employee must be available during the team core hours of 10:00 to 16:00 local time unless the manager approves an alternative schedule. ## 3. Equipment and security Northstar supplies one company laptop and an approved security token. Employees must use the company VPN for internal systems and must not store confidential policy or cust...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible hybrid employees may work remotely up to **3 days per week**, subject to team coverage and manager approval.\n[3] [source: Northstar-Remote-Work-Policy-2026.md] ## 4. Home-office expenses Employees may claim up to 50 USD per month for internet service used for approved remote work. Claims require an itemized receipt and must be submitted by the tenth day of the following month. ## 5. Review and cancellation Remote-work approvals are reviewed every six months. The company may suspend or cancel an arrangement when business needs, performance, security, or attendance requirements are not met.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.594,
+     "tokens": {
+      "prompt": 716,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Based on the company's remote work policy:\n\n* **Can they request remote work yet?** No. Regular employees may only request remote work after completing 60 days of service [source: Northstar-Remote-Work-Policy-2026.md].\n* **After how many days of service can they?** 60 days of service [source: Northstar-Remote-Work-Policy-2026.md].\n* **What is the most days a week they could then work remotely?** Up to three days per week [source: Northstar-Remote-Work-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 0.968,
+     "tokens": {
+      "prompt": 1120,
+      "completion": 137
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-two-documents",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme employment terms, an employee on probation must give **7 calendar days** of written notice before resigning [source: Acme-Employment-Terms-2026.md]. *(Note: A separate document, Synthetic_HR_Policy_RAG_Test_Dataset.md, mentions 30 calendar days during probation, but Acme-Employment-Terms-2026.md specifically governs Acme terms).*\n\nUnder the Acme leave policy, employees receive **12 paid sick-leave days** per calendar year [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 2220,
+   "completion_tokens": 169,
+   "api_seconds": 1.937,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 1.969,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period employee on probation Acme\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      },
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid sick leave days per year Acme leave policy\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees receive **12 days of sick leave per calendar year**. A medical certificate may be requested for absences exceeding 2 consecutive working days.\n[3] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.75,
+     "tokens": {
+      "prompt": 709,
+      "completion": 45
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Under the Acme employment terms, an employee on probation must give **7 calendar days** of written notice before resigning [source: Acme-Employment-Terms-2026.md]. *(Note: A separate document, Synthetic_HR_Policy_RAG_Test_Dataset.md, mentions 30 calendar days during probation, but Acme-Employment-Terms-2026.md specifically governs Acme terms).*\n\nUnder the Acme leave policy, employees receive **12 paid sick-leave days** per calendar year [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.187,
+     "tokens": {
+      "prompt": 1511,
+      "completion": 124
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-conflict",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "The company policy documents contain conflicting information regarding the annual leave allowance:\n\n* **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive **24 days of annual leave per calendar year** (accrued monthly at 2 days per completed month) [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n* **Acme-Leave-Policy-2026.md** states that regular full-time employees receive **18 days of annual leave per calendar year** (with a prorated allowance for employees joining after 1 July) [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1909,
+   "completion_tokens": 166,
+   "api_seconds": 1.515,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 1.531,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"annual leave days each year\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.594,
+     "tokens": {
+      "prompt": 687,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "The company policy documents contain conflicting information regarding the annual leave allowance:\n\n* **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive **24 days of annual leave per calendar year** (accrued monthly at 2 days per completed month) [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n* **Acme-Leave-Policy-2026.md** states that regular full-time employees receive **18 days of annual leave per calendar year** (with a prorated allowance for employees joining after 1 July) [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 0.921,
+     "tokens": {
+      "prompt": 1222,
+      "completion": 146
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-cloud-two-sections",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the company's Azure Cloud Data Access Policy:\n\n1. **Subscription Access:** No, they should not receive access to the whole subscription. Access should be assigned at the lowest practical scope, such as a specific resource or resource group, and users should not receive broad storage account permissions when access to a specific container is sufficient [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]. For example, a developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].\n2. **Storage of Access Keys:** Any access keys must never be stored directly in source code [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]. Instead, secrets must be stored using an approved secrets-management solution such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1881,
+   "completion_tokens": 232,
+   "api_seconds": 2.282,
+   "wait_seconds": 49.221,
+   "elapsed_seconds": 51.516,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Azure Storage container access keys\"}",
+       "observation": "[1] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Applications processing customer information should use managed identities or other approved identity mechanisms instead of storing long-lived credentials in source code. ## 8. Azure Storage Access Azure Storage resources containing Confidential or Restricted data must use authenticated and authorized access. Public access should be disabled unless the resource is intentionally hosting Public information. Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient. ## 9. Secrets and Credentials The following must never be stored directly in source code: - Azure access keys - API keys - Database passwords - Client secrets - Encrypti...\n[2] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] - Azure access keys - API keys - Database passwords - Client secrets - Encryption keys - Service credentials Secrets must be stored using an approved secrets-management solution such as **Azure Key Vault**. Access to secrets must be restricted to authorized applications and administrators. ## 10. Access Reviews Access to Confidential and Restricted resources must be reviewed periodically. Inactive accounts and unnecessary permissions must be removed. Privileged access should be minimized and, where appropriate, protected through Microsoft Entra Privileged Identity Management (PIM). ## 11. Logging and Monitoring Access to sensitive Azure resources must be logged. Security teams should monitor...\n[3] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Security administrators should use privileged access only when required. ## 5. Least-Privilege Requirement Every user, application, service principal, and managed identity must receive only the permissions required for their responsibilities. For example: > A developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account. Access should be assigned at the lowest practical scope, such as a specific resource or resource group instead of the entire subscription. Nexora Tech should prefer built-in Azure roles where they satisfy the requirement and use custom roles only when necessary. ## 6. Production Data Access Production data ...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.688,
+     "tokens": {
+      "prompt": 707,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Based on the company's Azure Cloud Data Access Policy:\n\n1. **Subscription Access:** No, they should not receive access to the whole subscription. Access should be assigned at the lowest practical scope, such as a specific resource or resource group, and users should not receive broad storage account permissions when access to a specific container is sufficient [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]. For example, a developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].\n2. **Storage of Access Keys:** Any access keys must never be stored directly in source code [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]. Instead, secrets must be stored using an approved secrets-management solution such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+     "tool_calls": [],
+     "seconds": 50.812,
+     "tokens": {
+      "prompt": 1174,
+      "completion": 212
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-unanswerable",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "I don't know based on the provided documents.",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 7,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "search_policies",
+    "search_policies",
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 7,
+   "prompt_tokens": 9198,
+   "completion_tokens": 120,
+   "api_seconds": 5.423,
+   "wait_seconds": 0.44,
+   "elapsed_seconds": 5.953,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"maximum bonus manager approve team member\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible employees may claim up to **INR 30,000 per financial year** for approved learning and certification expenses.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Promotions Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.672,
+     "tokens": {
+      "prompt": 688,
+      "completion": 21
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"bonus manager approve\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Promotions Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Quarterly Check-ins Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.609,
+     "tokens": {
+      "prompt": 1000,
+      "completion": 18
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"bonus\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. — Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effective date:** 1 April 2026 **Review date:** 1 April 2027 **Status:** Fictional / testing only > This handbook is entirely fictional and is intended for software testing, retrieval evaluation, chunking, embedding, reranking, and question-answering experiments. ## 1. Employee Handbook Overview\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ## 8. Benefits ### Health Benefits Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: benefits.md] # Benefits Northwind Labs offers: - Private health insurance (employee covered 100%; dependents at 50%). - A pension match of **5%** of base salary. - An annual learning budget of **$1,000** per employee. - 24 days annual leave (see the Annual Leave policy). Benefits begin on your first day; the pension match starts after **3 months** of employment.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.281,
+     "tokens": {
+      "prompt": 1311,
+      "completion": 16
+     }
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"manager approve bonus\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Promotions Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ## 7. Compensation and Payroll ### Salary Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.954,
+     "tokens": {
+      "prompt": 1422,
+      "completion": 18
+     }
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"maximum bonus\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 13. Annual company holiday calendar: 12 designated holidays. 14. Payroll: normally processed on the last working day of the month. 15. Annual mandatory security and anti-harassment training.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[3] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.828,
+     "tokens": {
+      "prompt": 1497,
+      "completion": 17
+     }
+    },
+    {
+     "n": 6,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"incentive bonus reward\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ## 7. Compensation and Payroll ### Salary Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Overtime Pay Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.797,
+     "tokens": {
+      "prompt": 1603,
+      "completion": 19
+     }
+    },
+    {
+     "n": 7,
+     "kind": "final",
+     "content": "I don't know based on the provided documents.",
+     "tool_calls": [],
+     "seconds": 0.719,
+     "tokens": {
+      "prompt": 1677,
+      "completion": 11
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t8-notice-no-document",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "The policy documents disagree on the notice period for a permanent/confirmed employee:\n\n* **Acme-Employment-Terms-2026.md** states that after successful completion of probation, a permanent employee must provide **30 calendar days** of written notice before resigning, and the notice period begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md]. Under this policy, starting from 3 November 2026 and adding 30 calendar days, the notice period ends on **3 December 2026** [source: Acme-Employment-Terms-2026.md].\n* **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that the standard notice period is **60 calendar days** for confirmed employees [source: Synthetic_HR_Policy_RAG_Test_Dataset.md]. Under this policy, starting from 3 November 2026 and adding 60 calendar days, the notice period ends on **2 January 2027** [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 7,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "add_days",
+    "remember",
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 7,
+   "prompt_tokens": 9629,
+   "completion_tokens": 433,
+   "api_seconds": 6.063,
+   "wait_seconds": 50.024,
+   "elapsed_seconds": 56.141,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period permanent employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.672,
+     "tokens": {
+      "prompt": 705,
+      "completion": 19
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"permanent employee notice period Acme-Employment-Terms-2026.md\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.14,
+     "tokens": {
+      "prompt": 1226,
+      "completion": 31
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"days\":30,\"date\":\"2026-11-03\"}",
+       "observation": "2026-12-03 (Thursday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.922,
+     "tokens": {
+      "prompt": 1718,
+      "completion": 30
+     }
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "remember",
+       "arguments": "{\"fact\":\"Notice period is 30 calendar days starting on the date People Operations receives the written resignation (3 November 2026), ending on 3 December 2026.\"}",
+       "observation": "Saved note 1.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.656,
+     "tokens": {
+      "prompt": 1325,
+      "completion": 51
+     }
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period 30 calendar days written resignation\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 50.078,
+     "tokens": {
+      "prompt": 1052,
+      "completion": 24
+     }
+    },
+    {
+     "n": 6,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Synthetic_HR_Policy_RAG_Test_Dataset.md notice period permanent employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. — Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effective date:** 1 April 2026 **Review date:** 1 April 2027 **Status:** Fictional / testing only > This handbook is entirely fictional and is intended for software testing, retrieval evaluation, chunking, embedding, reranking, and question-answering experiments. ## 1. Employee Handbook Overview\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.297,
+     "tokens": {
+      "prompt": 1578,
+      "completion": 33
+     }
+    },
+    {
+     "n": 7,
+     "kind": "final",
+     "content": "The policy documents disagree on the notice period for a permanent/confirmed employee:\n\n* **Acme-Employment-Terms-2026.md** states that after successful completion of probation, a permanent employee must provide **30 calendar days** of written notice before resigning, and the notice period begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md]. Under this policy, starting from 3 November 2026 and adding 30 calendar days, the notice period ends on **3 December 2026** [source: Acme-Employment-Terms-2026.md].\n* **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that the standard notice period is **60 calendar days** for confirmed employees [source: Synthetic_HR_Policy_RAG_Test_Dataset.md]. Under this policy, starting from 3 November 2026 and adding 60 calendar days, the notice period ends on **2 January 2027** [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+     "tool_calls": [],
+     "seconds": 1.313,
+     "tokens": {
+      "prompt": 2025,
+      "completion": 245
+     }
+    }
+   ],
+   "notes": [
+    "Notice period is 30 calendar days starting on the date People Operations receives the written resignation (3 November 2026), ending on 3 December 2026."
+   ]
+  },
+  {
+   "task_id": "t8-probation-notice",
+   "approach": "agent",
+   "repeat": 1,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "The employee's notice period ends on **9 March 2027**. \n\n**Key numbers and calculation:**\n- Notice period for an employee in their probationary period: **7 calendar days** [source: Acme-Employment-Terms-2026.md].\n- Resignation received date: **2 March 2027** [source: user prompt].\n- Adding 7 calendar days to 2 March 2027 gives **9 March 2027** [source: add_days tool].\n\n[source: Acme-Employment-Terms-2026.md]",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 7,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "add_days",
+    "search_policies",
+    "search_policies",
+    "add_days"
+   ],
+   "llm_calls": 7,
+   "prompt_tokens": 9360,
+   "completion_tokens": 277,
+   "api_seconds": 6.171,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 6.265,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"probation notice period resignation\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.719,
+     "tokens": {
+      "prompt": 708,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Acme Employment Terms policy notice period start date probation\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.938,
+     "tokens": {
+      "prompt": 1230,
+      "completion": 25
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"date\":\"2027-03-02\",\"days\":7}",
+       "observation": "2027-03-09 (Tuesday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.813,
+     "tokens": {
+      "prompt": 1706,
+      "completion": 29
+     }
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period begins on date People Operations receives\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Notice Period Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.89,
+     "tokens": {
+      "prompt": 1331,
+      "completion": 23
+     }
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"probation notice period days\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - The standard probation period is **6 months**, although the company may extend it once by up to 3 months based on documented performance or business circumstances.\n[3] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.89,
+     "tokens": {
+      "prompt": 1269,
+      "completion": 20
+     }
+    },
+    {
+     "n": 6,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"days\":7,\"date\":\"2027-03-02\"}",
+       "observation": "2027-03-09 (Tuesday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.843,
+     "tokens": {
+      "prompt": 1651,
+      "completion": 29
+     }
+    },
+    {
+     "n": 7,
+     "kind": "final",
+     "content": "The employee's notice period ends on **9 March 2027**. \n\n**Key numbers and calculation:**\n- Notice period for an employee in their probationary period: **7 calendar days** [source: Acme-Employment-Terms-2026.md].\n- Resignation received date: **2 March 2027** [source: user prompt].\n- Adding 7 calendar days to 2 March 2027 gives **9 March 2027** [source: add_days tool].\n\n[source: Acme-Employment-Terms-2026.md]",
+     "tool_calls": [],
+     "seconds": 1.078,
+     "tokens": {
+      "prompt": 1465,
+      "completion": 131
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-single-lookup",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Eligible employees may take **16 weeks** of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1824,
+   "completion_tokens": 57,
+   "api_seconds": 1.453,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 1.469,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid parental leave weeks\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.75,
+     "tokens": {
+      "prompt": 684,
+      "completion": 19
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Eligible employees may take **16 weeks** of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 0.703,
+     "tokens": {
+      "prompt": 1140,
+      "completion": 38
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-carry-forward-sum",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the Acme Leave Policy 2026, you can carry forward up to **10** unused annual-leave days into the next calendar year [source: Acme-Leave-Policy-2026.md]. \n\nSince you have 25 unused annual leave days and the maximum carry-forward limit is 10 days, the number of days above the limit is **15** (calculated as 25 − 10 = 15) [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [
+    "numbers in the answer not found in the context: ['15']"
+   ],
+   "n_steps": 4,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "calculate"
+   ],
+   "llm_calls": 4,
+   "prompt_tokens": 4905,
+   "completion_tokens": 186,
+   "api_seconds": 3.547,
+   "wait_seconds": 49.666,
+   "elapsed_seconds": 53.266,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused annual leave\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 49.719,
+     "tokens": {
+      "prompt": 706,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Synthetic_HR_Policy_RAG_Test_Dataset carry forward annual leave\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. — Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effective date:** 1 April 2026 **Review date:** 1 April 2027 **Status:** Fictional / testing only > This handbook is entirely fictional and is intended for software testing, retrieval evaluation, chunking, embedding, reranking, and question-answering experiments. ## 1. Employee Handbook Overview\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.172,
+     "tokens": {
+      "prompt": 1241,
+      "completion": 31
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "calculate",
+       "arguments": "{\"expression\":\"25 - 10\"}",
+       "observation": "15",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.891,
+     "tokens": {
+      "prompt": 1684,
+      "completion": 19
+     }
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "Based on the Acme Leave Policy 2026, you can carry forward up to **10** unused annual-leave days into the next calendar year [source: Acme-Leave-Policy-2026.md]. \n\nSince you have 25 unused annual leave days and the maximum carry-forward limit is 10 days, the number of days above the limit is **15** (calculated as 25 − 10 = 15) [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.422,
+     "tokens": {
+      "prompt": 1274,
+      "completion": 116
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-notice-end-date",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme Employment Terms, a permanent employee must provide 30 calendar days of written notice before resigning, and the notice period begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md]. \n\nSince People Operations received the written resignation on 3 November 2026, adding 30 calendar days brings the end of the notice period to **3 December 2026** (Thursday) [source: Acme-Employment-Terms-2026.md].\n\n*(Note: The Synthetic HR Policy RAG Test Dataset mentions a standard notice period of 60 calendar days for confirmed employees [source: Synthetic_HR_Policy_RAG_Test_Dataset.md], but Acme-Employment-Terms-2026.md specifies 30 calendar days for permanent employees after successful completion of probation [source: Acme-Employment-Terms-2026.md].)*",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 3,
+   "tool_calls": [
+    "search_policies",
+    "add_days"
+   ],
+   "llm_calls": 3,
+   "prompt_tokens": 2973,
+   "completion_tokens": 251,
+   "api_seconds": 2.703,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 2.75,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period permanent employee resignation\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.859,
+     "tokens": {
+      "prompt": 711,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"days\":30,\"date\":\"2026-11-03\"}",
+       "observation": "2026-12-03 (Thursday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.656,
+     "tokens": {
+      "prompt": 1103,
+      "completion": 30
+     }
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "Under the Acme Employment Terms, a permanent employee must provide 30 calendar days of written notice before resigning, and the notice period begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md]. \n\nSince People Operations received the written resignation on 3 November 2026, adding 30 calendar days brings the end of the notice period to **3 December 2026** (Thursday) [source: Acme-Employment-Terms-2026.md].\n\n*(Note: The Synthetic HR Policy RAG Test Dataset mentions a standard notice period of 60 calendar days for confirmed employees [source: Synthetic_HR_Policy_RAG_Test_Dataset.md], but Acme-Employment-Terms-2026.md specifies 30 calendar days for permanent employees after successful completion of probation [source: Acme-Employment-Terms-2026.md].)*",
+     "tool_calls": [],
+     "seconds": 1.188,
+     "tokens": {
+      "prompt": 1159,
+      "completion": 201
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-leave-end-date",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme leave policy, the maximum number of unused days you can carry forward is 10 days [source: Acme-Leave-Policy-2026.md]. \n\nTaking 10 consecutive calendar days of leave starting on 4 January 2027:\n- First day of leave: 4 January 2027\n- Days to add (10 days total minus 1): 9 additional calendar days\n- Last day of leave: **13 January 2027 (Wednesday)**\n\n[source: Acme-Leave-Policy-2026.md]",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 5,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "remember",
+    "calculate",
+    "add_days"
+   ],
+   "llm_calls": 5,
+   "prompt_tokens": 5856,
+   "completion_tokens": 255,
+   "api_seconds": 4.391,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 4.437,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused annual leave maximum\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.969,
+     "tokens": {
+      "prompt": 730,
+      "completion": 21
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Acme Leave Policy carry forward maximum\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.719,
+     "tokens": {
+      "prompt": 1266,
+      "completion": 22
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "remember",
+       "arguments": "{\"fact\":\"Maximum carry-forward under Acme-Leave-Policy-2026.md is 10 days.\"}",
+       "observation": "Saved note 1.",
+       "ok": true,
+       "blocked": false
+      },
+      {
+       "name": "calculate",
+       "arguments": "{\"expression\":\"10 - 1\"}",
+       "observation": "9",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.953,
+     "tokens": {
+      "prompt": 1737,
+      "completion": 54
+     }
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"days\":9,\"date\":\"2027-01-04\"}",
+       "observation": "2027-01-13 (Wednesday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.719,
+     "tokens": {
+      "prompt": 1034,
+      "completion": 29
+     }
+    },
+    {
+     "n": 5,
+     "kind": "final",
+     "content": "Under the Acme leave policy, the maximum number of unused days you can carry forward is 10 days [source: Acme-Leave-Policy-2026.md]. \n\nTaking 10 consecutive calendar days of leave starting on 4 January 2027:\n- First day of leave: 4 January 2027\n- Days to add (10 days total minus 1): 9 additional calendar days\n- Last day of leave: **13 January 2027 (Wednesday)**\n\n[source: Acme-Leave-Policy-2026.md]",
+     "tool_calls": [],
+     "seconds": 1.031,
+     "tokens": {
+      "prompt": 1089,
+      "completion": 129
+     }
+    }
+   ],
+   "notes": [
+    "Maximum carry-forward under Acme-Leave-Policy-2026.md is 10 days."
+   ]
+  },
+  {
+   "task_id": "t7-remote-eligibility",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on company policy:\n\n- **Can they request remote work yet?** No, an employee who joined 45 days ago cannot request remote work yet [source: Northstar-Remote-Work-Policy-2026.md].\n- **After how many days of service can they request it?** Regular employees may request remote work after completing **60 days** of service [source: Northstar-Remote-Work-Policy-2026.md].\n- **What is the most days a week they could then work remotely?** Once approved, an employee may work remotely up to **3 days per week** [source: Northstar-Remote-Work-Policy-2026.md, Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1836,
+   "completion_tokens": 187,
+   "api_seconds": 1.891,
+   "wait_seconds": 48.866,
+   "elapsed_seconds": 50.782,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"remote work eligibility service days\"}",
+       "observation": "[1] [source: Northstar-Remote-Work-Policy-2026.md] # NORTHSTAR REMOTE WORK POLICY 2026 Effective date: 2026-02-15 ## 1. Scope and eligibility Regular employees may request remote work after completing 60 days of service. Approval depends on role suitability, team coverage, security requirements, and manager review. ## 2. Remote-work schedule An approved employee may work remotely up to three days per week. The employee must be available during the team core hours of 10:00 to 16:00 local time unless the manager approves an alternative schedule. ## 3. Equipment and security Northstar supplies one company laptop and an approved security token. Employees must use the company VPN for internal systems and must not store confidential policy or cust...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible hybrid employees may work remotely up to **3 days per week**, subject to team coverage and manager approval.\n[3] [source: Northstar-Remote-Work-Policy-2026.md] ## 4. Home-office expenses Employees may claim up to 50 USD per month for internet service used for approved remote work. Claims require an itemized receipt and must be submitted by the tenth day of the following month. ## 5. Review and cancellation Remote-work approvals are reviewed every six months. The company may suspend or cancel an arrangement when business needs, performance, security, or attendance requirements are not met.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 49.235,
+     "tokens": {
+      "prompt": 716,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Based on company policy:\n\n- **Can they request remote work yet?** No, an employee who joined 45 days ago cannot request remote work yet [source: Northstar-Remote-Work-Policy-2026.md].\n- **After how many days of service can they request it?** Regular employees may request remote work after completing **60 days** of service [source: Northstar-Remote-Work-Policy-2026.md].\n- **What is the most days a week they could then work remotely?** Once approved, an employee may work remotely up to **3 days per week** [source: Northstar-Remote-Work-Policy-2026.md, Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+     "tool_calls": [],
+     "seconds": 1.516,
+     "tokens": {
+      "prompt": 1120,
+      "completion": 167
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-two-documents",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme employment terms, an employee who is still within the probationary period must provide **7 calendar days** of written notice before resigning [source: Acme-Employment-Terms-2026.md]. (Note: The `Synthetic_HR_Policy_RAG_Test_Dataset.md` document mentions a standard notice period of 30 calendar days during probation, but Acme-Employment-Terms-2026.md specifies 7 calendar days).\n\nUnder the Acme leave policy, employees receive **12 paid sick-leave days** per calendar year [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 3,
+   "tool_calls": [
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 3,
+   "prompt_tokens": 3321,
+   "completion_tokens": 178,
+   "api_seconds": 2.422,
+   "wait_seconds": 0.554,
+   "elapsed_seconds": 3.015,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period probation employee Acme\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.875,
+     "tokens": {
+      "prompt": 709,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid sick leave days per year Acme leave policy\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees receive **12 days of sick leave per calendar year**. A medical certificate may be requested for absences exceeding 2 consecutive working days.\n[3] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.86,
+     "tokens": {
+      "prompt": 1101,
+      "completion": 24
+     }
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "Under the Acme employment terms, an employee who is still within the probationary period must provide **7 calendar days** of written notice before resigning [source: Acme-Employment-Terms-2026.md]. (Note: The `Synthetic_HR_Policy_RAG_Test_Dataset.md` document mentions a standard notice period of 30 calendar days during probation, but Acme-Employment-Terms-2026.md specifies 7 calendar days).\n\nUnder the Acme leave policy, employees receive **12 paid sick-leave days** per calendar year [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.25,
+     "tokens": {
+      "prompt": 1511,
+      "completion": 134
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-conflict",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "The provided company policy documents disagree on the number of annual leave days an employee receives each year:\n\n- **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive **24 days** of annual leave per calendar year (accrued monthly at 2 days per completed month) [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n- **Acme-Leave-Policy-2026.md** states that employees receive **18 days** of annual leave per calendar year (with a prorated allowance for employees joining after 1 July) [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1910,
+   "completion_tokens": 169,
+   "api_seconds": 1.859,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 1.891,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"annual leave days each year employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.703,
+     "tokens": {
+      "prompt": 687,
+      "completion": 21
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "The provided company policy documents disagree on the number of annual leave days an employee receives each year:\n\n- **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive **24 days** of annual leave per calendar year (accrued monthly at 2 days per completed month) [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n- **Acme-Leave-Policy-2026.md** states that employees receive **18 days** of annual leave per calendar year (with a prorated allowance for employees joining after 1 July) [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.156,
+     "tokens": {
+      "prompt": 1223,
+      "completion": 148
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-cloud-two-sections",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the company's Azure Cloud Data Access Policy:\n\n1. **Subscription Access:** No, they should not receive access to the whole subscription. Access should be assigned at the lowest practical scope (such as a specific resource or resource group), and users must not receive broad storage account permissions when access to a specific container or resource is sufficient. For example, a developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].\n\n2. **Storage of Access Keys:** Any access keys must never be stored directly in source code. Instead, secrets must be stored using an approved secrets-management solution such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1881,
+   "completion_tokens": 196,
+   "api_seconds": 1.953,
+   "wait_seconds": 0.222,
+   "elapsed_seconds": 2.203,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Azure Storage container access keys\"}",
+       "observation": "[1] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Applications processing customer information should use managed identities or other approved identity mechanisms instead of storing long-lived credentials in source code. ## 8. Azure Storage Access Azure Storage resources containing Confidential or Restricted data must use authenticated and authorized access. Public access should be disabled unless the resource is intentionally hosting Public information. Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient. ## 9. Secrets and Credentials The following must never be stored directly in source code: - Azure access keys - API keys - Database passwords - Client secrets - Encrypti...\n[2] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] - Azure access keys - API keys - Database passwords - Client secrets - Encryption keys - Service credentials Secrets must be stored using an approved secrets-management solution such as **Azure Key Vault**. Access to secrets must be restricted to authorized applications and administrators. ## 10. Access Reviews Access to Confidential and Restricted resources must be reviewed periodically. Inactive accounts and unnecessary permissions must be removed. Privileged access should be minimized and, where appropriate, protected through Microsoft Entra Privileged Identity Management (PIM). ## 11. Logging and Monitoring Access to sensitive Azure resources must be logged. Security teams should monitor...\n[3] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Security administrators should use privileged access only when required. ## 5. Least-Privilege Requirement Every user, application, service principal, and managed identity must receive only the permissions required for their responsibilities. For example: > A developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account. Access should be assigned at the lowest practical scope, such as a specific resource or resource group instead of the entire subscription. Nexora Tech should prefer built-in Azure roles where they satisfy the requirement and use custom roles only when necessary. ## 6. Production Data Access Production data ...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.687,
+     "tokens": {
+      "prompt": 707,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Based on the company's Azure Cloud Data Access Policy:\n\n1. **Subscription Access:** No, they should not receive access to the whole subscription. Access should be assigned at the lowest practical scope (such as a specific resource or resource group), and users must not receive broad storage account permissions when access to a specific container or resource is sufficient. For example, a developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].\n\n2. **Storage of Access Keys:** Any access keys must never be stored directly in source code. Instead, secrets must be stored using an approved secrets-management solution such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+     "tool_calls": [],
+     "seconds": 1.5,
+     "tokens": {
+      "prompt": 1174,
+      "completion": 176
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-unanswerable",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "I don't know based on the provided documents.",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 6,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "search_policies",
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 6,
+   "prompt_tokens": 7598,
+   "completion_tokens": 105,
+   "api_seconds": 4.828,
+   "wait_seconds": 48.839,
+   "elapsed_seconds": 53.766,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"maximum bonus manager approve team member\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible employees may claim up to **INR 30,000 per financial year** for approved learning and certification expenses.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Promotions Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.734,
+     "tokens": {
+      "prompt": 688,
+      "completion": 21
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"bonus manager approve team member limit\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible employees may claim up to **INR 30,000 per financial year** for approved learning and certification expenses.\n[3] [source: Northstar-Remote-Work-Policy-2026.md] # NORTHSTAR REMOTE WORK POLICY 2026 Effective date: 2026-02-15 ## 1. Scope and eligibility Regular employees may request remote work after completing 60 days of service. Approval depends on role suitability, team coverage, security requirements, and manager review. ## 2. Remote-work schedule An approved employee may work remotely up to three days per week. The employee must be available during the team core hours of 10:00 to 16:00 local time unless the manager approves an alternative schedule. ## 3. Equipment and security Northstar supplies one company laptop and an approved security token. Employees must use the company VPN for internal systems and must not store confidential policy or cust...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.625,
+     "tokens": {
+      "prompt": 1000,
+      "completion": 21
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"bonus\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] # Northstar Digital Solutions Pvt. Ltd. — Synthetic HR Policy Handbook **Document purpose:** Synthetic test data for RAG applications. **Version:** 2026.1 **Effective date:** 1 April 2026 **Review date:** 1 April 2027 **Status:** Fictional / testing only > This handbook is entirely fictional and is intended for software testing, retrieval evaluation, chunking, embedding, reranking, and question-answering experiments. ## 1. Employee Handbook Overview\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ## 8. Benefits ### Health Benefits Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: benefits.md] # Benefits Northwind Labs offers: - Private health insurance (employee covered 100%; dependents at 50%). - A pension match of **5%** of base salary. - An annual learning budget of **$1,000** per employee. - 24 days annual leave (see the Annual Leave policy). Benefits begin on your first day; the pension match starts after **3 months** of employment.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.953,
+     "tokens": {
+      "prompt": 1403,
+      "completion": 16
+     }
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"manager approve bonus\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees must not accept a gift, benefit, or hospitality that could reasonably influence a business decision. Gifts above **INR 5,000** require disclosure to the employee's manager and People Operations.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ### Promotions Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ## 7. Compensation and Payroll ### Salary Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 48.985,
+     "tokens": {
+      "prompt": 1514,
+      "completion": 18
+     }
+    },
+    {
+     "n": 5,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Compensation and Payroll\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] ## 7. Compensation and Payroll ### Salary Northstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Monthly payroll is normally processed on the **last working day of each month**.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 13. Annual company holiday calendar: 12 designated holidays. 14. Payroll: normally processed on the last working day of the month. 15. Annual mandatory security and anti-harassment training.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.422,
+     "tokens": {
+      "prompt": 1500,
+      "completion": 18
+     }
+    },
+    {
+     "n": 6,
+     "kind": "final",
+     "content": "I don't know based on the provided documents.",
+     "tool_calls": [],
+     "seconds": 0.954,
+     "tokens": {
+      "prompt": 1493,
+      "completion": 11
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t8-notice-no-document",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "The notice period begins on 3 November 2026, when People Operations receives the written resignation. Adding the 30 calendar days of notice, the notice period ends on **3 December 2026**.\n\nKey numbers and details used:\n- Start date: 3 November 2026\n- Notice period: 30 calendar days\n- Resulting end date: 3 December 2026\n\nSources:\n- [source: Acme-Employment-Terms-2026.md]",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 5,
+   "tool_calls": [
+    "search_policies",
+    "add_days",
+    "search_policies",
+    "remember"
+   ],
+   "llm_calls": 5,
+   "prompt_tokens": 5931,
+   "completion_tokens": 219,
+   "api_seconds": 4.719,
+   "wait_seconds": 0.491,
+   "elapsed_seconds": 5.25,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period permanent employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.437,
+     "tokens": {
+      "prompt": 705,
+      "completion": 19
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"date\":\"2026-11-03\",\"days\":30}",
+       "observation": "2026-12-03 (Thursday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.672,
+     "tokens": {
+      "prompt": 1226,
+      "completion": 30
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Acme Employment Terms Policy permanent employee notice period\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.75,
+     "tokens": {
+      "prompt": 1282,
+      "completion": 24
+     }
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "remember",
+       "arguments": "{\"fact\":\"Permanent employee notice period is 30 calendar days starting on the date People Operations receives the written resignation.\"}",
+       "observation": "Saved note 1.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.984,
+     "tokens": {
+      "prompt": 1318,
+      "completion": 34
+     }
+    },
+    {
+     "n": 5,
+     "kind": "final",
+     "content": "The notice period begins on 3 November 2026, when People Operations receives the written resignation. Adding the 30 calendar days of notice, the notice period ends on **3 December 2026**.\n\nKey numbers and details used:\n- Start date: 3 November 2026\n- Notice period: 30 calendar days\n- Resulting end date: 3 December 2026\n\nSources:\n- [source: Acme-Employment-Terms-2026.md]",
+     "tool_calls": [],
+     "seconds": 1.36,
+     "tokens": {
+      "prompt": 1400,
+      "completion": 112
+     }
+    }
+   ],
+   "notes": [
+    "Permanent employee notice period is 30 calendar days starting on the date People Operations receives the written resignation."
+   ]
+  },
+  {
+   "task_id": "t8-probation-notice",
+   "approach": "agent",
+   "repeat": 2,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on company policy, an employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. \n\nSince People Operations received the written resignation on 2 March 2027, adding the 7 calendar days of notice results in the notice period ending on **9 March 2027** (Tuesday).\n\n[source: Acme-Employment-Terms-2026.md]",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 4,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "add_days"
+   ],
+   "llm_calls": 4,
+   "prompt_tokens": 4993,
+   "completion_tokens": 176,
+   "api_seconds": 3.656,
+   "wait_seconds": 0.128,
+   "elapsed_seconds": 3.828,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"probation notice period resignation\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.875,
+     "tokens": {
+      "prompt": 708,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Acme Employment Terms notice period begins date received\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.\n[3] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.937,
+     "tokens": {
+      "prompt": 1230,
+      "completion": 24
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"date\":\"2027-03-02\",\"days\":7}",
+       "observation": "2027-03-09 (Tuesday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.797,
+     "tokens": {
+      "prompt": 1715,
+      "completion": 29
+     }
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "Based on company policy, an employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. \n\nSince People Operations received the written resignation on 2 March 2027, adding the 7 calendar days of notice results in the notice period ending on **9 March 2027** (Tuesday).\n\n[source: Acme-Employment-Terms-2026.md]",
+     "tool_calls": [],
+     "seconds": 1.172,
+     "tokens": {
+      "prompt": 1340,
+      "completion": 103
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-single-lookup",
+   "approach": "agent",
+   "repeat": 3,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Eligible employees are available to take **16 weeks** of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1824,
+   "completion_tokens": 59,
+   "api_seconds": 1.578,
+   "wait_seconds": 48.413,
+   "elapsed_seconds": 50.015,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid parental leave weeks\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 48.422,
+     "tokens": {
+      "prompt": 684,
+      "completion": 19
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Eligible employees are available to take **16 weeks** of paid parental leave after the birth or adoption of a child [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.578,
+     "tokens": {
+      "prompt": 1140,
+      "completion": 40
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-carry-forward-sum",
+   "approach": "agent",
+   "repeat": 3,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the company leave policy:\n\n- **Maximum days you can carry forward:** 10 unused annual-leave days.\n- **Days above the limit:** 15 days (calculated as 25 unused days minus the 10-day limit). Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations.\n\n[source: Acme-Leave-Policy-2026.md]",
+   "failed_checks": [],
+   "warnings": [
+    "numbers in the answer not found in the context: ['15']"
+   ],
+   "n_steps": 4,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "calculate"
+   ],
+   "llm_calls": 4,
+   "prompt_tokens": 4997,
+   "completion_tokens": 164,
+   "api_seconds": 3.36,
+   "wait_seconds": 0.792,
+   "elapsed_seconds": 4.172,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused annual leave\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.828,
+     "tokens": {
+      "prompt": 706,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Acme-Leave-Policy-2026 carry forward\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.359,
+     "tokens": {
+      "prompt": 1241,
+      "completion": 28
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "calculate",
+       "arguments": "{\"expression\":\"25 - 10\"}",
+       "observation": "15",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.781,
+     "tokens": {
+      "prompt": 1730,
+      "completion": 19
+     }
+    },
+    {
+     "n": 4,
+     "kind": "final",
+     "content": "Based on the company leave policy:\n\n- **Maximum days you can carry forward:** 10 unused annual-leave days.\n- **Days above the limit:** 15 days (calculated as 25 unused days minus the 10-day limit). Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations.\n\n[source: Acme-Leave-Policy-2026.md]",
+     "tool_calls": [],
+     "seconds": 1.172,
+     "tokens": {
+      "prompt": 1320,
+      "completion": 97
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-notice-end-date",
+   "approach": "agent",
+   "repeat": 3,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme employment terms, a permanent employee must provide 30 calendar days of written notice before resigning, and the notice period begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md]. \n\nSince People Operations received the written resignation on 3 November 2026, adding 30 calendar days results in the notice period ending on **3 December 2026** [source: Acme-Employment-Terms-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 3,
+   "tool_calls": [
+    "search_policies",
+    "add_days"
+   ],
+   "llm_calls": 3,
+   "prompt_tokens": 2973,
+   "completion_tokens": 159,
+   "api_seconds": 2.484,
+   "wait_seconds": 0.726,
+   "elapsed_seconds": 3.234,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"notice period permanent employee resignation\"}",
+       "observation": "[1] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[3] [source: Acme-Employment-Terms-2026.md] ## 4. Company-initiated termination For a company-initiated termination without cause, Acme will provide 30 calendar days of notice or pay in lieu of notice, subject to applicable law and the employee's written agreement. ## 5. Handover during notice Employees serving notice must complete a documented handover, return company property, and remain available during normal working hours unless People Operations approves an earlier release.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.594,
+     "tokens": {
+      "prompt": 711,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"date\":\"2026-11-03\",\"days\":30}",
+       "observation": "2026-12-03 (Thursday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.89,
+     "tokens": {
+      "prompt": 1103,
+      "completion": 30
+     }
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "Under the Acme employment terms, a permanent employee must provide 30 calendar days of written notice before resigning, and the notice period begins on the date People Operations receives the written resignation [source: Acme-Employment-Terms-2026.md]. \n\nSince People Operations received the written resignation on 3 November 2026, adding 30 calendar days results in the notice period ending on **3 December 2026** [source: Acme-Employment-Terms-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.719,
+     "tokens": {
+      "prompt": 1159,
+      "completion": 109
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-leave-end-date",
+   "approach": "agent",
+   "repeat": 3,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the Acme Leave Policy 2026, the maximum number of unused annual leave days you can carry forward is 10 days [source: Acme-Leave-Policy-2026.md]. \n\nTaking all 10 carried-forward days as consecutive calendar days starting on 4 January 2027:\n- First day of leave: 4 January 2027\n- Days to add (10 days total minus the first day): 9 days\n- Last day of leave: 13 January 2027 (Wednesday) [source: Acme-Leave-Policy-2026.md]",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 5,
+   "tool_calls": [
+    "search_policies",
+    "search_policies",
+    "remember",
+    "calculate",
+    "add_days"
+   ],
+   "llm_calls": 5,
+   "prompt_tokens": 5840,
+   "completion_tokens": 261,
+   "api_seconds": 4.687,
+   "wait_seconds": 48.522,
+   "elapsed_seconds": 53.25,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"carry forward unused annual leave maximum\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.75,
+     "tokens": {
+      "prompt": 730,
+      "completion": 21
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Acme Leave Policy carry forward maximum\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.719,
+     "tokens": {
+      "prompt": 1266,
+      "completion": 22
+     }
+    },
+    {
+     "n": 3,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "remember",
+       "arguments": "{\"fact\":\"Maximum carry-forward under Acme Leave Policy 2026 is 10 days.\"}",
+       "observation": "Saved note 1.",
+       "ok": true,
+       "blocked": false
+      },
+      {
+       "name": "calculate",
+       "arguments": "{\"expression\":\"10 - 1\"}",
+       "observation": "9",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.172,
+     "tokens": {
+      "prompt": 1737,
+      "completion": 50
+     }
+    },
+    {
+     "n": 4,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "add_days",
+       "arguments": "{\"days\":9,\"date\":\"2027-01-04\"}",
+       "observation": "2027-01-13 (Wednesday)",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 48.187,
+     "tokens": {
+      "prompt": 1026,
+      "completion": 29
+     }
+    },
+    {
+     "n": 5,
+     "kind": "final",
+     "content": "Based on the Acme Leave Policy 2026, the maximum number of unused annual leave days you can carry forward is 10 days [source: Acme-Leave-Policy-2026.md]. \n\nTaking all 10 carried-forward days as consecutive calendar days starting on 4 January 2027:\n- First day of leave: 4 January 2027\n- Days to add (10 days total minus the first day): 9 days\n- Last day of leave: 13 January 2027 (Wednesday) [source: Acme-Leave-Policy-2026.md]",
+     "tool_calls": [],
+     "seconds": 2.375,
+     "tokens": {
+      "prompt": 1081,
+      "completion": 139
+     }
+    }
+   ],
+   "notes": [
+    "Maximum carry-forward under Acme Leave Policy 2026 is 10 days."
+   ]
+  },
+  {
+   "task_id": "t7-remote-eligibility",
+   "approach": "agent",
+   "repeat": 3,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the company's remote work policy:\n\n* **Can they request remote work yet?** No. Regular employees may only request remote work after completing 60 days of service, and the employee in question has only been with the company for 45 days [source: Northstar-Remote-Work-Policy-2026.md].\n* **After how many days of service can they?** They can request remote work after **60 days** of service [source: Northstar-Remote-Work-Policy-2026.md].\n* **What is the most days a week they could then work remotely?** Once approved, an employee may work remotely up to **three days per week** [source: Northstar-Remote-Work-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1837,
+   "completion_tokens": 192,
+   "api_seconds": 1.594,
+   "wait_seconds": 0.0,
+   "elapsed_seconds": 1.61,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"remote work eligibility days of service\"}",
+       "observation": "[1] [source: Northstar-Remote-Work-Policy-2026.md] # NORTHSTAR REMOTE WORK POLICY 2026 Effective date: 2026-02-15 ## 1. Scope and eligibility Regular employees may request remote work after completing 60 days of service. Approval depends on role suitability, team coverage, security requirements, and manager review. ## 2. Remote-work schedule An approved employee may work remotely up to three days per week. The employee must be available during the team core hours of 10:00 to 16:00 local time unless the manager approves an alternative schedule. ## 3. Equipment and security Northstar supplies one company laptop and an approved security token. Employees must use the company VPN for internal systems and must not store confidential policy or cust...\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Eligible hybrid employees may work remotely up to **3 days per week**, subject to team coverage and manager approval.\n[3] [source: Northstar-Remote-Work-Policy-2026.md] ## 4. Home-office expenses Employees may claim up to 50 USD per month for internet service used for approved remote work. Claims require an itemized receipt and must be submitted by the tenth day of the following month. ## 5. Review and cancellation Remote-work approvals are reviewed every six months. The company may suspend or cancel an arrangement when business needs, performance, security, or attendance requirements are not met.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.578,
+     "tokens": {
+      "prompt": 716,
+      "completion": 21
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Based on the company's remote work policy:\n\n* **Can they request remote work yet?** No. Regular employees may only request remote work after completing 60 days of service, and the employee in question has only been with the company for 45 days [source: Northstar-Remote-Work-Policy-2026.md].\n* **After how many days of service can they?** They can request remote work after **60 days** of service [source: Northstar-Remote-Work-Policy-2026.md].\n* **What is the most days a week they could then work remotely?** Once approved, an employee may work remotely up to **three days per week** [source: Northstar-Remote-Work-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.016,
+     "tokens": {
+      "prompt": 1121,
+      "completion": 171
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-two-documents",
+   "approach": "agent",
+   "repeat": 3,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Under the Acme terms, an employee on probation must give **7 calendar days** of written notice before resigning [source: Acme-Employment-Terms-2026.md]. \n\nUnder the Acme leave policy, employees receive **12** paid sick-leave days per calendar year [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 3,
+   "tool_calls": [
+    "search_policies",
+    "search_policies"
+   ],
+   "llm_calls": 3,
+   "prompt_tokens": 3303,
+   "completion_tokens": 120,
+   "api_seconds": 2.546,
+   "wait_seconds": 0.568,
+   "elapsed_seconds": 3.156,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"probation notice period written employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise.\n[2] [source: Acme-Employment-Terms-2026.md] # ACME EMPLOYMENT TERMS POLICY 2026 Effective date: 2026-03-01 ## 1. Scope This policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls. ## 2. Probationary employees An employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion. ## 3. Permanent employees After successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation. ##...\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - The standard probation period is **6 months**, although the company may extend it once by up to 3 months based on documented performance or business circumstances.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.89,
+     "tokens": {
+      "prompt": 709,
+      "completion": 21
+     }
+    },
+    {
+     "n": 2,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"paid sick leave days per year Acme leave policy\"}",
+       "observation": "[1] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[2] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Employees receive **12 days of sick leave per calendar year**. A medical certificate may be requested for absences exceeding 2 consecutive working days.\n[3] [source: Acme-Leave-Policy-2026.md] ## 4. Sick leave Employees receive 12 paid sick-leave days per calendar year. A medical certificate may be requested for an absence longer than three consecutive working days. ## 5. Parental leave Eligible employees may take 16 weeks of paid parental leave after the birth or adoption of a child. The employee should notify People Operations at least 30 days before the expected start date where practicable.",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.656,
+     "tokens": {
+      "prompt": 1092,
+      "completion": 24
+     }
+    },
+    {
+     "n": 3,
+     "kind": "final",
+     "content": "Under the Acme terms, an employee on probation must give **7 calendar days** of written notice before resigning [source: Acme-Employment-Terms-2026.md]. \n\nUnder the Acme leave policy, employees receive **12** paid sick-leave days per calendar year [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.578,
+     "tokens": {
+      "prompt": 1502,
+      "completion": 75
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-conflict",
+   "approach": "agent",
+   "repeat": 3,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "The provided policy documents disagree on the number of annual leave days an employee receives each year:\n\n- **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive **24 days** of annual leave per calendar year (accrued monthly at 2 days per completed month) [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n- **Acme-Leave-Policy-2026.md** states that employees receive **18 days** of annual leave per calendar year [source: Acme-Leave-Policy-2026.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1910,
+   "completion_tokens": 154,
+   "api_seconds": 1.703,
+   "wait_seconds": 0.065,
+   "elapsed_seconds": 1.781,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"annual leave days each year employee\"}",
+       "observation": "[1] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] - Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation. - The company may periodically review this rule and communicate changes through official internal channels. - Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month.\n[2] [source: Acme-Leave-Policy-2026.md] # ACME LEAVE POLICY 2026 Effective date: 2026-01-01 ## 1. Eligibility All regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter. ## 2. Annual leave allowance Employees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service. ## 3. Carry-forward Employees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations. ## 4. Sick leave\n[3] [source: Synthetic_HR_Policy_RAG_Test_Dataset.md] 1. Annual leave: 24 days per calendar year; monthly accrual is 2 days. 2. Sick leave: 12 days per calendar year. 3. Casual leave: 6 days per calendar year. 4. Hybrid remote work: up to 3 days per week for eligible employees. 5. Core collaboration hours: 10:00 AM–4:00 PM IST. 6. Confirmed employee notice period: 60 calendar days. 7. Probation notice period: 30 calendar days. 8. Standard probation: 6 months, extendable once by up to 3 months. 9. Learning and certification budget: INR 30,000 per financial year. 10. Expense claims: normally within 30 days. 11. Personal-data incident reporting: within 4 hours of discovery. 12. Performance improvement plan: standard duration 60 days. 13. Annual co...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 0.734,
+     "tokens": {
+      "prompt": 687,
+      "completion": 21
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "The provided policy documents disagree on the number of annual leave days an employee receives each year:\n\n- **Synthetic_HR_Policy_RAG_Test_Dataset.md** states that full-time employees receive **24 days** of annual leave per calendar year (accrued monthly at 2 days per completed month) [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].\n- **Acme-Leave-Policy-2026.md** states that employees receive **18 days** of annual leave per calendar year [source: Acme-Leave-Policy-2026.md].",
+     "tool_calls": [],
+     "seconds": 1.031,
+     "tokens": {
+      "prompt": 1223,
+      "completion": 133
+     }
+    }
+   ],
+   "notes": []
+  },
+  {
+   "task_id": "t7-cloud-two-sections",
+   "approach": "agent",
+   "repeat": 3,
+   "success": true,
+   "finished": true,
+   "rules_passed": true,
+   "stop_reason": "final",
+   "answer": "Based on the company policies:\n\n1. **Should they get access to the whole subscription?** \n   No. According to the policy, users should not receive broad storage account permissions when access to a specific container or resource is sufficient, and access should be assigned at the lowest practical scope (such as a specific resource or resource group) instead of the entire subscription. Specifically, the policy states that a developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account, and every user or application must receive only the permissions required for their responsibilities under the least-privilege requirement [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].\n\n2. **Where must any access keys they use be stored?**\n   Access keys must never be stored directly in source code. Any secrets must be stored using an approved secrets-management solution such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+   "failed_checks": [],
+   "warnings": [],
+   "n_steps": 2,
+   "tool_calls": [
+    "search_policies"
+   ],
+   "llm_calls": 2,
+   "prompt_tokens": 1881,
+   "completion_tokens": 233,
+   "api_seconds": 2.016,
+   "wait_seconds": 0.253,
+   "elapsed_seconds": 2.281,
+   "steps": [
+    {
+     "n": 1,
+     "kind": "tool",
+     "content": "",
+     "tool_calls": [
+      {
+       "name": "search_policies",
+       "arguments": "{\"query\":\"Azure Storage container access keys\"}",
+       "observation": "[1] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Applications processing customer information should use managed identities or other approved identity mechanisms instead of storing long-lived credentials in source code. ## 8. Azure Storage Access Azure Storage resources containing Confidential or Restricted data must use authenticated and authorized access. Public access should be disabled unless the resource is intentionally hosting Public information. Users should not receive broad Storage Account permissions when access to a specific container or resource is sufficient. ## 9. Secrets and Credentials The following must never be stored directly in source code: - Azure access keys - API keys - Database passwords - Client secrets - Encrypti...\n[2] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] - Azure access keys - API keys - Database passwords - Client secrets - Encryption keys - Service credentials Secrets must be stored using an approved secrets-management solution such as **Azure Key Vault**. Access to secrets must be restricted to authorized applications and administrators. ## 10. Access Reviews Access to Confidential and Restricted resources must be reviewed periodically. Inactive accounts and unnecessary permissions must be removed. Privileged access should be minimized and, where appropriate, protected through Microsoft Entra Privileged Identity Management (PIM). ## 11. Logging and Monitoring Access to sensitive Azure resources must be logged. Security teams should monitor...\n[3] [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md] Security administrators should use privileged access only when required. ## 5. Least-Privilege Requirement Every user, application, service principal, and managed identity must receive only the permissions required for their responsibilities. For example: > A developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account. Access should be assigned at the lowest practical scope, such as a specific resource or resource group instead of the entire subscription. Nexora Tech should prefer built-in Azure roles where they satisfy the requirement and use custom roles only when necessary. ## 6. Production Data Access Production data ...",
+       "ok": true,
+       "blocked": false
+      }
+     ],
+     "seconds": 1.016,
+     "tokens": {
+      "prompt": 707,
+      "completion": 20
+     }
+    },
+    {
+     "n": 2,
+     "kind": "final",
+     "content": "Based on the company policies:\n\n1. **Should they get access to the whole subscription?** \n   No. According to the policy, users should not receive broad storage account permissions when access to a specific container or resource is sufficient, and access should be assigned at the lowest practical scope (such as a specific resource or resource group) instead of the entire subscription. Specifically, the policy states that a developer who only needs to read objects from an Azure Storage container must not receive permission to delete the storage account, and every user or application must receive only the permissions required for their responsibilities under the least-privilege requirement [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].\n\n2. **Where must any access keys they use be stored?**\n   Access keys must never be stored directly in source code. Any secrets must be stored using an approved secrets-management solution such as **Azure Key Vault** [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+     "tool_calls": [],
+     "seconds": 1.25,
+     "tokens": {
+      "prompt": 1174,
+      "completion": 213
+     }
+    }
+   ],
+   "notes": []
+  }
+ ],
+ "graded": [
+  {
+   "task_id": "t7-single-lookup",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-carry-forward-sum",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-notice-end-date",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-leave-end-date",
+   "outcome_ok": true,
+   "modes": [
+    "over-calling"
+   ],
+   "details": [
+    {
+     "mode": "over-calling",
+     "detail": "called search_policies 5 times"
+    }
+   ],
+   "trajectory_ok": false,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-remote-eligibility",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-two-documents",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-conflict",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-cloud-two-sections",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-unanswerable",
+   "outcome_ok": true,
+   "modes": [
+    "over-calling"
+   ],
+   "details": [
+    {
+     "mode": "over-calling",
+     "detail": "called search_policies 6 times"
+    }
+   ],
+   "trajectory_ok": false,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t8-notice-no-document",
+   "outcome_ok": true,
+   "modes": [
+    "over-calling"
+   ],
+   "details": [
+    {
+     "mode": "over-calling",
+     "detail": "called search_policies 4 times"
+    }
+   ],
+   "trajectory_ok": false,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t8-probation-notice",
+   "outcome_ok": true,
+   "modes": [
+    "over-calling"
+   ],
+   "details": [
+    {
+     "mode": "over-calling",
+     "detail": "called search_policies 4 times"
+    }
+   ],
+   "trajectory_ok": false,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-single-lookup",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-carry-forward-sum",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-notice-end-date",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-leave-end-date",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-remote-eligibility",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-two-documents",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-conflict",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-cloud-two-sections",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-unanswerable",
+   "outcome_ok": true,
+   "modes": [
+    "over-calling"
+   ],
+   "details": [
+    {
+     "mode": "over-calling",
+     "detail": "called search_policies 5 times"
+    }
+   ],
+   "trajectory_ok": false,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t8-notice-no-document",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t8-probation-notice",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-single-lookup",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-carry-forward-sum",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-notice-end-date",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-leave-end-date",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-remote-eligibility",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-two-documents",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-conflict",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  },
+  {
+   "task_id": "t7-cloud-two-sections",
+   "outcome_ok": true,
+   "modes": [],
+   "details": [],
+   "trajectory_ok": true,
+   "tool_choice_accuracy": 1.0,
+   "order_ok": true,
+   "refused_calls": []
+  }
+ ],
+ "summary": {
+  "runs": 30,
+  "outcome_ok": 30,
+  "trajectory_ok": 25,
+  "order_ok": 30,
+  "tool_choice_accuracy": 1.0,
+  "gap": {
+   "right-answer-right-path": 25,
+   "right-answer-wrong-path": 5,
+   "wrong-answer-right-path": 0,
+   "wrong-answer-wrong-path": 0
+  },
+  "modes": {
+   "over-calling": 5
+  },
+  "ranked": [
+   {
+    "mode": "over-calling",
+    "runs": 5,
+    "also_wrong_answer": 0
+   }
+  ],
+  "cost": {
+   "tokens": {
+    "mean": 4345.466666666666,
+    "p50": 3224,
+    "p95": 10062,
+    "p99": 11679,
+    "max": 11679
+   },
+   "calls": {
+    "mean": 3.566666666666667,
+    "p50": 3,
+    "p95": 7,
+    "p99": 8,
+    "max": 8
+   },
+   "api_seconds": {
+    "mean": 3.0978,
+    "p50": 2.484,
+    "p95": 6.171,
+    "p99": 6.75,
+    "max": 6.75
+   }
+  },
+  "refused": {
+   "guard": 0,
+   "budget": 0,
+   "runs": 0
+  }
+ }
+}

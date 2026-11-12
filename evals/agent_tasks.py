@@ -10,8 +10,11 @@ date tools in `tests/unit/test_agent_workflow_race.py`. The answer-side phrases 
 `expect_contains` are what the rule checks look for. Nothing tests them against the documents beyond the figures
 above, so read them as the task author's expectations.
 
-`expected_tools` is what a sensible run would call, in order of need. Week 7 does not grade it; Week 8
-does (trajectory evaluation: did the agent take the right steps, not only reach the right answer?).
+`expected_tools` is what a sensible run would call, in order of need. `allowed_tools` are extras that are
+legitimate but not required (a calculator for a date sum, say). Week 7 does not grade either; Week 8 does
+(trajectory evaluation: did the agent take the right steps, not only reach the right answer?). Both lists
+were written before the first race. After the first grading, two were corrected because the grader flagged
+behaviour that is legitimate: see docs/week8/CHANGES.md.
 
 `source_facts` are the document sentences the answer is built from; a unit test proves each is still in an
 expected document, so a task cannot go stale silently.
@@ -50,14 +53,14 @@ TASKS = [
      "source_facts": ["carry forward up to 10 unused annual-leave days"],
      "question": "Under the Acme leave policy I carry forward the maximum allowed number of unused days into next year. If I take all of those carried-forward days as consecutive calendar days, counting 4 January 2027 as the first day, what is my last day of leave?",
      "expected_sources": [ACME_LEAVE], "expect_contains": ["13 january", "january 13", "2027-01-13"], "expect_all": [],
-     "should_refuse": False, "expected_tools": ["search_policies", "add_days"],
+     "should_refuse": False, "expected_tools": ["search_policies", "add_days"], "allowed_tools": ["calculate"],
      "why": "Look up the limit (10), then count 10 days starting on the 4th: the last day is the 13th, and an off-by-one gives the 14th."},
     {"id": "t7-remote-eligibility",
      "source_facts": ["after completing 60 days of service", "up to three days per week"],
      "question": "An employee joined 45 days ago. Can they request remote work yet? If not, after how many days of service can they, and what is the most days a week they could then work remotely?",
      "expected_sources": [REMOTE], "expect_contains": ["three days", "3 days"], "expect_all": ["60"], "should_refuse": False,
-     "expected_tools": ["search_policies", "calculate"],
-     "why": "A condition to check (45 against 60 days) and a second fact (the weekly limit) from the same policy."},
+     "expected_tools": ["search_policies"], "allowed_tools": ["calculate"],
+     "why": "A condition to check (45 against 60 days) and a second fact (the weekly limit) from the same policy. Comparing two small numbers needs no calculator."},
     {"id": "t7-two-documents",
      "source_facts": ["7 calendar days of written notice", "12 paid sick-leave days"],
      "question": "Under the Acme terms, how many days of written notice must an employee on probation give, and under the Acme leave policy how many paid sick leave days are there per year?",
@@ -86,18 +89,39 @@ TASKS = [
      "why": "Not in any document. The agent must search, find nothing, and stop with 'I don't know' instead of looping."},
 ]
 
+# Week 8: tasks written to PROVOKE a wrong path, not to be a fair sample. Each asks a question whose natural
+# first search tends to miss, so a model that guesses (a made-up number of days, the wrong notice period) can
+# still land on a plausible answer. They are kept apart from TASKS so the Week 7 race is unchanged.
+PATH_PROBES = [
+    {"id": "t8-notice-no-document",
+     "source_facts": ["30 calendar days of written notice", "the notice period begins on the date people operations receives the written resignation"],
+     "question": "A permanent employee's written resignation is received by People Operations on 3 November 2026. On what date does the notice period end?",
+     "expected_sources": [ACME_TERMS],
+     "expect_contains": ["3 december", "december 3", "2026-12-03", "2 december", "december 2", "2026-12-02"], "expect_all": [],
+     "should_refuse": False, "expected_tools": ["search_policies", "add_days"], "allowed_tools": ["calculate"],
+     "why": "Names no document, so the first search can land on the wrong one. A model that guesses the 30 days still gets the right date; one that waits for the policy has a clean path."},
+    {"id": "t8-probation-notice",
+     "source_facts": ["7 calendar days of written notice", "30 calendar days of written notice"],
+     "question": "An employee who is still on probation sends a written resignation that People Operations receives on 2 March 2027. On what date does their notice period end?",
+     "expected_sources": [ACME_TERMS],
+     "expect_contains": ["9 march", "march 9", "2027-03-09", "8 march", "march 8", "2027-03-08"], "expect_all": [],
+     "should_refuse": False, "expected_tools": ["search_policies", "add_days"], "allowed_tools": ["calculate"],
+     "why": "The shorter probation notice (7 days) against the permanent one (30). A model that assumes the usual 30 days gets a wrong date; one that reads the policy gets the right one."},
+]
+
 # Every expected phrase is matched as whole words, so "7 calendar days" is not found inside "17 calendar days"
 # and "3 december" is not found inside "13 december" (see evals/checks.py).
-for _task in TASKS:
+for _task in TASKS + PATH_PROBES:
     _task["whole_words"] = True
 
 
-def get_tasks(only=None):
-    """All tasks, or just the ids given. Unknown ids are an error."""
+def get_tasks(only=None, include_probes=False):
+    """The Week 7 tasks (plus the Week 8 path probes when asked), or just the ids given. Unknown ids are an error."""
+    pool = TASKS + PATH_PROBES
     if not only:
-        return [dict(task) for task in TASKS]
+        return [dict(task) for task in (pool if include_probes else TASKS)]
     wanted = set(only)
-    unknown = wanted - {task["id"] for task in TASKS}
+    unknown = wanted - {task["id"] for task in pool}
     if unknown:
         raise ValueError(f"unknown task id(s): {sorted(unknown)}")
-    return [dict(task) for task in TASKS if task["id"] in wanted]
+    return [dict(task) for task in pool if task["id"] in wanted]

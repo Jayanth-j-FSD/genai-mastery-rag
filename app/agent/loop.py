@@ -27,11 +27,13 @@ Everything interesting is in the edges, so each one is explicit and logged:
 import inspect
 import json
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 
 from app import llm
 from app.config import settings
 from app.agent.memory import Memory
+from app.agent.defense import PROMPT_ADDITION, SAFE_REFUSAL
 from app.agent.tools import Tool, ToolError
 
 SYSTEM_PROMPT = (
@@ -54,12 +56,15 @@ IDK = "I don't know based on the provided documents."
 class AgentRun:
     question: str
     answer: str = None                       # None when the run was stopped before a final answer
-    stop_reason: str = ""                    # final | empty_reply | max_steps | token_budget | timeout | repeated_call | error
+    stop_reason: str = ""                    # final | output_blocked | empty_reply | max_steps | token_budget | timeout | repeated_call | error
     steps: list = field(default_factory=list)
     usage: dict = field(default_factory=dict)
     elapsed_seconds: float = 0.0
     notes: list = field(default_factory=list)
     model: str = ""
+    blocked: str = ""                        # why the defences withheld the final answer ("" when they did not)
+    draft_answer: str = None                 # the withheld answer, kept for the record
+    defense_events: list = field(default_factory=list)   # what each defence layer did, and at which step
 
     @property
     def finished(self):
@@ -136,9 +141,41 @@ def _run_tool(tools_by_name, name, raw_arguments):
         return f"ERROR: {name} failed ({type(exc).__name__}). Try something else.", False
 
 
+def _call_tool(by_name, name, raw_arguments, defense, step_number):
+    """Run one tool call through the defences, if there are any. Returns (observation, ok, blocked)."""
+    if defense:
+        defense.step = step_number
+        arguments, problem = _parse_arguments(raw_arguments)
+        try:
+            refusal = None if problem else defense.check_call(name, arguments)
+        except Exception:                    # an argument check that crashes must not let the call through
+            refusal = "BLOCKED: the argument check could not run, so the call was not made."
+        if refusal:                          # least privilege: the call never runs
+            return refusal, False, True
+    observation, ok = _run_tool(by_name, name, raw_arguments)
+    if defense:                              # whatever a tool returns is data, never instructions
+        try:
+            observation = defense.screen(observation, name)
+        except Exception:                    # a screen that crashes must not hand the model unscreened text
+            observation, ok = "ERROR: the result could not be screened, so it is not shown.", False
+    return observation, ok, False
+
+
 def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_seconds=None,
-              use_memory=True, model=None, rpm=None, on_step=None, system_prompt=SYSTEM_PROMPT, clock=time.monotonic):
-    """Run the loop and return an AgentRun. `on_step(step_dict)` is called as each step finishes."""
+              use_memory=True, model=None, rpm=None, on_step=None, system_prompt=SYSTEM_PROMPT, clock=time.monotonic,
+              defense=None, max_calls_per_tool=None):
+    """Run the loop and return an AgentRun. `on_step(step_dict)` is called as each step finishes.
+
+    `max_calls_per_tool` (default: the AGENT_MAX_CALLS_PER_TOOL setting, 0 = off) caps how many results one
+    tool may return in this run. A call over the cap is not executed and comes back as a BUDGET observation, so a
+    model that keeps re-asking is told to answer from what it has. Only calls that returned a result count: a
+    malformed call, a tool error or a call a defence refused does not use the budget up.
+
+    `defense` (an app.agent.defense.Defense, off by default) screens what tools return, checks the arguments
+    of every call, and validates the final answer. See that module for what each layer does and does not stop.
+    """
+    if max_calls_per_tool is not None and max_calls_per_tool < 0:
+        raise ValueError(f"max_calls_per_tool must be 0 (off) or more, got {max_calls_per_tool}")
     max_steps = max_steps or settings.agent_max_steps
     max_total_tokens = max_total_tokens or settings.agent_max_total_tokens
     timeout_seconds = timeout_seconds or settings.agent_timeout_seconds
@@ -148,15 +185,22 @@ def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_se
     specs = [tool.spec() for tool in tools]
 
     run = AgentRun(question=question, model=model or settings.llm_model)
+    if defense and defense.on("sanitize"):
+        system_prompt += PROMPT_ADDITION     # tell the model what the <tool_output> label means
     messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": question}]
+    if defense:
+        defense.begin(question, system_prompt)
     started, usage_before = clock(), llm.usage_snapshot()
     seen_calls, repeats = {}, 0
+    call_cap = settings.agent_max_calls_per_tool if max_calls_per_tool is None else max_calls_per_tool
+    executed = Counter()                     # how many times each tool has really run
 
     def finish(reason, answer=None):
         run.stop_reason, run.answer = reason, answer
         run.elapsed_seconds = round(clock() - started, 3)
         run.usage = llm.usage_since(usage_before)
         run.notes = list(memory.notes) if memory else []
+        run.defense_events = list(defense.events) if defense else []
         return run
 
     for number in range(1, max_steps + 1):
@@ -202,10 +246,20 @@ def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_se
                 if on_step:
                     on_step(step)
                 return finish("empty_reply")
+            answer = step["content"]
+            if defense:
+                defense.step = number
+                try:
+                    reason = defense.validate(answer)
+                except Exception:            # an answer check that crashes must not let the answer through
+                    reason = "the answer check could not run"
+                if reason:                   # withhold it, say so, and keep the draft for the record
+                    run.blocked, run.draft_answer, step["kind"] = reason, answer, "blocked"
+                    answer = SAFE_REFUSAL
             run.steps.append(step)
             if on_step:
                 on_step(step)
-            return finish("final", step["content"])
+            return finish("output_blocked" if run.blocked else "final", answer)
 
         step["kind"] = "tool"
         messages.append({"role": "assistant", "content": message.content or "",
@@ -219,14 +273,22 @@ def run_agent(question, tools, max_steps=None, max_total_tokens=None, timeout_se
                 observation = (f"You already called {name} with exactly these arguments and got: "
                                f"{seen_calls[signature][:200]}. Do not repeat it: use that result, or ask differently, "
                                "or give your final answer.")
-                ok = False
+                ok, blocked = False, False
                 if repeats >= 2:
                     stop_after = "repeated_call"
             else:
-                observation, ok = _run_tool(by_name, name, raw)
+                if call_cap and name != "remember" and executed[name] >= call_cap:
+                    observation = (f"BUDGET: {name} has already returned {executed[name]} results for this question. Use what "
+                                   f"you found. If it is not enough, reply exactly: {IDK}")
+                    ok, blocked = False, True
+                else:
+                    observation, ok, blocked = _call_tool(by_name, name, raw, defense, number)
+                    if ok and not blocked:
+                        executed[name] += 1
                 seen_calls[signature] = observation
                 repeats = 0
-            step["tool_calls"].append({"name": name, "arguments": raw, "observation": observation, "ok": ok})
+            step["tool_calls"].append({"name": name, "arguments": raw, "observation": observation, "ok": ok,
+                                       "blocked": blocked})
             messages.append({"role": "tool", "tool_call_id": call.id, "content": observation})
         run.steps.append(step)
         if on_step:
