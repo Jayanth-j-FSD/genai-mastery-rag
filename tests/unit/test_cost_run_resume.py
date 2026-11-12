@@ -7,6 +7,8 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest import mock
 
 import openai
@@ -14,7 +16,7 @@ import openai
 import test_cost_run
 from _testkit import ROOT
 from app import llm
-from app.config import settings
+from app.config import BASE_DIR, settings
 from app.rag import pipeline
 from evals import cases, cost_prediction, cost_run, runner
 from test_llm import DAILY_BODY, status_error
@@ -103,10 +105,104 @@ class ResumeTests(test_cost_run.MeasureCase):
                 with self.assertRaises(ValueError) as caught:
                     self.run_with(Citing(), prior=prior)
                 self.assertIn("cannot resume", str(caught.exception))
-        with mock.patch.object(cost_run, "code_stamp", return_value={"git": "another", "dirty": False}):
+        with mock.patch.object(cost_run, "code_stamp", return_value={"git": "same", "dirty": False, "answer_code": "0" * 12}):
+            with self.assertRaises(ValueError) as caught:
+                self.run_with(Citing(), prior=first)
+        self.assertIn("decide the answers changed", str(caught.exception))
+
+    def test_a_commit_that_changed_no_code_that_decides_answers_does_not_stop_a_resume(self):
+        first = self.first_part([None, quota()])
+        real = cost_run.code_stamp()
+        self.assertEqual(first["meta"]["code"]["answer_code"], real["answer_code"])
+        with mock.patch.object(cost_run, "code_stamp", return_value=dict(real, git="a-new-commit", dirty=True)):
+            resumed, _ = self.run_with(Citing(), prior=first)
+        self.assertTrue(resumed["meta"]["complete"])
+        self.assertEqual(resumed["meta"]["code"]["git"], "a-new-commit")
+
+    def test_without_a_hash_on_either_side_the_commit_is_all_there_is_to_compare(self):
+        first = self.first_part([None, quota()])
+        first["meta"]["code"] = {"git": "old", "dirty": False}
+        with mock.patch.object(cost_run, "code_stamp", return_value={"git": "new", "dirty": False, "answer_code": None}):
             with self.assertRaises(ValueError) as caught:
                 self.run_with(Citing(), prior=first)
         self.assertIn("another commit", str(caught.exception))
+        with mock.patch.object(cost_run, "code_stamp", return_value={"git": "old", "dirty": False, "answer_code": None}):
+            self.assertTrue(self.run_with(Citing(), prior=first)[0]["meta"]["complete"])
+
+    def test_the_resume_keeps_the_start_of_the_first_session_and_every_model_name_either_session_saw(self):
+        class Steps:
+            """A clock that moves five minutes every time it is read."""
+            def __init__(self):
+                self.now_value = datetime(2026, 11, 13, 10, 0, 0)
+
+            def now(self):
+                self.now_value += timedelta(minutes=5)
+                return self.now_value
+        with mock.patch.object(cost_run, "datetime", SimpleNamespace(now=Steps().now)):
+            first = self.first_part([None, None, quota()])
+            second = Citing()
+            second.model = "served-model-2"                 # the alias moved to another model between the sessions
+            with mock.patch.object(llm, "_get_client", return_value=second):
+                second_part = cost_run.run(cost_run.make_items(CASES, []), self.arms, "t", "served-model", self.out, save=None, say=lambda *a: None, prior=first)
+        self.assertEqual(second_part["meta"]["started"], first["meta"]["started"])
+        self.assertNotEqual(second_part["meta"]["resumed"][0]["at"], first["meta"]["started"])
+        self.assertEqual(second_part["meta"]["models_served"], ["served-model", "served-model-2"])
+
+
+class AnswerCodeHashTests(unittest.TestCase):
+    """Which files make a stopped measurement unsafe to carry on: the ones that decide what a request asks and how an answer is scored, and the documents."""
+
+    def setUp(self):
+        self.base = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
+        self.corpus = os.path.join(self.base, "data", "corpus")
+        for path, text in {"app/a.py": "A = 1\n", "app/rag/b.py": "B = 2\n", "evals/runner.py": "R = 1\n", "evals/checks.py": "C = 1\n", "evals/cases.py": "K = 1\n",
+                           "evals/bank.py": "N = 1\n", "evals/cost_run.py": "M = 1\n", "scripts/measure_cost.py": "S = 1\n",
+                           "evals/cost_prediction.py": "P = 1\n", "evals/logsearch.py": "L = 1\n", "scripts/find_requests.py": "F = 1\n", "tests/unit/test_x.py": "T = 1\n",
+                           "docs/week11/README.md": "# doc\n", "evals/results/cost-w11.json": "{}", "evals/logged_failures.json": "{}",
+                           "data/corpus/policy.md": "30 days\n", "data/corpus/notes.json": "{}"}.items():
+            self.write(path, text)
+
+    def write(self, path, text, newline="\n"):
+        full = os.path.join(self.base, *path.split("/"))
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8", newline=newline) as handle:
+            handle.write(text)
+
+    def hash(self):
+        return cost_run.answer_code_hash(self.base, self.corpus)
+
+    def test_a_change_to_code_that_decides_answers_or_to_a_document_changes_the_hash(self):
+        base = self.hash()
+        self.assertRegex(base, r"^[0-9a-f]{12}$")
+        for path in ("app/a.py", "app/rag/b.py", "evals/runner.py", "evals/checks.py", "evals/cases.py", "evals/bank.py", "evals/cost_run.py",
+                     "scripts/measure_cost.py", "data/corpus/policy.md"):
+            with self.subTest(path=path):
+                original = open(os.path.join(self.base, *path.split("/")), encoding="utf-8").read()
+                self.write(path, original + "# changed\n")
+                self.assertNotEqual(self.hash(), base)
+                self.write(path, original)
+                self.assertEqual(self.hash(), base)
+        self.write("app/new_module.py", "X = 1\n")                                   # a new file of the code counts too
+        self.assertNotEqual(self.hash(), base)
+
+    def test_a_change_to_tests_docs_saved_results_converted_failures_or_other_scripts_does_not(self):
+        base = self.hash()
+        for path in ("tests/unit/test_x.py", "docs/week11/README.md", "evals/results/cost-w11.json", "evals/logged_failures.json", "evals/cost_prediction.py",
+                     "evals/logsearch.py", "scripts/find_requests.py", "data/corpus/notes.json"):
+            with self.subTest(path=path):
+                self.write(path, "changed " + path)
+                self.assertEqual(self.hash(), base)
+        self.write("tests/unit/test_new.py", "N = 1\n")
+        self.write("app/__pycache__/a.cpython-312.pyc", "compiled")
+        self.assertEqual(self.hash(), base)
+
+    def test_line_endings_do_not_change_it(self):
+        base = self.hash()
+        self.write("app/a.py", "A = 1\n", newline="\r\n")
+        self.assertEqual(self.hash(), base)
+
+    def test_with_nothing_to_hash_there_is_no_hash(self):
+        self.assertIsNone(cost_run.answer_code_hash(os.path.join(self.base, "empty"), os.path.join(self.base, "none")))
 
 
 class StopTests(test_cost_run.MeasureCase):
@@ -198,7 +294,7 @@ class ScriptTests(test_cost_run.MeasureCase):
             code = measure_cost.main(list(argv))
         return code, out.getvalue()
 
-    LIVE = ["--label", "t", "--model", "served-model", "--only", "absent-bonus", "code-err4032"]
+    LIVE = ["--label", "t", "--model", "served-model", "--only", "absent-bonus", "code-err4032", "--allow-unregistered"]
 
     def test_the_measurement_always_asks_the_base_cases_even_when_failures_have_been_converted(self):
         folder = os.path.join(self.out, "logged")
@@ -271,12 +367,79 @@ class ScriptTests(test_cost_run.MeasureCase):
         self.assertEqual(code, 0, text)
         self.assertEqual(len(again.calls), 3)                                         # six requests in all, three were done
         self.assertIn("3 answered requests are kept, 0 failed ones are asked again", text)
-        self.assertIn("moved aside", text)
+        self.assertIn("A copy of the result being carried on was kept at", text)
         done = cost_run.load_aggregate(cost_run.results_path("t"))
         self.assertEqual((len(done["rows"]), done["meta"]["complete"]), (6, True))
         self.assertEqual(len([n for n in os.listdir(os.path.join(self.out, "results")) if ".replaced-" in n]), 1)
         code, text = self.run_script(*self.LIVE, "--resume")
         self.assertEqual((code, "Nothing to resume" in text), (0, True))
+
+    def stopped_part(self):
+        """A first session that stopped on the quota after three requests, saved under label t. Returns what was saved, as text."""
+        with mock.patch.object(llm, "_get_client", return_value=Citing(fail_with=[None, None, None, quota()])), mock.patch.object(settings, "llm_max_retries", 0):
+            self.assertEqual(self.run_script(*self.LIVE)[0], 1)
+        with open(cost_run.results_path("t"), encoding="utf-8") as handle:
+            return handle.read()
+
+    def assert_untouched(self, saved_text):
+        """The label still holds exactly what the first part saved, and nothing was set aside."""
+        with open(cost_run.results_path("t"), encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), saved_text)
+        self.assertEqual([name for name in os.listdir(os.path.join(self.out, "results")) if ".replaced-" in name], [])
+
+    def test_a_refused_resume_leaves_the_saved_result_where_it_was_and_a_later_resume_still_works(self):
+        saved_text = self.stopped_part()
+        changed = {"model_requested": lambda: self.run_script(*self.LIVE[:2], "--model", "another-model", *self.LIVE[4:], "--resume"),
+                   "question_set": lambda: self.run_script("--label", "t", "--model", "served-model", "--only", "absent-bonus", "--allow-unregistered", "--resume"),
+                   "code": lambda: self.resume_with_code({"git": "x", "dirty": False, "answer_code": "f" * 12})}
+        for key, resume in changed.items():
+            with self.subTest(changed=key):
+                with mock.patch.object(llm, "_get_client", side_effect=AssertionError("a refused resume must not reach the provider")):
+                    code, text = resume()
+                self.assertEqual(code, 1, text)
+                self.assertIn("cannot resume", text)
+                self.assertIn("Nothing was changed", text)
+                self.assert_untouched(saved_text)
+        again = Citing()
+        with mock.patch.object(llm, "_get_client", return_value=again):
+            code, text = self.run_script(*self.LIVE, "--resume")
+        self.assertEqual(code, 0, text)
+        self.assertEqual(len(again.calls), 3)
+
+    def resume_with_code(self, stamp):
+        with mock.patch.object(cost_run, "code_stamp", return_value=stamp):
+            return self.run_script(*self.LIVE, "--resume")
+
+    def test_a_commit_between_a_stop_and_its_resume_does_not_stop_the_resume(self):
+        self.stopped_part()
+        stamp = dict(cost_run.code_stamp(), git="a-later-commit", dirty=False)
+        with mock.patch.object(llm, "_get_client", return_value=Citing()):
+            code, text = self.resume_with_code(stamp)
+        self.assertEqual(code, 0, text)
+        self.assertTrue(cost_run.load_aggregate(cost_run.results_path("t"))["meta"]["complete"])
+
+    def test_a_resume_that_crashes_on_its_first_request_leaves_the_saved_result_in_place(self):
+        saved_text = self.stopped_part()
+        with mock.patch.object(pipeline, "answer", side_effect=ZeroDivisionError("a bug nobody expected")):
+            with self.assertRaises(ZeroDivisionError):
+                self.run_script(*self.LIVE, "--resume")
+        with open(cost_run.results_path("t"), encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), saved_text)
+        again = Citing()
+        with mock.patch.object(llm, "_get_client", return_value=again):
+            code, text = self.run_script(*self.LIVE, "--resume")
+        self.assertEqual((code, len(again.calls)), (0, 3))
+
+    def test_a_saved_result_that_cannot_be_read_is_an_error_and_is_left_alone(self):
+        os.makedirs(os.path.join(self.out, "results"))
+        path = cost_run.results_path("t")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("{not json")
+        code, text = self.run_script(*self.LIVE, "--resume")
+        self.assertEqual(code, 1)
+        self.assertIn("could not be read", text)
+        with open(path, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), "{not json")
 
     def test_force_moves_the_old_result_aside_instead_of_deleting_it(self):
         with mock.patch.object(llm, "_get_client", return_value=Citing()):
@@ -290,12 +453,43 @@ class ScriptTests(test_cost_run.MeasureCase):
         self.assertEqual(len(cost_run.load_aggregate(os.path.join(self.out, "results", aside[0]))["rows"]), 6)
         self.assertTrue(os.path.isdir(os.path.join(self.out, "measure", "t", "before")))
 
-    def test_a_result_that_cannot_be_saved_does_not_end_the_run(self):
-        with mock.patch.object(llm, "_get_client", return_value=Citing()), mock.patch.object(cost_run, "save_aggregate", side_effect=PermissionError("locked")):
+    def test_a_result_that_cannot_be_saved_after_a_question_does_not_end_the_run(self):
+        real = cost_run.save_aggregate
+
+        def locked_until_the_end(results, path):
+            if not results["meta"].get("finished"):
+                raise PermissionError("locked")
+            return real(results, path)
+        with mock.patch.object(llm, "_get_client", return_value=Citing()), mock.patch.object(cost_run, "save_aggregate", side_effect=locked_until_the_end):
             code, text = self.run_script(*self.LIVE)
-        self.assertEqual(code, 0)
+        self.assertEqual(code, 0, text)
         self.assertIn("could not save (PermissionError)", text)
         self.assertIn("[  2/2]", text)                                                # every question was still asked
+        self.assertTrue(cost_run.load_aggregate(cost_run.results_path("t"))["meta"]["complete"])
+
+    def test_a_final_save_that_fails_is_reported_as_an_error_with_the_way_on_and_never_as_saved(self):
+        real = cost_run.save_aggregate
+
+        def locked_at_the_end(results, path):
+            if results["meta"].get("finished"):
+                kept = os.path.join(BASE_DIR, "evals", "results", "cost-t.json.tmp")
+                raise PermissionError(f"locked: {kept}; the finished run is kept in {kept}")
+            return real(results, path)
+        with mock.patch.object(llm, "_get_client", return_value=Citing()), mock.patch.object(cost_run, "save_aggregate", side_effect=locked_at_the_end):
+            code, text = self.run_script(*self.LIVE)
+        self.assertEqual(code, 1)
+        self.assertIn("Error: a file could not be read or written", text)
+        self.assertIn("--resume", text)
+        self.assertIn("finished run is kept in", text)                                # the words that name the kept file are not dropped
+        self.assertNotIn("saved:", text)
+        self.assertNotIn(str(BASE_DIR), text)                                              # but the project folder is replaced
+        self.assertIn("<project>", text)
+        stopped = cost_run.load_aggregate(cost_run.results_path("t"))
+        self.assertFalse(stopped["meta"]["complete"])
+        with mock.patch.object(llm, "_get_client", side_effect=AssertionError("everything was answered already")):
+            code, text = self.run_script(*self.LIVE, "--resume")
+        self.assertEqual(code, 0, text)
+        self.assertTrue(cost_run.load_aggregate(cost_run.results_path("t"))["meta"]["complete"])
 
 
 def build_measurement():

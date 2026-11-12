@@ -9,6 +9,7 @@ import unittest
 from unittest import mock
 
 import _testkit
+from app.config import settings
 from evals import cost_prediction as prediction, cost_run, runner
 
 sys.path.insert(0, os.path.join(_testkit.ROOT, "scripts"))
@@ -36,7 +37,9 @@ def build(after_prompt=800, noise_prompt=None, after_completion=100, bank=0, ban
         rows += [row(f"bank-{number}", "before", kind="bank"), row(f"bank-{number}", "after", kind="bank", prompt=bank_after),
                  row(f"bank-{number}", "before-2", kind="bank")]
     meta = {"label": "t", "dry_run": False, "complete": True, "stopped_because": None, "arms": copy.deepcopy(ARMS),
-            "n_questions": len(EVAL_IDS) + bank, "n_eval": len(EVAL_IDS), "n_bank": bank}
+            "n_questions": len(EVAL_IDS) + bank, "n_eval": len(EVAL_IDS), "n_bank": bank,
+            "settings": dict(prediction.REGISTERED_SETTINGS, context_strip_min_repeats=0),        # what make_meta records, under the registered conditions
+            "chunk_count": prediction.REGISTERED_CHUNK_COUNT, "question_set": prediction.REGISTERED_QUESTION_SET}
     meta.update(changes)
     return {"meta": meta, "rows": rows}
 
@@ -233,6 +236,69 @@ class VerdictTests(unittest.TestCase):
         self.assertEqual([r["id"] for r in check["rows"] if r["held"] is False], ["P2", "P3", "P4", "P7"])
 
 
+class RegisteredConditionsTests(unittest.TestCase):
+    """The bands come from one experiment (dense retrieval, top 4, local embeddings, 432 chunks, 71 named questions): a measurement made under other
+    conditions answers a different question, so it gets no verdict."""
+
+    def test_a_measurement_in_the_shape_make_meta_writes_under_the_registered_conditions_gets_a_verdict(self):
+        with contextlib.ExitStack() as stack:
+            for name, value in prediction.REGISTERED_SETTINGS.items():
+                stack.enter_context(mock.patch.object(settings, name, value))
+            stack.enter_context(mock.patch.object(settings, "context_strip_min_repeats", 0))
+            made = cost_run.make_meta("t", "m", cost_run.parse_arms(cost_run.DEFAULT_ARMS), cost_run.make_items([], []), False, 400, "x")
+        self.assertEqual(prediction.unregistered_settings(made["settings"]), [])            # every registered name is one make_meta really records
+        results = build(settings=made["settings"])
+        check = prediction.check_prediction(results)
+        self.assertIsNone(check["cannot_check"])
+        self.assertEqual(check["verdict"], "did not fail")
+
+    def test_each_registered_setting_that_differs_is_named_and_gives_no_verdict(self):
+        other = {"retrieval_mode": "hybrid", "top_k": 8, "embed_provider": "openai", "chunk_size": 200, "chunk_overlap": 20, "min_relevance": 0.3,
+                 "boilerplate_min_repeats": 5, "dedupe_chunks": True, "dense_search": "ann"}
+        self.assertEqual(set(other), set(prediction.REGISTERED_SETTINGS))
+        for name, value in other.items():
+            with self.subTest(setting=name):
+                results = build()
+                results["meta"]["settings"][name] = value
+                check = prediction.check_prediction(results)
+                self.assertIn(f"{name} is {value} (registered {prediction.REGISTERED_SETTINGS[name]})", check["cannot_check"])
+                self.assertEqual((check["verdict"], check["rows"]), (None, []))
+
+    def test_settings_that_were_not_recorded_cannot_be_shown_to_be_the_registered_ones(self):
+        results = build()
+        del results["meta"]["settings"]["dedupe_chunks"]
+        self.assertIn("dedupe_chunks was not recorded", prediction.check_prediction(results)["cannot_check"])
+        results = build()
+        del results["meta"]["settings"]
+        self.assertIn("did not record the settings", prediction.check_prediction(results)["cannot_check"])
+
+    def test_another_index_or_other_questions_than_the_registered_ones_give_no_verdict(self):
+        results = build(chunk_count=2500)
+        self.assertIn("2500 chunks", prediction.check_prediction(results)["cannot_check"])
+        self.assertIn("None chunks", prediction.check_prediction(build(chunk_count=None))["cannot_check"])
+        results = build(question_set="0" * 12)
+        check = prediction.check_prediction(results)
+        self.assertIn("not the registered ones", check["cannot_check"])
+        self.assertIsNone(check["verdict"])
+
+    def test_the_registered_question_set_is_the_real_one_the_measurement_asks(self):
+        from evals import bank
+        cases = runner.select_cases(None, base_only=True)
+        drawn = bank.draw(cases, 30, 42)
+        items = cost_run.make_items(cases, drawn)
+        self.assertEqual((len(cases), len(drawn)), (prediction.REGISTERED_EVAL_QUESTIONS, 30))
+        self.assertEqual(cost_run.question_set_hash(items), prediction.REGISTERED_QUESTION_SET)
+
+    def test_a_resumed_measurement_says_so_beside_its_verdict(self):
+        results = build(resumed=[{"at": "2026-11-13T10:00:00", "kept_rows": 3, "set_aside_rows": 1, "max_calls": 400}], set_aside_rows=[{"error_class": "x"}])
+        check = prediction.check_prediction(results)
+        self.assertEqual(check["verdict"], "did not fail")
+        text = "\n".join(prediction.format_prediction(check))
+        self.assertIn("resumed 1 time(s); 1 failed row(s) were set aside", text)
+        self.assertIn("different sessions", text)
+        self.assertNotIn("resumed", "\n".join(prediction.format_prediction(prediction.check_prediction(build()))))
+
+
 class PartialTests(unittest.TestCase):
     def test_a_dry_run_gets_no_verdict(self):
         check = prediction.check_prediction(build(dry_run=True))
@@ -310,6 +376,13 @@ class ScriptTests(unittest.TestCase):
         code, text = self.run_script(build(after_prompt=990))
         self.assertEqual(code, 0)
         self.assertIn("FAILED", text)
+
+    def test_a_measurement_under_other_settings_exits_non_zero_and_says_which(self):
+        results = build()
+        results["meta"]["settings"]["retrieval_mode"] = "hybrid"
+        code, text = self.run_script(results)
+        self.assertEqual(code, 1)
+        self.assertIn("retrieval_mode is hybrid (registered dense)", text)
 
 
 if __name__ == "__main__":

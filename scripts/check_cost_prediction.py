@@ -3,7 +3,7 @@
 Docs/week11/prediction.md says, in numbers, how much cheaper the one improvement should make a request and what
 would count as the prediction failing. It was written before the first request went to the model. This script turns those sentences
 into arithmetic over the saved measurement (evals/results/cost-<label>.json) so nobody has to decide afterwards whether it held.
-A dry run, a measurement that stopped early and one that did not ask the registered questions are given no verdict.
+A dry run, a measurement that stopped early, one made under other settings and one that did not ask the registered questions are given no verdict.
 
 Run:
     python scripts/check_cost_prediction.py LABEL

@@ -29,6 +29,10 @@ The predictions, read on the questions every arm answered with the provider's ow
 The prediction has FAILED if P1, P5 or P6 does not hold; P5 and P6 are the stop rule: the setting stays off and the trade-off is
 reported. The others are reported held or not held, with no verdict on the whole. Every analysis not listed here is exploratory.
 A dry run, a run that stopped early and a run that did not ask the registered questions get no verdict at all.
+
+The conditions are registered too: the bands come from a screen at retrieval dense, top_k 4, local embeddings, chunks of 800 characters with 120 of
+overlap, 432 chunks, and the 41 eval questions plus the 30 bank questions drawn with seed 42. A measurement made under other settings, on another
+index or on other questions is a different experiment, so it gets no verdict either (REGISTERED_SETTINGS, REGISTERED_CHUNK_COUNT, REGISTERED_QUESTION_SET).
 """
 from evals import cost_run
 
@@ -42,6 +46,24 @@ COMPLETION_BAND = (0.85, 1.15)
 CONFLICT_QUESTIONS = ("ambiguous-leave-days", "ambiguous-notice-period", "ambiguous-learning-budget")
 REACH_SHARE = 0.60
 FAILS_IF = ("P1", "P5", "P6")
+
+# The conditions the bands were derived under (see the docstring). The strip itself is checked on its own, from the arms.
+REGISTERED_SETTINGS = {"retrieval_mode": "dense", "top_k": 4, "embed_provider": "local", "chunk_size": 800, "chunk_overlap": 120, "min_relevance": 0.0,
+                       "boilerplate_min_repeats": 0, "dedupe_chunks": False, "dense_search": "exact"}
+REGISTERED_CHUNK_COUNT = 432
+REGISTERED_QUESTION_SET = "de4ecf7c44ac"          # the 41 base eval questions then 30 bank questions: scripts/measure_cost.py --bank 30 --seed 42
+
+
+def unregistered_settings(recorded):
+    """What differs between a measurement's recorded settings and the registered ones, one plain phrase each ([] when it was made under the registered ones).
+    A setting the measurement did not record is a difference: it cannot be shown to be the registered one."""
+    differences = []
+    for name, wanted in REGISTERED_SETTINGS.items():
+        if name not in (recorded or {}):
+            differences.append(f"{name} was not recorded (registered {wanted})")
+        elif recorded[name] != wanted:
+            differences.append(f"{name} is {recorded[name]} (registered {wanted})")
+    return differences
 
 
 def _row(item_id, held, evidence, decidable=True):
@@ -92,6 +114,16 @@ def check_prediction(results):
     overrides = {arm["name"]: arm["overrides"] for arm in meta["arms"]}
     if overrides[BEFORE] or overrides[NOISE] or overrides[AFTER] != {"context_strip_min_repeats": 10}:
         return {"cannot_check": f"the registered arms change nothing, and the strip at 10; this measurement has {overrides}", "rows": [], "verdict": None}
+    if not meta.get("settings"):
+        return {"cannot_check": "the measurement did not record the settings it was made under, so it cannot be shown to be the registered experiment", "rows": [], "verdict": None}
+    differences = unregistered_settings(meta["settings"])
+    if differences:
+        return {"cannot_check": "the measurement was not made under the registered settings: " + "; ".join(differences), "rows": [], "verdict": None}
+    if meta.get("chunk_count") != REGISTERED_CHUNK_COUNT:
+        return {"cannot_check": f"the index held {meta.get('chunk_count')} chunks, the bands were derived on {REGISTERED_CHUNK_COUNT}", "rows": [], "verdict": None}
+    if meta.get("question_set") != REGISTERED_QUESTION_SET:
+        return {"cannot_check": f"the questions asked (set {meta.get('question_set')}) are not the registered ones (set {REGISTERED_QUESTION_SET}: the 41 eval questions "
+                                "and 30 bank questions drawn with seed 42)", "rows": [], "verdict": None}
 
     partial = []
     if not meta.get("complete"):
@@ -105,12 +137,13 @@ def check_prediction(results):
     if partial:
         for row in out:
             row.update(held=None, decidable=False, evidence=row["evidence"] + " (not decidable: the measurement is partial)")
-        return {"cannot_check": None, "partial": partial, "rows": out, "verdict": None}
+        return {"cannot_check": None, "partial": partial, "rows": out, "verdict": None, "resumed": cost_run.resume_note(meta)}
     undecided = [row["id"] for row in out if row["id"] in FAILS_IF and not row["decidable"]]
     if undecided:                                     # a prediction that could not be read is not a prediction that failed
-        return {"cannot_check": None, "partial": [f"{', '.join(undecided)} could not be decided from this measurement"], "rows": out, "verdict": None}
+        return {"cannot_check": None, "partial": [f"{', '.join(undecided)} could not be decided from this measurement"], "rows": out, "verdict": None,
+                "resumed": cost_run.resume_note(meta)}
     failed = [row["id"] for row in out if row["id"] in FAILS_IF and row["held"] is not True]
-    return {"cannot_check": None, "partial": [], "rows": out, "verdict": "FAILED" if failed else "did not fail", "failed": failed}
+    return {"cannot_check": None, "partial": [], "rows": out, "verdict": "FAILED" if failed else "did not fail", "failed": failed, "resumed": cost_run.resume_note(meta)}
 
 
 def _p1(rows):
@@ -185,6 +218,8 @@ def format_prediction(check):
     if check["cannot_check"]:
         return [f"cannot check the prediction: {check['cannot_check']}"]
     lines = []
+    if check.get("resumed"):
+        lines += [f"NOTE: this measurement was {check['resumed']}.", ""]
     if check.get("partial"):
         lines += ["PARTIAL: no verdict can be given on this measurement:"] + [f"  - {reason}" for reason in check["partial"]] + [""]
     for row in check["rows"]:

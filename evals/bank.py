@@ -1,6 +1,6 @@
 """The question bank (tests/trace_questions.txt) as a list, and a seeded sample of it (Week 11).
 
-Week 5 wrote about a hundred questions to build a population of requests. The cost scripts reuse it as stand-in
+Week 5 wrote a bank of questions to build a population of requests. The cost scripts reuse it as stand-in
 traffic, because the 41 eval questions are all hard on purpose and real traffic is mostly easy. A sample is drawn with a
 seed, so the same seed gives the same questions and a before-and-after run asks the same ones.
 """
@@ -31,3 +31,9 @@ def sample(questions, count, seed, exclude=()):
     left_out = {question.lower() for question in exclude}
     pool = [question for question in questions if question.lower() not in left_out]
     return random.Random(seed).sample(pool, min(max(count, 0), len(pool)))
+
+
+def draw(cases, count, seed, path=None):
+    """The bank questions the cost measurement and the free screen ask: `count` drawn with `seed`, leaving out the questions of `cases` (they are asked as eval
+    cases already, and asking one twice would count it twice). Both scripts draw through this one function, so they ask the same list."""
+    return sample(load_questions(path), count, seed, exclude=[case["question"] for case in cases])

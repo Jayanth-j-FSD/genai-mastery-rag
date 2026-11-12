@@ -22,6 +22,11 @@ class IgnoreTests(unittest.TestCase):
         for folder in ("data/traces/", "data/chroma/", "data/drill/", "data/measure/"):
             self.assertIn(folder, lines, f"{folder} is not in .gitignore: a log would be committed by git add -A")
 
+    def test_the_copies_a_resume_and_a_forced_run_keep_beside_a_result_are_ignored(self):
+        lines = ignored_lines()
+        for pattern in ("evals/results/*.replaced-*.json", "evals/results/*.incomplete.json"):
+            self.assertIn(pattern, lines, f"{pattern} is not in .gitignore: git add evals/results would stage a stray file")
+
     def files_under_data(self):
         """The files git tracks under data/. In a clean export (git archive) there is no history to ask, but an export holds only
         tracked files, so what is on disk, less the folders .gitignore names (a test run may fill those), is the same list."""

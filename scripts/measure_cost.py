@@ -7,7 +7,7 @@ the rate limit apart from the time at the provider. Eval questions are also scor
 
 Run (the model is always named, never an alias):
     python scripts/measure_cost.py --label w11 --model gemini-3.1-flash-lite-preview --dry-run          # no quota: a scripted provider
-    python scripts/measure_cost.py --label w11 --model gemini-3.1-flash-lite-preview --only absent-bonus code-err4032 --limit 2
+    python scripts/measure_cost.py --label w11-smoke --model gemini-3.1-flash-lite-preview --only absent-bonus code-err4032 --limit 2     # a first look, its own label
     python scripts/measure_cost.py --label w11 --model gemini-3.1-flash-lite-preview --bank 30 --seed 42
     python scripts/measure_cost.py --label w11 --model gemini-3.1-flash-lite-preview --bank 30 --seed 42 --resume     # carry on
     python scripts/measure_cost.py --label x --model M --arm before --arm "after:context_strip_min_repeats=10" --arm before-2
@@ -18,7 +18,13 @@ Each arm's raw log goes to data/measure/<label>/<arm>/ (untracked); the result k
 row per request and no text. A run that stops (daily quota, the provider failing three times in a row, the --max-calls budget, Ctrl-C) saves what
 it finished and says why; so does a run that finished with some failed requests. --resume carries it on: answered requests are kept, failed ones are
 asked again, nothing already answered is asked twice. It refuses to overwrite an earlier label unless you pass --force (the old result is moved aside,
-not deleted). Quota is per model per day: a measurement and its resume have to fit in it together (about 213 requests for 71 questions x 3 arms).
+not deleted). A resume is checked before any file is touched: if the model, the arms, the questions, the settings or the code that decides answers differ from the
+first part's, it says so and the saved result stays exactly where it was. Quota is per model per day: a measurement and its resume have to fit in it together
+(about 213 requests for 71 questions x 3 arms).
+
+The prediction in docs/week11/prediction.md is registered for one set of conditions (retrieval dense, top_k 4, local embeddings, 800/120 chunks, no dedupe, no
+boilerplate strip, exact search). A real run refuses to start under other settings, and names each difference, unless you pass --allow-unregistered; the result
+of such a run gets no verdict from scripts/check_cost_prediction.py.
 """
 import argparse
 import contextlib
@@ -34,24 +40,54 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import BASE_DIR, settings                  # noqa: E402
 from app.console import display_path, make_output_safe     # noqa: E402
-from evals import bank, cost_run, runner                    # noqa: E402
+from evals import bank, cost_prediction, cost_run, runner   # noqa: E402
 
 LABEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
+def aside_name(path):
+    """`<name>.replaced-<time>.json` beside `path`, a name nothing has yet (two in one second get -2, -3)."""
+    stem = path[:-len(".json")] + f".replaced-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    target, number = stem + ".json", 1
+    while os.path.exists(target):
+        number += 1
+        target = f"{stem}-{number}.json"
+    return target
+
+
 def move_aside(path):
-    """Move a file to `<name>.replaced-<time>.json` beside it and return the new name (evidence is never deleted)."""
-    target = path[:-len(".json")] + f".replaced-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+    """Move a file to `<name>.replaced-<time>.json` beside it and return the new name (evidence is never deleted). Used by --force, which starts again."""
+    target = aside_name(path)
     runner.replace_file(path, target)
     return target
 
 
+def copy_aside(path):
+    """Copy a file to `<name>.replaced-<time>.json` beside it and return the new name. A resume uses this, not a move: the result being carried on stays
+    under its label until the next save replaces it in one step, so a stop at any moment leaves the label with its result."""
+    target = aside_name(path)
+    shutil.copy2(path, target)
+    return target
+
+
 def load_prior(path):
-    """The saved measurement to carry on, or None. The one at the label's path (a stopped run is saved there, a finished one too)."""
+    """The saved measurement to carry on, or None. The one at the label's path (a stopped run is saved there, a finished one too).
+    Raises ValueError, with the file left where it is, when it cannot be read as a measurement."""
     if not os.path.exists(path):
         return None
-    with open(path, encoding="utf-8") as handle:
-        return json.load(handle)
+    try:
+        with open(path, encoding="utf-8") as handle:
+            prior = json.load(handle)
+        prior["meta"], prior["rows"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise ValueError(f"the saved measurement at {display_path(path, BASE_DIR)} could not be read ({type(exc).__name__}); it was left where it is") from None
+    return prior
+
+
+def shown(text):
+    """An error's words with the project folder replaced, so a path never reaches the console or a file in full."""
+    base = str(BASE_DIR)
+    return str(text).replace(base.replace(os.sep, os.sep * 2), "<project>").replace(base, "<project>")
 
 
 def main(argv=None):
@@ -67,6 +103,8 @@ def main(argv=None):
     parser.add_argument("--max-calls", type=int, default=400, help="stop before sending more than this many requests (default 400; a resume counts its own)")
     parser.add_argument("--set", action="append", default=[], metavar="NAME=VALUE", help="change ONE setting for every arm (repeatable)")
     parser.add_argument("--dry-run", action="store_true", help="answer from a scripted stand-in for the provider: no quota, numbers are not measurements")
+    parser.add_argument("--allow-unregistered", action="store_true",
+                        help="measure under settings other than the ones the prediction was registered for (the prediction check will then give no verdict)")
     parser.add_argument("--resume", action="store_true", help="carry on a stopped or partly failed measurement with the same label")
     parser.add_argument("--force", action="store_true", help="replace an earlier measurement with the same label (the old result is moved aside)")
     args = parser.parse_args(argv)
@@ -102,6 +140,16 @@ def main(argv=None):
         print("Error: a dry run is free only with local embeddings (EMBED_PROVIDER=local); it will not spend API quota on embeddings.")
         return 1
 
+    unregistered = []
+    if not args.dry_run:
+        with runner.overridden(shared):
+            unregistered = cost_prediction.unregistered_settings(cost_run.shaping_settings())
+        if unregistered and not args.allow_unregistered:
+            print("Error: the settings are not the ones the prediction was registered for, so this measurement could not be checked against it: "
+                  + "; ".join(unregistered) + ". Set them (RETRIEVAL_MODE=dense, EMBED_PROVIDER=local and the like, in .env or the environment), "
+                  "or pass --allow-unregistered to measure anyway (the prediction check will then give no verdict).")
+            return 1
+
     label = f"dry-{args.label}" if args.dry_run else args.label
     out_dir = os.path.join(cost_run.MEASURE_DIR, runner.safe_label(label))
     saved_path = os.path.join(out_dir, "cost-dry.json") if args.dry_run else cost_run.results_path(label)
@@ -113,7 +161,7 @@ def main(argv=None):
         print(f"Error: a measurement called {label!r} already exists. Use another --label, --resume to carry it on, or --force to replace it.")
         return 1
 
-    questions = bank.sample(bank.load_questions(), args.bank, args.seed, exclude=[case["question"] for case in cases]) if args.bank else []
+    questions = bank.draw(cases, args.bank, args.seed) if args.bank else []
     items = cost_run.make_items(cases, questions)
     if args.limit:
         items = items[:args.limit]
@@ -127,14 +175,25 @@ def main(argv=None):
         return 1
 
     model = args.model or "scripted-model"
-    prior = load_prior(saved_path) if args.resume else None
+    try:
+        prior = load_prior(saved_path) if args.resume else None
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return 1
     if prior and prior["meta"].get("complete") and not any(row["status"] == "error" for row in prior["rows"]):
         print(f"Nothing to resume: {label!r} is complete.")
         return 0
     with runner.overridden({**shared, **({"llm_rpm": 0} if args.dry_run else {})}):
         minutes = f", about {planned / settings.llm_rpm:.0f} minutes at {settings.llm_rpm} calls a minute" if settings.llm_rpm and not args.dry_run else ""
+        if prior and not args.force:
+            why_not = cost_run.check_resume(prior, items, arms, label, model, args.dry_run, args.max_calls)
+            if why_not:
+                print(f"Error: cannot resume: {why_not}.\nNothing was changed: {display_path(saved_path, BASE_DIR)} is where it was, so a resume that fits can still be run.")
+                return 1
         print(("DRY RUN (scripted provider, no quota). " if args.dry_run else "") + f"{len(items)} questions x {len(arms)} arms "
               f"({', '.join(name for name, _ in arms)}) = {planned} requests{minutes}; model {model}; logs in {display_path(out_dir, BASE_DIR)}\n")
+        if unregistered:
+            print("NOT the registered conditions (" + "; ".join(unregistered) + "): the prediction check will give no verdict on this measurement.\n")
         try:
             if args.force:
                 for old in (saved_path, saved_path[:-len(".json")] + ".incomplete.json"):
@@ -145,18 +204,23 @@ def main(argv=None):
             elif prior:
                 print(f"Resuming: {sum(1 for row in prior['rows'] if row['status'] != 'error')} answered requests are kept, "
                       f"{sum(1 for row in prior['rows'] if row['status'] == 'error')} failed ones are asked again.")
-                print(f"The result being carried on was moved aside to {display_path(move_aside(saved_path), BASE_DIR)}.\n")
+                print(f"A copy of the result being carried on was kept at {display_path(copy_aside(saved_path), BASE_DIR)}.\n")
 
             def save(results):
                 try:
                     cost_run.save_aggregate(results, saved_path)
-                except OSError as exc:                           # a locked file must not end a run that has quota in it
-                    print(f"  ! could not save ({type(exc).__name__}); carrying on, it will be tried again after the next question")
+                except OSError as exc:
+                    if results["meta"].get("finished"):          # the last save: nothing comes after it to try again, so it must not be reported as saved
+                        raise
+                    print(f"  ! could not save ({type(exc).__name__}); carrying on, it will be tried again after the next question")      # a locked file must not end a run that has quota in it
 
             with (cost_run.scripted_provider() if args.dry_run else contextlib.nullcontext()):
                 results = cost_run.run(items, arms, label, model, out_dir, max_calls=args.max_calls, dry_run=args.dry_run, save=save, prior=prior)
         except (RuntimeError, ValueError) as exc:
             print(f"Error: {exc}")
+            return 1
+        except OSError as exc:
+            print(f"Error: a file could not be read or written ({shown(exc)}). Nothing answered is lost: carry on with --resume from the last save.")
             return 1
 
     print()

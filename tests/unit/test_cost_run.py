@@ -14,7 +14,8 @@ import openai
 from _testkit import ROOT, isolated_index, patched_embeddings
 from app import llm, observability
 from app.config import settings
-from evals import cost_run, runner
+from app.rag import generator
+from evals import bank, cost_prediction, cost_run, runner
 from test_llm import DAILY_BODY, status_error
 
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -58,7 +59,7 @@ class Citing(cost_run.ScriptedClient):
         reply = SimpleNamespace(content=text, tool_calls=None)
         prompt = " ".join(m["content"] for m in messages)
         usage = SimpleNamespace(prompt_tokens=len(prompt) // 4, completion_tokens=7) if self.report_usage else None
-        return SimpleNamespace(model="served-model", choices=[SimpleNamespace(message=reply, finish_reason="stop")], usage=usage)
+        return SimpleNamespace(model=self.model, choices=[SimpleNamespace(message=reply, finish_reason="stop")], usage=usage)
 
 
 class MeasureCase(unittest.TestCase):
@@ -231,11 +232,55 @@ class RunTests(MeasureCase):
         self.assertEqual((summary["scored"], summary["passed"], summary["mean_provider_ms"]), (2, 1, 6))        # a missing figure is left out, not counted as 0
         self.assertEqual(summary["mean_chars_stripped"], 2)
 
-    def test_a_request_that_left_no_line_in_its_log_is_an_error_not_a_zero(self):
+    def test_a_request_that_left_no_line_in_its_log_stops_the_run_cleanly_and_is_counted_against_the_budget(self):
         with mock.patch.object(cost_run, "_trace_of", return_value=None):
-            with self.assertRaises(RuntimeError) as caught:
-                self.run_with(Citing())
-        self.assertIn("left no line", str(caught.exception))
+            results, saves = self.run_with(Citing())
+        meta = results["meta"]
+        self.assertEqual(results["rows"], [])
+        self.assertFalse(meta["complete"])
+        self.assertIn("left no line", meta["stopped_because"])
+        self.assertIn("--resume", meta["stopped_because"])
+        self.assertNotIn(self.out, meta["stopped_because"])                       # no machine path in what is saved
+        self.assertEqual(meta["calls_spent"], 1)                                  # the paid request is counted, not lost
+        self.assertEqual(saves, [0])                                              # and the normal final save happened
+
+    def test_a_request_that_needed_a_retry_is_counted_by_the_requests_it_sent(self):
+        busy = status_error(openai.InternalServerError, 503, {"error": {"message": "busy"}})
+        client = Citing(fail_with=[busy])
+        item = cost_run.make_items(CASES[:1], [])[0]
+        with mock.patch.object(settings, "llm_max_retries", 2), mock.patch.object(llm.time, "sleep"), mock.patch.object(llm, "_get_client", return_value=client):
+            row, requests = cost_run.ask_once(item, "before", {}, self.out, "served-model")
+        self.assertEqual((row["status"], row["attempts"], requests), ("ok", 2, 2))      # one 503, then the answer: two provider requests, not one
+        self.assertEqual(len(client.calls), 2)
+
+    def test_the_budget_of_a_run_counts_the_retries_of_the_requests_that_answered(self):
+        busy = status_error(openai.InternalServerError, 503, {"error": {"message": "busy"}})
+        client = Citing(fail_with=[busy])
+        with mock.patch.object(settings, "llm_max_retries", 2), mock.patch.object(llm.time, "sleep"):
+            results, _ = self.run_with(client, items=cost_run.make_items(CASES[:1], []))
+        self.assertEqual(len(results["rows"]), 3)
+        self.assertEqual(len(client.calls), 4)                                           # three arms and one retry
+        self.assertEqual(results["meta"]["calls_spent"], 4)
+
+    def test_a_correct_refusal_passes_and_an_answer_to_an_unanswerable_question_fails(self):
+        items = cost_run.make_items(CASES, [])
+        refusing, _ = self.run_with(Citing(answers={0: generator.IDK, 10: generator.IDK}), items=items)
+        by = {(r["question_id"], r["arm"]): r for r in refusing["rows"]}
+        self.assertEqual((by["bonus", "before"]["grounded"], by["bonus", "before"]["passed"]), (False, True))      # a refusal where the documents are silent is right
+        self.assertFalse(by["notice", "before"]["passed"])                                                          # a refusal where they answer is not
+        answering, _ = self.run_with(Citing(), items=items)
+        by = {(r["question_id"], r["arm"]): r for r in answering["rows"]}
+        self.assertTrue(by["notice", "before"]["passed"])
+        self.assertFalse(by["bonus", "before"]["passed"])
+        summary = cost_run.summarize_arms(refusing["rows"])["before"]
+        self.assertEqual((summary["refused"], summary["passed"], summary["scored"]), (3, 1, 3))
+
+    def test_a_resumed_run_says_so_in_its_summary(self):
+        results, _ = self.run_with(Citing())
+        self.assertNotIn("resumed", "\n".join(cost_run.format_summary(results)))
+        results["meta"]["resumed"] = [{"at": "x", "kept_rows": 3, "set_aside_rows": 1, "max_calls": 400}]
+        results["meta"]["set_aside_rows"] = [{"error_class": "BadRequestError"}]
+        self.assertIn("resumed 1 time(s); 1 failed row(s) were set aside and asked again", "\n".join(cost_run.format_summary(results)))
 
     def test_the_summary_says_when_it_is_a_dry_run_and_lists_the_differences_against_the_first_arm(self):
         results, _ = self.run_with(Citing(), dry_run=True)
@@ -248,6 +293,32 @@ class RunTests(MeasureCase):
         live = dict(results, meta=dict(results["meta"], dry_run=False))
         self.assertNotIn("DRY RUN", "\n".join(cost_run.format_summary(live)))
         self.assertIn("model served-model", "\n".join(cost_run.format_summary(live)))
+
+
+class BankDrawTests(unittest.TestCase):
+    def test_the_bank_questions_never_repeat_an_eval_question_and_the_same_seed_gives_the_same_ones(self):
+        cases = runner.select_cases(None, base_only=True)
+        eval_questions = {case["question"].lower() for case in cases}
+        everything = bank.sample(bank.load_questions(), 30, 42)
+        self.assertTrue(eval_questions & {question.lower() for question in everything})          # the Week 5 bank does overlap the eval set, so the exclusion matters
+        drawn = bank.draw(cases, 30, 42)
+        self.assertEqual(len(drawn), 30)
+        self.assertEqual(eval_questions & {question.lower() for question in drawn}, set())
+        self.assertEqual(drawn, bank.draw(cases, 30, 42))
+        self.assertNotEqual(drawn, bank.draw(cases, 30, 43))
+
+    def test_the_measurement_and_the_free_screen_draw_their_bank_the_same_way(self):
+        import estimate_context_savings
+        seen = []
+
+        def spy(cases, count, seed, path=None):
+            seen.append((len(cases), count, seed))
+            raise ValueError("stop here, the draw is what is being looked at")
+        with mock.patch.object(bank, "draw", side_effect=spy), mock.patch.object(settings, "embed_provider", "local"), contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(ValueError):
+                measure_cost.main(["--label", "t", "--dry-run", "--bank", "30", "--seed", "42"])
+            estimate_context_savings.main(["--bank", "30", "--seed", "42"])
+        self.assertEqual(seen, [(41, 30, 42), (41, 30, 42)])
 
 
 class AggregateTests(unittest.TestCase):
@@ -265,7 +336,8 @@ class AggregateTests(unittest.TestCase):
 
     def test_the_code_stamp_names_a_commit_and_whether_files_changed(self):
         stamp = cost_run.code_stamp()
-        self.assertEqual(set(stamp), {"git", "dirty"})
+        self.assertEqual(set(stamp), {"git", "dirty", "answer_code"})
+        self.assertRegex(stamp["answer_code"], r"^[0-9a-f]{12}$")
 
 
 class ScriptTests(MeasureCase):
@@ -285,6 +357,48 @@ class ScriptTests(MeasureCase):
         self.assertTrue(saved["meta"]["dry_run"])
         self.assertEqual(saved["meta"]["label"], "dry-t")
         self.assertEqual(len(saved["rows"]), 6)
+
+    def test_a_real_run_under_settings_other_than_the_registered_ones_is_refused_before_anything_is_written(self):
+        with mock.patch.object(settings, "retrieval_mode", "hybrid"), mock.patch.object(settings, "embed_provider", "openai"):
+            code, text = self.run_script("--label", "t", "--model", "served-model", "--only", "absent-bonus")
+        self.assertEqual(code, 1)
+        for difference in ("retrieval_mode is hybrid (registered dense)", "embed_provider is openai (registered local)", "top_k is 5 (registered 4)"):
+            self.assertIn(difference, text)
+        self.assertIn("--allow-unregistered", text)
+        self.assertFalse(os.path.exists(os.path.join(self.out, "t")))
+        self.assertFalse(os.path.exists(os.path.join(self.out, "results")))
+
+    def test_a_dry_run_is_not_held_to_the_registered_settings_and_a_registered_real_run_is_not_refused(self):
+        with mock.patch.object(llm, "_get_client", side_effect=AssertionError("no provider in a dry run")):
+            self.assertEqual(self.run_script("--label", "t", "--dry-run", "--only", "absent-bonus")[0], 0)
+        with contextlib.ExitStack() as stack:
+            for name, value in cost_prediction.REGISTERED_SETTINGS.items():
+                stack.enter_context(mock.patch.object(settings, name, value))
+            with mock.patch.object(llm, "_get_client", return_value=Citing()):
+                code, text = self.run_script("--label", "t2", "--model", "served-model", "--only", "absent-bonus")
+        self.assertEqual(code, 0, text)
+        self.assertNotIn("NOT the registered", text)
+
+    def test_a_dry_run_never_waits_for_the_rate_limit_even_when_one_is_set(self):
+        with mock.patch.object(settings, "llm_rpm", 3), mock.patch.object(llm.time, "sleep", side_effect=AssertionError("a dry run must not wait")):
+            code, text = self.run_script("--label", "t", "--dry-run", "--only", "absent-bonus", "code-err4032")      # 6 requests, more than the 3 a minute allowed
+        self.assertEqual(code, 0, text)
+
+    def test_limit_keeps_only_the_first_questions_and_the_seed_defaults_to_42(self):
+        code, text = self.run_script("--label", "t", "--dry-run", "--only", "absent-bonus", "code-err4032", "exact-policy-id", "--limit", "2")
+        self.assertEqual(code, 0, text)
+        saved = cost_run.load_aggregate(os.path.join(self.out, "dry-t", "cost-dry.json"))
+        self.assertEqual((saved["meta"]["n_questions"], len(saved["rows"])), (2, 6))
+        first_two = [case["id"] for case in runner.select_cases(["absent-bonus", "code-err4032", "exact-policy-id"], base_only=True)][:2]
+        self.assertEqual(sorted({row["question_id"] for row in saved["rows"]}), sorted(first_two))             # the first two, not the last two
+        asked = []
+
+        def spy(cases, count, seed, path=None):
+            asked.append(seed)
+            raise ValueError("stop")
+        with mock.patch.object(bank, "draw", side_effect=spy), self.assertRaises(ValueError):
+            self.run_script("--label", "t3", "--dry-run", "--bank", "5")
+        self.assertEqual(asked, [42])
 
     def test_a_real_run_needs_a_named_model_and_never_an_unnamed_one(self):
         code, text = self.run_script("--label", "t")
@@ -309,9 +423,13 @@ class ScriptTests(MeasureCase):
     def test_a_real_run_through_a_scripted_client_saves_the_aggregate_under_the_results_folder(self):
         client = Citing()
         with mock.patch.object(llm, "_get_client", return_value=client):
-            code, text = self.run_script("--label", "t", "--model", "served-model", "--only", "absent-bonus", "code-err4032")
+            code, text = self.run_script("--label", "t", "--model", "served-model", "--only", "absent-bonus", "code-err4032", "--allow-unregistered")
         self.assertEqual(code, 0, text)
+        self.assertIn("NOT the registered conditions", text)
+        self.assertIn("top_k is 5 (registered 4)", text)
         saved = cost_run.load_aggregate(os.path.join(self.out, "results", "cost-t.json"))
+        self.assertEqual(saved["meta"]["settings"]["top_k"], 5)
+        self.assertIsNone(cost_prediction.check_prediction(saved)["verdict"])                       # such a measurement can never give a verdict
         self.assertFalse(saved["meta"]["dry_run"])
         self.assertEqual(saved["meta"]["model_requested"], "served-model")
         self.assertEqual(len(saved["rows"]), 6)

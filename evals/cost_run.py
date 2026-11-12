@@ -41,6 +41,7 @@ DEFAULT_ARMS = ["before", "after:context_strip_min_repeats=10", "before-2"]
 
 class Stop(Exception):
     """The run cannot go on (a daily quota, or the provider failing again and again); what finished is kept."""
+    spent = 0                      # provider requests the stopped request had already sent, so the budget still counts them
 
 
 # ---------------------------------------------------------------------------- the arms and the plan
@@ -119,8 +120,45 @@ def scripted_provider():
 
 # ---------------------------------------------------------------------------- one request, and the row it leaves
 
+# What decides what a request asks and how an answer is scored. A change to any of these makes a stopped measurement unsafe to carry on; a commit that
+# touches only tests, docs, saved results (evals/results, the converted failures) or the other scripts does not.
+ANSWER_CODE = ("app", "evals/runner.py", "evals/checks.py", "evals/cases.py", "evals/bank.py", "evals/cost_run.py", "scripts/measure_cost.py")
+CORPUS_SUFFIXES = (".md", ".txt", ".pdf")                    # the documents the loader reads
+
+
+def answer_code_hash(base=None, corpus_dir=None):
+    """A short hash of the files in ANSWER_CODE and of the corpus, line endings ignored, or None when there is nothing to hash or a file cannot be read.
+    It says whether the code and the documents that decide the answers are the same as when a measurement started, whatever else was committed since."""
+    base, corpus_dir = base or BASE_DIR, corpus_dir or settings.corpus_dir
+    files = []
+    for entry in ANSWER_CODE:
+        path = os.path.join(base, *entry.split("/"))
+        if os.path.isdir(path):
+            for folder, folders, names in os.walk(path):
+                folders[:] = sorted(name for name in folders if name != "__pycache__")
+                files += [(os.path.relpath(os.path.join(folder, name), base).replace(os.sep, "/"), os.path.join(folder, name)) for name in sorted(names) if name.endswith(".py")]
+        elif os.path.isfile(path):
+            files.append((entry, path))
+    if os.path.isdir(corpus_dir):
+        for folder, folders, names in os.walk(corpus_dir):
+            folders.sort()
+            files += [("corpus/" + os.path.relpath(os.path.join(folder, name), corpus_dir).replace(os.sep, "/"), os.path.join(folder, name))
+                      for name in sorted(names) if name.lower().endswith(CORPUS_SUFFIXES)]
+    if not files:
+        return None
+    digest = hashlib.sha256()
+    try:
+        for name, path in files:
+            with open(path, "rb") as handle:
+                digest.update(name.encode("utf-8") + b"\0" + handle.read().replace(b"\r\n", b"\n") + b"\0")
+    except OSError:
+        return None
+    return digest.hexdigest()[:12]
+
+
 def code_stamp():
-    """Which code made the measurement: the short commit, and whether files had changed since it. None where git cannot say."""
+    """Which code made the measurement: the short commit, whether files had changed since it (None where git cannot say), and a hash of the files that
+    decide answers (answer_code_hash), which is what a resume compares."""
     def git(*args):
         try:
             out = subprocess.run(["git", *args], cwd=BASE_DIR, capture_output=True, text=True, timeout=20)
@@ -128,7 +166,7 @@ def code_stamp():
         except (OSError, subprocess.SubprocessError):
             return None
     status = git("status", "--porcelain")
-    return {"git": git("rev-parse", "--short", "HEAD") or "unknown", "dirty": None if status is None else bool(status)}
+    return {"git": git("rev-parse", "--short", "HEAD") or "unknown", "dirty": None if status is None else bool(status), "answer_code": answer_code_hash()}
 
 
 def _trace_of(request_id, path):
@@ -217,19 +255,27 @@ def ask_once(item, arm, overrides, out_dir, model, answer=None):
             raise Stop(f"the app could not answer: {plain(exc)}") from exc
     request_id = observability.last_request_id()
     line = _trace_of(request_id, path)
-    if line is None:
-        raise RuntimeError(f"the request {request_id} left no line in {path}: the log is what a measurement reads, so there is nothing to measure")
+    if line is None:                                             # the log line was dropped (a lock that timed out): the answer was paid for and cannot be read
+        stop = Stop(f"the request {request_id} was answered but left no line in its arm's log, so there is nothing to measure it from; --resume asks it again")
+        stop.spent = 1                                           # at least one request was sent, and no line says how many
+        raise stop
     spent = sum(span.get("attempts") or 0 for span in line.get("spans", []) if span.get("kind") == "model")
     return row_from_trace(item, arm, line), spent
 
 
 # ---------------------------------------------------------------------------- the run
 
+def shaping_settings():
+    """The settings that decide what is retrieved and what the model is shown, as they are now (inside any overrides in force). The strip is the base value:
+    an arm that changes it says so in its overrides."""
+    return {"retrieval_mode": settings.retrieval_mode, "top_k": settings.top_k, "dense_search": settings.dense_search,
+            "chunk_size": settings.chunk_size, "chunk_overlap": settings.chunk_overlap, "embed_provider": settings.embed_provider,
+            "min_relevance": settings.min_relevance, "boilerplate_min_repeats": getattr(settings, "boilerplate_min_repeats", 0),
+            "dedupe_chunks": getattr(settings, "dedupe_chunks", False), "context_strip_min_repeats": getattr(settings, "context_strip_min_repeats", 0)}
+
+
 def make_meta(label, model, arms, items, dry_run, max_calls, started):
-    shaping = {"retrieval_mode": settings.retrieval_mode, "top_k": settings.top_k, "dense_search": settings.dense_search,
-               "chunk_size": settings.chunk_size, "chunk_overlap": settings.chunk_overlap, "embed_provider": settings.embed_provider,
-               "min_relevance": settings.min_relevance, "boilerplate_min_repeats": getattr(settings, "boilerplate_min_repeats", 0),
-               "context_strip_min_repeats": getattr(settings, "context_strip_min_repeats", 0)}          # the base: an arm that changes it says so in its overrides
+    shaping = shaping_settings()
     input_price, output_price = pricing.current_prices()
     return {"label": label, "kind": "cost", "dry_run": dry_run, "started": started, "finished": None, "complete": False,
             "stopped_because": None, "model_requested": model, "models_served": [], "arms": [{"name": n, "overrides": o} for n, o in arms],
@@ -247,9 +293,29 @@ def resumable(prior, results):
     for key in ("model_requested", "arms", "question_set", "settings", "dry_run"):
         if old.get(key) != new.get(key):
             return f"the {key.replace('_', ' ')} differs from the saved measurement's"
-    if (old.get("code") or {}).get("git") != (new.get("code") or {}).get("git"):
-        return "the code is another commit than the one the first part ran on"
+    old_code, new_code = old.get("code") or {}, new.get("code") or {}
+    if old_code.get("answer_code") and new_code.get("answer_code"):
+        if old_code["answer_code"] != new_code["answer_code"]:
+            return ("the code or the documents that decide the answers changed since the first part ran (" + ", ".join(ANSWER_CODE) + ", the corpus); "
+                    "a commit that touches only tests, docs, saved results or other scripts does not count")
+    elif old_code.get("git") != new_code.get("git"):
+        return "the code is another commit than the one the first part ran on"           # no hash on one side: the commit is all there is to compare
     return None
+
+
+def check_resume(prior, items, arms, label, model, dry_run, max_calls):
+    """Why `prior` cannot be carried on by a run of these items and arms in the settings now in force, or None. Asked BEFORE any file is touched,
+    so a refused resume leaves the saved measurement exactly where it was."""
+    return resumable(prior, {"meta": make_meta(label, model, arms, items, dry_run, max_calls, None)})
+
+
+def resume_note(meta):
+    """One sentence for a measurement that was carried on (its rows come from different sessions), or None."""
+    sessions = meta.get("resumed") or []
+    if not sessions:
+        return None
+    return (f"resumed {len(sessions)} time(s); {len(meta.get('set_aside_rows') or [])} failed row(s) were set aside and asked again, "
+            "so the rows were gathered in different sessions, not in one interleaved run")
 
 
 def run(items, arms, label, model, out_dir, max_calls=400, dry_run=False, answer=None, save=None, say=print, prior=None):
@@ -297,6 +363,7 @@ def run(items, arms, label, model, out_dir, max_calls=400, dry_run=False, answer
                 if save:
                     save(results)
     except (Stop, KeyboardInterrupt) as stop:
+        spent += getattr(stop, "spent", 0)
         reason = "interrupted (Ctrl-C)" if isinstance(stop, KeyboardInterrupt) else str(stop)
         results["meta"]["stopped_because"] = reason
         say(f"\nSTOPPED: {reason}\nWhat finished is saved; the arms of the question in progress may be incomplete. Carry on with --resume.")
@@ -373,6 +440,7 @@ def format_summary(results):
     lines = [("DRY RUN: the provider was a scripted stand-in, so the tokens and times below are NOT measurements" if meta.get("dry_run")
               else f"model {meta['model_requested']}" + (f" (served: {', '.join(meta['models_served'])})" if meta["models_served"] else ""))
              + f", {meta['n_questions']} questions x {len(names)} arms, {meta['calls_spent']} model calls",
+             *([resume_note(meta)] if resume_note(meta) else []),
              "", f"{'arm':<14}{'requests':>9}{'errors':>7}{'refused':>8}{'prompt tok':>12}{'compl tok':>11}{'provider ms':>12}{'wait ms':>9}{'stripped':>10}{'passed':>9}"]
     for name in names:
         row = summary.get(name)

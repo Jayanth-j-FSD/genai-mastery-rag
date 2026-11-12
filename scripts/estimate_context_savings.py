@@ -79,7 +79,7 @@ def main(argv=None):
                 print("Error: this screen is free only with local embeddings. Set EMBED_PROVIDER=local (python scripts/download_model.py "
                       "fetches the model); it will not spend API quota on embeddings.")
                 return 1
-            questions = bank.sample(bank.load_questions(), args.bank, args.seed, exclude=[case["question"] for case in cases]) if args.bank else []
+            questions = bank.draw(cases, args.bank, args.seed) if args.bank else []
             stand_ins = [{"id": f"bank-{number}", "question": question, "problem_type": "bank", "expected_sources": [],
                           "expect_contains": [], "expect_all": []} for number, question in enumerate(questions, start=1)]
             with runner.isolated_index() as (_collection, chunk_count):

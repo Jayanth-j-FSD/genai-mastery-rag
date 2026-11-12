@@ -52,7 +52,7 @@ is still a complete record and every tool reads it; it just has no steps.
 .\.venv\Scripts\python.exe scripts\check_drill.py <drill id> <request id>                                 # five guesses
 
 .\.venv\Scripts\python.exe scripts\estimate_context_savings.py --bank 30 --seed 42                         # the free screen, no model calls
-.\.venv\Scripts\python.exe scripts\measure_cost.py --label w11 --model <model> --bank 30 --seed 42         # the measurement (use --dry-run first)
+.\.venv\Scripts\python.exe scripts\measure_cost.py --label w11 --model <model> --bank 30 --seed 42         # the measurement (use --dry-run first, and --label w11-smoke for a first look)
 .\.venv\Scripts\python.exe scripts\measure_cost.py --label w11 --model <model> --bank 30 --seed 42 --resume   # carry it on after a stop or a failed request
 .\.venv\Scripts\python.exe scripts\check_cost_prediction.py w11
 .\.venv\Scripts\python.exe scripts\cost_report.py --show w11 --price-in <usd> --price-out <usd> --price-source "<where>"
@@ -68,8 +68,16 @@ Two things about the measurement, because its quota cannot be refilled that day.
 sample you ask for): a failure you convert into a test later is never added to it, so converting one before or after changes nothing about what was
 registered. And it can be carried on: it stops on the daily quota, on three provider failures in a row, on `--max-calls`, or on Ctrl-C, and a
 request that failed is kept as a failed row; `--resume` keeps every answered request, asks the failed ones again and never asks an answered one twice
-(the old result is moved aside, not deleted). A setup problem (no API key, nothing indexed) stops at the first request with the app's own words. The
-measurement and its resume have to fit in the model's day together: about 213 requests for 71 questions under 3 arms.
+(a copy of the result it carries on is kept beside it). A resume is checked before any file is touched: it refuses, and leaves the saved result where it
+was, only when the model, the arms, the questions, the settings or the code and documents that decide the answers (`app`, the scoring and measuring modules, the
+corpus) differ from the first part's; a commit that touches only tests, docs, saved results or other scripts does not stop it. A setup problem (no API key,
+nothing indexed) stops at the first request with the app's own words. The measurement and its resume have to fit in the model's day together: about 213
+requests for 71 questions under 3 arms.
+
+The prediction was registered for one set of conditions: retrieval dense, `TOP_K=4`, local embeddings (`EMBED_PROVIDER=local`), chunks of 800 characters with
+120 of overlap, exact search, no dedupe and no boilerplate strip, 432 chunks, and the 41 eval questions plus 30 bank questions drawn with seed 42. A real run
+under other settings stops before the first request and names each difference (`--allow-unregistered` measures anyway, and the prediction check then gives no
+verdict); a finished measurement under other settings, another index or other questions gets no verdict either.
 
 ## What a request log line holds
 
