@@ -20,6 +20,9 @@ if __name__ == "__main__":
         sys.exit(1)
 
     print(f"Ingested {result['documents']} document(s) into {result['chunks']} chunk(s).")
+    if result.get("chunks_removed_by_cleaning"):
+        print(f"  ({result['chunks_removed_by_cleaning']} chunk(s) fewer than a plain ingest, because "
+              "DEDUPE_CHUNKS or BOILERPLATE_MIN_REPEATS is on)")
     # Show how each document was split, so the chunking is visible (supports check #4).
     for source, count in sorted(result.get("per_source", {}).items()):
         print(f"  - {source}: {count} chunk(s)")

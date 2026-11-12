@@ -1,0 +1,428 @@
+{
+ "meta": {
+  "label": "noise-check",
+  "started": "2026-10-11T01:45:40",
+  "finished": "2026-10-11T01:46:02",
+  "complete": true,
+  "stopped_because": null,
+  "n_cases": 5,
+  "n_requested": 5,
+  "collection": "eval_3d97d4cab6d6",
+  "chunk_count": 432,
+  "models": {
+   "answer": "gemini-3.5-flash-lite",
+   "judge": "gemini-3.1-flash-lite",
+   "answer_served": "gemini-3.5-flash-lite"
+  },
+  "settings": {
+   "retrieval_mode": "dense",
+   "dense_search": "exact",
+   "top_k": 4,
+   "chunk_size": 800,
+   "chunk_overlap": 120,
+   "embed_provider": "local",
+   "min_relevance": 0.0,
+   "dedupe_chunks": false,
+   "boilerplate_min_repeats": 0
+  },
+  "overrides": {},
+  "cache_hits": {
+   "answers": 0,
+   "judge": 0
+  },
+  "usage": {
+   "calls": 10,
+   "prompt_tokens": 8418,
+   "completion_tokens": 391,
+   "api_seconds": 22.015,
+   "wait_seconds": 0.0
+  }
+ },
+ "cases": [
+  {
+   "id": "exact-security-email",
+   "problem_type": "exact-string",
+   "origin": "week4",
+   "question": "What is security@northwind.example used for?",
+   "reference": "security@northwind.example is where a suspected security incident must be reported, within 1 hour.",
+   "expected_sources": [
+    "security-policy.md"
+   ],
+   "should_refuse": false,
+   "answer": "I don't know based on the provided documents.",
+   "grounded": false,
+   "sources": [],
+   "retrieved": [
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#265",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.4873,
+     "text": "## 14. Information Security\n\n### Passwords\nNorthstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions."
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#112",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.424,
+     "text": "### Security\nNorthstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions."
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#343",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.424,
+     "text": "### Security\nNorthstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions."
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#280",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.3943,
+     "text": "### Phishing\nNorthstar Digital Solutions Pvt. Ltd. maintains this policy to provide consistent expectations for employees and managers. The policy applies to eligible employees unless a written exception, employment agreement, or applicable law states otherwise. Employees should contact People Operations when a situation is unclear. Managers are responsible for applying the policy consistently and documenting exceptions."
+    }
+   ],
+   "checks": [
+    {
+     "name": "refusal",
+     "passed": false,
+     "detail": "refused a question the documents do answer"
+    },
+    {
+     "name": "cites_expected_source",
+     "passed": false,
+     "detail": "cited nothing, expected one of ['security-policy.md']"
+    },
+    {
+     "name": "has_expected_fact",
+     "passed": false,
+     "detail": "contains none of ['1 hour', 'incident']"
+    }
+   ],
+   "passed": false,
+   "warnings": [],
+   "judge": {
+    "verdict": "pass",
+    "reason": "The provided context does not contain any information regarding the purpose of the email address security@northwind.example.",
+    "model": "gemini-3.1-flash-lite"
+   },
+   "cached": {
+    "answer": false,
+    "judge": false
+   },
+   "usage": {
+    "calls": 2,
+    "prompt_tokens": 1221,
+    "completion_tokens": 44,
+    "api_seconds": 6.422,
+    "wait_seconds": 0.0
+   }
+  },
+  {
+   "id": "paraphrase-retirement",
+   "problem_type": "paraphrase",
+   "origin": "week4",
+   "question": "How long until my retirement contributions start?",
+   "reference": "The pension match starts after 3 months of employment.",
+   "expected_sources": [
+    "benefits.md"
+   ],
+   "should_refuse": false,
+   "answer": "Based on the provided documents, the pension match starts after 3 months of employment. [source: benefits.md]",
+   "grounded": true,
+   "sources": [
+    "benefits.md"
+   ],
+   "retrieved": [
+    {
+     "chunk_id": "Acme-Leave-Policy-2026.md#0",
+     "source": "Acme-Leave-Policy-2026.md",
+     "score": 0.285,
+     "text": "# ACME LEAVE POLICY 2026\n\nEffective date: 2026-01-01\n\n## 1. Eligibility\n\nAll regular full-time employees become eligible for the annual leave allowance after completing 30 calendar days of service. Contractors and temporary workers follow the terms in their engagement letter.\n\n## 2. Annual leave allowance\n\nEmployees receive 18 days of annual leave per calendar year. Employees joining after 1 July receive a prorated allowance based on completed months of service.\n\n## 3. Carry-forward\n\nEmployees may carry forward up to 10 unused annual-leave days into the next calendar year. Days above the 10-day limit expire on 31 March unless a written exception is approved by People Operations.\n\n## 4. Sick leave"
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#410",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.2735,
+     "text": "1. Annual leave: 24 days per calendar year; monthly accrual is 2 days.\n2. Sick leave: 12 days per calendar year.\n3. Casual leave: 6 days per calendar year.\n4. Hybrid remote work: up to 3 days per week for eligible employees.\n5. Core collaboration hours: 10:00 AM–4:00 PM IST.\n6. Confirmed employee notice period: 60 calendar days.\n7. Probation notice period: 30 calendar days.\n8. Standard probation: 6 months, extendable once by up to 3 months.\n9. Learning and certification budget: INR 30,000 per financial year.\n10. Expense claims: normally within 30 days.\n11. Personal-data incident reporting: within 4 hours of discovery.\n12. Performance improvement plan: standard duration 60 days.\n13. Annual company holiday calendar: 12 designated holidays."
+    },
+    {
+     "chunk_id": "benefits.md#0",
+     "source": "benefits.md",
+     "score": 0.2572,
+     "text": "# Benefits\n\nNorthwind Labs offers:\n- Private health insurance (employee covered 100%; dependents at 50%).\n- A pension match of **5%** of base salary.\n- An annual learning budget of **$1,000** per employee.\n- 24 days annual leave (see the Annual Leave policy).\n\nBenefits begin on your first day; the pension match starts after **3 months** of employment."
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#390",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.2561,
+     "text": "- Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation.\n- The company may periodically review this rule and communicate changes through official internal channels.\n- Final settlement is targeted within **30 calendar days** after completion of required exit formalities, subject to payroll dependencies and applicable law."
+    }
+   ],
+   "checks": [
+    {
+     "name": "refusal",
+     "passed": true,
+     "detail": "answered"
+    },
+    {
+     "name": "cites_expected_source",
+     "passed": true,
+     "detail": "cited benefits.md"
+    },
+    {
+     "name": "has_expected_fact",
+     "passed": true,
+     "detail": "contains the expected fact"
+    }
+   ],
+   "passed": true,
+   "warnings": [],
+   "judge": {
+    "verdict": "pass",
+    "reason": "The answer is faithful, responsive, honest, and correctly cites the source document.",
+    "model": "gemini-3.1-flash-lite"
+   },
+   "cached": {
+    "answer": false,
+    "judge": false
+   },
+   "usage": {
+    "calls": 2,
+    "prompt_tokens": 1740,
+    "completion_tokens": 51,
+    "api_seconds": 1.594,
+    "wait_seconds": 0.0
+   }
+  },
+  {
+   "id": "ambiguous-notice-period",
+   "problem_type": "conflicting-documents",
+   "origin": "week4",
+   "question": "How many days of notice must a confirmed or permanent employee give before resigning?",
+   "reference": "Under the Acme employment terms a permanent employee gives 30 calendar days of written notice; the handbook says 60 calendar days for confirmed employees. The documents disagree.",
+   "expected_sources": [
+    "Acme-Employment-Terms-2026.md",
+    "Synthetic_HR_Policy_RAG_Test_Dataset.md"
+   ],
+   "should_refuse": false,
+   "answer": "Based on the provided documents, the required notice period for a permanent or confirmed employee before resigning depends on the specific policy:\n\n* Under the Acme Employment Terms Policy 2026, a permanent employee must provide **30 calendar days** of written notice [source: Acme-Employment-Terms-2026.md].\n* Under the synthetic HR policy dataset, the standard notice period is **60 calendar days** for confirmed employees [source: Synthetic_HR_Policy_RAG_Test_Dataset.md].",
+   "grounded": true,
+   "sources": [
+    "Acme-Employment-Terms-2026.md",
+    "Synthetic_HR_Policy_RAG_Test_Dataset.md"
+   ],
+   "retrieved": [
+    {
+     "chunk_id": "Acme-Employment-Terms-2026.md#0",
+     "source": "Acme-Employment-Terms-2026.md",
+     "score": 0.5988,
+     "text": "# ACME EMPLOYMENT TERMS POLICY 2026\n\nEffective date: 2026-03-01\n\n## 1. Scope\n\nThis policy applies to regular full-time Acme employees. A separate written agreement may provide a longer notice period, in which case the written agreement controls.\n\n## 2. Probationary employees\n\nAn employee who is still within the probationary period must provide 7 calendar days of written notice before resigning. Acme may waive some or all of this notice at its discretion.\n\n## 3. Permanent employees\n\nAfter successful completion of probation, a permanent employee must provide 30 calendar days of written notice before resigning. The notice period begins on the date People Operations receives the written resignation.\n\n## 4. Company-initiated termination"
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#378",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.5909,
+     "text": "- Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation.\n- The company may periodically review this rule and communicate changes through official internal channels.\n- Standard notice period is **60 calendar days** for confirmed employees and **30 calendar days** during probation, unless the employment agreement specifies otherwise."
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#410",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.5403,
+     "text": "1. Annual leave: 24 days per calendar year; monthly accrual is 2 days.\n2. Sick leave: 12 days per calendar year.\n3. Casual leave: 6 days per calendar year.\n4. Hybrid remote work: up to 3 days per week for eligible employees.\n5. Core collaboration hours: 10:00 AM–4:00 PM IST.\n6. Confirmed employee notice period: 60 calendar days.\n7. Probation notice period: 30 calendar days.\n8. Standard probation: 6 months, extendable once by up to 3 months.\n9. Learning and certification budget: INR 30,000 per financial year.\n10. Expense claims: normally within 30 days.\n11. Personal-data incident reporting: within 4 hours of discovery.\n12. Performance improvement plan: standard duration 60 days.\n13. Annual company holiday calendar: 12 designated holidays."
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#78",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.5306,
+     "text": "- Policy decisions should be based on documented facts rather than assumptions. Employees may ask for clarification without fear of retaliation.\n- The company may periodically review this rule and communicate changes through official internal channels.\n- Full-time employees receive **24 days of annual leave per calendar year**. Leave is accrued monthly at 2 days per completed month."
+    }
+   ],
+   "checks": [
+    {
+     "name": "refusal",
+     "passed": true,
+     "detail": "answered"
+    },
+    {
+     "name": "cites_expected_source",
+     "passed": true,
+     "detail": "cited Acme-Employment-Terms-2026.md"
+    },
+    {
+     "name": "has_expected_fact",
+     "passed": true,
+     "detail": "contains the expected fact"
+    }
+   ],
+   "passed": true,
+   "warnings": [],
+   "judge": {
+    "verdict": "pass",
+    "reason": "The answer correctly identifies the conflict between the provided documents and cites the specific sources for each notice period.",
+    "model": "gemini-3.1-flash-lite"
+   },
+   "cached": {
+    "answer": false,
+    "judge": false
+   },
+   "usage": {
+    "calls": 2,
+    "prompt_tokens": 1826,
+    "completion_tokens": 140,
+    "api_seconds": 5.718,
+    "wait_seconds": 0.0
+   }
+  },
+  {
+   "id": "track-nexora-classification",
+   "problem_type": "list-answer",
+   "origin": "week4",
+   "question": "What are the four data classification levels?",
+   "reference": "Public, Internal, Confidential and Restricted.",
+   "expected_sources": [
+    "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md"
+   ],
+   "should_refuse": false,
+   "answer": "The four data classification levels are:\n\n1. **Public**\n2. **Internal**\n3. **Confidential**\n4. **Restricted**\n\n[source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md]",
+   "grounded": true,
+   "sources": [
+    "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md"
+   ],
+   "retrieved": [
+    {
+     "chunk_id": "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md#1",
+     "source": "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md",
+     "score": 0.5065,
+     "text": "## 2. Data Classification\n\nNexora Tech classifies cloud data into four levels:\n\n| Classification | Description | Examples |\n|---|---|---|\n| **Public** | Information that can be shared externally | Public documentation, marketing content |\n| **Internal** | Company information intended for employees | Internal procedures, technical documentation |\n| **Confidential** | Sensitive business information | Customer data, contracts, financial reports |\n| **Restricted** | Highly sensitive information requiring strict access | Credentials, security keys, personal data, production secrets |\n\n## 3. Azure Environment Separation\n\nNexora Tech maintains three primary Azure environments:\n\n- Development\n- Testing\n- Production"
+    },
+    {
+     "chunk_id": "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md#0",
+     "source": "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md",
+     "score": 0.3987,
+     "text": "# Nexora Tech — Azure Cloud Data Access & Security Policy\n\n**Policy ID:** NEXORA-CLOUD-SEC-001  \n**Version:** 1.0  \n**Effective Date:** January 1, 2026  \n**Policy Owner:** Nexora Tech — Cloud Security Team\n\n## 1. Purpose\n\nThis policy defines how Nexora Tech manages access to data and cloud resources hosted on Microsoft Azure.\n\nThe objectives are to:\n\n- Protect company and customer data from unauthorized access.\n- Apply the principle of least privilege.\n- Separate development, testing, and production environments.\n- Monitor and audit access to sensitive data.\n- Prevent unauthorized sharing or downloading of confidential information.\n\n## 2. Data Classification\n\nNexora Tech classifies cloud data into four levels:"
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#0",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.254,
+     "text": "# Northstar Digital Solutions Pvt. Ltd. — Synthetic HR Policy Handbook\n\n**Document purpose:** Synthetic test data for RAG applications.\n\n**Version:** 2026.1  \n**Effective date:** 1 April 2026  \n**Review date:** 1 April 2027  \n**Status:** Fictional / testing only\n\n> This handbook is entirely fictional and is intended for software testing, retrieval evaluation, chunking, embedding, reranking, and question-answering experiments.\n\n## 1. Employee Handbook Overview"
+    },
+    {
+     "chunk_id": "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md#3",
+     "source": "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md",
+     "score": 0.2407,
+     "text": "### Developer\n\nCan:\n\n- Access development resources.\n- Deploy applications to development.\n- View development logs.\n- Access development databases where required.\n\nDevelopers should not have unrestricted production data access.\n\n### QA / Tester\n\nCan:\n\n- Access testing environments.\n- Execute application tests.\n- View test logs.\n- Access approved test data.\n\nQA users cannot modify production resources.\n\n### Data Analyst\n\nCan:\n\n- Read approved business datasets.\n- Run approved queries.\n- Generate reports.\n\nData Analysts cannot modify production infrastructure.\n\n### Security Administrator\n\nCan:\n\n- Review security configurations.\n- Review access assignments.\n- Investigate security alerts.\n- Audit privileged access.\n\nSecurity administrators should use privileged access only when required."
+    }
+   ],
+   "checks": [
+    {
+     "name": "refusal",
+     "passed": true,
+     "detail": "answered"
+    },
+    {
+     "name": "cites_expected_source",
+     "passed": true,
+     "detail": "cited Nexora_Tech_Azure_Cloud_Data_Access_Policy.md"
+    },
+    {
+     "name": "has_expected_fact",
+     "passed": true,
+     "detail": "contains the expected fact"
+    }
+   ],
+   "passed": true,
+   "warnings": [],
+   "judge": {
+    "verdict": "pass",
+    "reason": "The answer correctly identifies the four data classification levels as specified in the provided context.",
+    "model": "gemini-3.1-flash-lite"
+   },
+   "cached": {
+    "answer": false,
+    "judge": false
+   },
+   "usage": {
+    "calls": 2,
+    "prompt_tokens": 1869,
+    "completion_tokens": 81,
+    "api_seconds": 5.031,
+    "wait_seconds": 0.0
+   }
+  },
+  {
+   "id": "nexora-prod-approvals",
+   "problem_type": "list-answer",
+   "origin": "week6",
+   "question": "What approvals are required before accessing production data?",
+   "reference": "Business justification, appropriate Azure RBAC permissions, approval from the relevant manager or data owner, logging and monitoring, and periodic access review.",
+   "expected_sources": [
+    "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md"
+   ],
+   "should_refuse": false,
+   "answer": "Production database access requires approval from the relevant manager or data owner [source: Nexora_Tech_Azure_Cloud_Data_Access_Policy.md].",
+   "grounded": true,
+   "sources": [
+    "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md"
+   ],
+   "retrieved": [
+    {
+     "chunk_id": "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md#5",
+     "source": "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md",
+     "score": 0.6717,
+     "text": "Production data is classified as **Confidential** or **Restricted**, depending on its contents.\n\nProduction database access requires:\n\n1. Business justification.\n2. Appropriate Azure RBAC permissions.\n3. Approval from the relevant manager or data owner.\n4. Logging and monitoring.\n5. Periodic access review.\n\nDevelopers must not directly access Restricted production data unless specifically authorized.\n\n## 7. Customer Data\n\nCustomer information must only be accessible to employees whose responsibilities require it.\n\nCustomer data must not be:\n\n- Downloaded to personal devices.\n- Shared through personal email.\n- Uploaded to unauthorized third-party services.\n- Copied into development environments without approval.\n- Included in application logs unnecessarily."
+    },
+    {
+     "chunk_id": "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md#3",
+     "source": "Nexora_Tech_Azure_Cloud_Data_Access_Policy.md",
+     "score": 0.5866,
+     "text": "### Developer\n\nCan:\n\n- Access development resources.\n- Deploy applications to development.\n- View development logs.\n- Access development databases where required.\n\nDevelopers should not have unrestricted production data access.\n\n### QA / Tester\n\nCan:\n\n- Access testing environments.\n- Execute application tests.\n- View test logs.\n- Access approved test data.\n\nQA users cannot modify production resources.\n\n### Data Analyst\n\nCan:\n\n- Read approved business datasets.\n- Run approved queries.\n- Generate reports.\n\nData Analysts cannot modify production infrastructure.\n\n### Security Administrator\n\nCan:\n\n- Review security configurations.\n- Review access assignments.\n- Investigate security alerts.\n- Audit privileged access.\n\nSecurity administrators should use privileged access only when required."
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#101",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.5661,
+     "text": "- Requests should normally be submitted through the employee portal before the relevant date. Managers should consider business continuity, employee circumstances, and previously approved requests.\n- Records must be accurate and should be updated when circumstances change. Employees must not knowingly submit false information or alter company records without authorization.\n- Where approval is required, approval does not remove the employee's responsibility to follow other applicable company policies.\n- People Operations may maintain supporting records for audit, compliance, payroll, or operational purposes. Access is limited according to role and business need."
+    },
+    {
+     "chunk_id": "Synthetic_HR_Policy_RAG_Test_Dataset.md#104",
+     "source": "Synthetic_HR_Policy_RAG_Test_Dataset.md",
+     "score": 0.5661,
+     "text": "- Requests should normally be submitted through the employee portal before the relevant date. Managers should consider business continuity, employee circumstances, and previously approved requests.\n- Records must be accurate and should be updated when circumstances change. Employees must not knowingly submit false information or alter company records without authorization.\n- Where approval is required, approval does not remove the employee's responsibility to follow other applicable company policies.\n- People Operations may maintain supporting records for audit, compliance, payroll, or operational purposes. Access is limited according to role and business need."
+    }
+   ],
+   "checks": [
+    {
+     "name": "refusal",
+     "passed": true,
+     "detail": "answered"
+    },
+    {
+     "name": "cites_expected_source",
+     "passed": true,
+     "detail": "cited Nexora_Tech_Azure_Cloud_Data_Access_Policy.md"
+    },
+    {
+     "name": "has_expected_fact",
+     "passed": false,
+     "detail": "missing required phrase(s): ['justification', 'review']"
+    }
+   ],
+   "passed": false,
+   "warnings": [],
+   "judge": {
+    "verdict": "fail",
+    "reason": "The answer is incomplete as it fails to list all the requirements specified in the policy, such as business justification, RBAC permissions, logging, and periodic review.",
+    "model": "gemini-3.1-flash-lite"
+   },
+   "cached": {
+    "answer": false,
+    "judge": false
+   },
+   "usage": {
+    "calls": 2,
+    "prompt_tokens": 1762,
+    "completion_tokens": 75,
+    "api_seconds": 3.25,
+    "wait_seconds": 0.0
+   }
+  }
+ ]
+}

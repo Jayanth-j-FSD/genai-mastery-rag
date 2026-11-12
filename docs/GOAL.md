@@ -87,7 +87,7 @@ Updated as the work lands. `done` means the gate above passed.
 | Item | Status |
 |---|---|
 | Week 5 hardening | done: gate green (196 offline tests); live-run outputs in `docs/week3/`, `docs/week4/` and `docs/hardening/`; tag `week-5-hardened` |
-| Week 6 | not started |
+| Week 6 | done: gate green (345 offline tests, also on a clean export without `.env`); 41-case eval set, rule checks, binary judge, cached runner; three improvement experiments, the only gain is hybrid search with 6 chunks (38 to 39 of 41); tag `week-6`. Left for you: grade the judge sheet, review the references, add the Week 5 failures, write the interpretation |
 | Week 7 | not started |
 | Week 8 | not started |
 | Week 9 | not started |

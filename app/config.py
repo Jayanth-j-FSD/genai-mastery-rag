@@ -51,6 +51,27 @@ class Settings(BaseSettings):
     # request would stall a whole run, and an agent could never "stop safely".
     llm_timeout_seconds: float = 60.0
 
+    # --- Week 6: the AI judge that grades answers (evals/judge.py) ---
+    # A DIFFERENT model from llm_model grades more fairly: a model tends to like its own family's output.
+    # Blank = use llm_model (works, but then the model grades itself). Quotas are per model, so a judge on
+    # another model also gets its own per-minute allowance (judge_rpm; 0 = use llm_rpm).
+    judge_model: str = ""
+    judge_rpm: int = 0
+
+    # --- Week 6: two experiments in cleaning the index (neither raised the score; docs/week6/CHANGES.md) ---
+    # Drop a chunk whose text is an exact copy of an earlier chunk in the SAME document (whitespace
+    # ignored) when the index is built. The handbook repeats one block of boilerplate 136 times; the
+    # copies are identical, so they tie in every search and can fill every slot of the top results,
+    # pushing out the one chunk that answers the question. Off by default: it changes what ingest
+    # stores, so a run opts in (DEDUPE_CHUNKS=true) and the eval measures the difference.
+    dedupe_chunks: bool = False
+    # Remove every non-heading line that appears at least this many times in ONE document, before it is
+    # cut into chunks (0 = off). It targets boilerplate: the handbook repeats seven lines 136 times each
+    # under every subsection, so the chunks differ only by their heading and tie in every search,
+    # crowding out the document that answers. Exact-duplicate removal (above) cannot touch those chunks
+    # because each starts with its own heading. Off by default for the same reason as above.
+    boilerplate_min_repeats: int = 0
+
     # --- pipeline knobs (the graded chunk-size experiment lives here) ---
     chunk_size: int = 800       # characters per chunk
     chunk_overlap: int = 120    # characters shared between neighbouring chunks
@@ -116,12 +137,20 @@ class Settings(BaseSettings):
             raise ValueError(f"dense_search must be one of {sorted(allowed)}, got {value!r}")
         return cleaned
 
-    @field_validator("llm_rpm", "llm_max_retries", "chunk_overlap")
+    @field_validator("llm_rpm", "llm_max_retries", "chunk_overlap", "judge_rpm")
     @classmethod
     def _check_not_negative(cls, value: int) -> int:
         """A negative limit, retry count or overlap has no meaning."""
         if value < 0:
             raise ValueError(f"must be 0 or greater, got {value}")
+        return value
+
+    @field_validator("boilerplate_min_repeats")
+    @classmethod
+    def _check_boilerplate_repeats(cls, value: int) -> int:
+        """0 turns it off; 1 would delete every line, so anything below 2 (but 0) is a mistake."""
+        if value != 0 and value < 2:
+            raise ValueError(f"boilerplate_min_repeats must be 0 (off) or at least 2, got {value}")
         return value
 
     @field_validator("llm_timeout_seconds")
