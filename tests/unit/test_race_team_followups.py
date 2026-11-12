@@ -147,6 +147,25 @@ class PredictionDriftTests(unittest.TestCase):
         self.assertEqual(team_prediction.drift_notes(None, "x", "y"), ([], []))
 
 
+class BlobHashTests(unittest.TestCase):
+    """The prediction check compares the document with the blob hash the race recorded, without needing a git repository."""
+
+    def test_it_is_the_hash_git_gives_a_file_and_line_endings_do_not_change_it(self):
+        folder = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
+        for name, data in (("lf.md", b"hello\n"), ("crlf.md", b"hello\r\n")):
+            with open(os.path.join(folder, name), "wb") as handle:
+                handle.write(data)
+            self.assertEqual(check_team_prediction.git_blob_hash(os.path.join(folder, name)), "ce013625030ba8dba906f756967f9e9ca394464a")     # `git hash-object` of "hello\n"
+
+    def test_a_file_that_is_missing_has_no_hash(self):
+        self.assertIsNone(check_team_prediction.git_blob_hash(os.path.join(tempfile.gettempdir(), "no-such-file-for-the-test.md")))
+
+    def test_the_current_state_needs_no_repository(self):
+        with mock.patch.object(race_team, "git", return_value=None):                          # git unreadable: the answer must not depend on it
+            blob, _hash = check_team_prediction.current_prediction_state()
+        self.assertEqual(blob, check_team_prediction.git_blob_hash(os.path.join(race_team.BASE_DIR, race_team.PREDICTION_DOC)))
+
+
 class CheckerScriptDriftTests(unittest.TestCase):
     def run_check(self, meta, now):
         folder = self.enterContext(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))

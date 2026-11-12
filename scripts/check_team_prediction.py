@@ -11,6 +11,7 @@ Run:
     python scripts/check_team_prediction.py wk10
 """
 import argparse
+import hashlib
 import os
 import sys
 
@@ -20,10 +21,21 @@ from app.console import make_output_safe                     # noqa: E402
 from evals import runner, team_prediction                    # noqa: E402
 
 
+def git_blob_hash(path):
+    """The hash git gives a file (its blob), computed from the bytes with git's own formula and with line endings read as LF, as git stores them.
+    No repository is needed, so a clean export gives the same answer as the repository, and an edit that was never committed shows up too."""
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read().replace(b"\r\n", b"\n")
+    except OSError:
+        return None
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
 def current_prediction_state():
-    """(git blob of the committed prediction document, hash of evals/team_prediction.py) as they are now; None for what cannot be read."""
+    """(blob hash of docs/week10/prediction.md as it is now, hash of evals/team_prediction.py); None for what cannot be read."""
     import race_team                                          # here and not at the top: it imports the whole app, and the other modes of this script do not need it
-    return race_team.prediction_doc_state()[0], race_team.file_sha("evals/team_prediction.py")
+    return git_blob_hash(os.path.join(race_team.BASE_DIR, race_team.PREDICTION_DOC)), race_team.file_sha("evals/team_prediction.py")
 
 
 def main(argv=None):
