@@ -129,11 +129,32 @@ diagnose runs). `tokens_known` is false, and the totals are lower bounds, when a
 
 ## The measured results
 
-Not measured yet. The command that fills this section is `python scripts/measure_cost.py --label w11 --model <model> --bank 30 --seed 42` (look first with `--dry-run`), then `python scripts/check_cost_prediction.py w11`; the generated output goes in `findings.md`.
+The measurement ran once on 2026-11-13 on `gemini-3.1-flash-lite-preview` (the provider reports that model served every request): 71 questions, the 41 eval questions and 30
+drawn from the Week 5 bank with seed 42, under three arms, interleaved, 219 model calls, no errors. The command was
+`python scripts/measure_cost.py --label w11 --model gemini-3.1-flash-lite-preview --bank 30 --seed 42`; the result is `evals/results/cost-w11.json` and every output is
+reprinted in `findings.md`.
+
+| Arm | Mean prompt tokens | Mean completion tokens | Refused | Passed, of the 41 eval questions |
+|---|---|---|---|---|
+| `before` | 683.2 | 43.1 | 11 | 37 |
+| `after` (`CONTEXT_STRIP_MIN_REPEATS=10`) | 581.8 | 43.9 | 9 | 38 |
+| `before-2` (nothing changed, the noise floor) | 683.2 | 43.1 | 11 | 37 |
+
+The prediction (`python scripts/check_cost_prediction.py w11`) was committed before the first request. P1 to P7 all held, so it did not fail as a whole (it fails if P1, P5 or
+P6 does not hold). P1 held near its upper edge: the ratio of mean prompt tokens on the 41 eval questions was 0.88 against a band of 0.75 to 0.90 (701.0 before, 617.4
+after). Under the strip no eval question went from passing to failing, one went from failing to passing (`negative-carryover-limit`; the unchanged arm asked again changed
+none), and no document that was cited before stopped being cited. Whether the improvement ships is your decision (`findings.md`, section 3).
 
 ## Requirement to code, check by check
 
-Written at the tag, with the function names and line numbers of that tag.
+Function names and line numbers at the `week-11` tag. A check that only you can answer says so in the last column.
+
+| Mentor check | Where it is met | What is left |
+|---|---|---|
+| 1. Can they find a specific past answer from the logs quickly? | `app/tracing.py:156` (`log_trace`: every answered request is one line with its request id), `app/observability.py:62` (`new_request_id`) and `:152` (`begin_request`); `evals/logsearch.py:100` (`load`), `:175` (`matches`: words, an answer pattern, a time window, the document cited, status, channel, id prefix, speed, cost) and `:214` (`distinct_answers`) behind `scripts/find_requests.py:66` (`main`); the practice: `evals/drill.py:339` (`generate`) and `scripts/check_drill.py:86` (`main`, five guesses) | the drill write-up: `docs/week11/findings.md`, section 1 |
+| 2. Do the logs show time and cost per step, not just one total? | `app/observability.py:169` (`span`), `:186` (`model_span`: the model step's time split into time at the provider and time waiting for the rate limit, with the tokens as reported) and `:234` (`cost_fields`); `evals/costreport.py:33` (`per_step`), `:62` (`per_request`) and `:96` (`compare`) behind `scripts/cost_report.py:74` (`main`); one request step by step: `evals/logsearch.py:262` (`show_lines`) | the prices you state for dollars, and what the step table says about where the time goes |
+| 3. Did they measure cost per request and improve it? | the improvement: `app/rag/generator.py:82` (`strip_context`, used by `generate_answer` when `CONTEXT_STRIP_MIN_REPEATS` is set); the free screen `scripts/estimate_context_savings.py`; the measurement `evals/cost_run.py:321` (`run`: three arms interleaved, every request logged like a user's; `:289`, `resumable`) behind `scripts/measure_cost.py:93` (`main`); the prediction in `docs/week11/prediction.md`, checked as arithmetic by `evals/cost_prediction.py:103` (`check_prediction`; it fails if P1, P5 or P6 does not hold, `:48`) through `scripts/check_cost_prediction.py:21` | whether the improvement ships and why: findings section 3 |
+| 4. Did they turn a real failure into a test that now guards against it? | `scripts/failure_to_test.py:57` (`classify`: retrieval or generation), `:70` (`replay_problems`: the logged answer must fail the case and a correct answer must pass it, or the tool refuses) and `:146` (`main`); the cases `evals/logged_failures.json`, the worked example `tests/fixtures/log_regressions/log-demo-notice-idk.json`, replayed by `tests/unit/test_logged_failures.py` | your own converted failure and why it is real: findings section 4 |
 
 ## Left as they are, and said here
 
