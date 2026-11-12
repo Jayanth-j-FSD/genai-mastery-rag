@@ -179,6 +179,12 @@ To be written last, from the final code, with line numbers at the `week-10` tag.
   pins that the manager is told not to ask again); only the remaining hand-offs are refused. Raising from the manager's step would save one request.
 - A model call that returned no choices still counts in the calls and tokens (the report's "total != p+c" and `tokens_in_no_step` show it) but its step
   records 0 tokens, because the loop's `on_step` never sees it; closing that would change `loop.py`.
+- **A rehearsal ran before the race, on two race tasks.** On 2026-11-13, before the race, `pilot-rehearse` ran `t7-single-lookup` and `t7-notice-end-date` once each
+  on `gemini-3.1-flash-lite-preview` (not the race model) to prove the whole path (race, report, prediction check) with real provider answers
+  (`evals/results/race-pilot-rehearse.json`). Unlike pilots 1 and 2 it used two race tasks, so one run of each was seen before the race. The prediction document had
+  been written on 2026-10-12 and was not changed afterwards (the file's modification time says so); it was committed after the rehearsal ran and before the race
+  began, and nothing in it was changed because of the rehearsal. The rehearsal is not part of the race and no number of the race uses it. Its report printed 5 model
+  calls for the single agent and 17 for the team on those two runs, and the prediction check printed PARTIAL for it, as designed for a race of the wrong size.
 - The race's saved runs hold the model's answers and the tools' observations verbatim, and only error text is scrubbed; `tests/unit/test_week10_hygiene.py` is the
   gate for what is committed, so a hit there means redacting by hand before committing the result file.
 - A value in a run record that cannot be saved as JSON ends the race with a traceback after saving what finished, instead of being dropped; a lone
